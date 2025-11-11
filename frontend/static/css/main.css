@@ -76,6 +76,11 @@ body {
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: opacity 150ms ease-out;
+}
+
+body.loading {
+    opacity: 0.98;
 }
 
 .app-container {
@@ -114,6 +119,19 @@ body {
 }
 
 .sidebar.collapsed .avatar {
+    margin: 0 auto;
+}
+
+.sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+
+.sidebar.collapsed .nav-item i {
+    margin: 0 auto;
+}
+
+.sidebar.collapsed .sidebar-toggle {
     margin: 0 auto;
 }
 

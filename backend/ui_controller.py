@@ -15,7 +15,8 @@ def index():
 
 @ui_bp.route('/dashboard')
 def dashboard():
-    return send_from_directory(FRONTEND_PATH, 'dashboard.html')
+    # Dashboard is the same as index page
+    return send_from_directory(FRONTEND_PATH, 'index.html')
 
 @ui_bp.route('/note-assistant')
 def note_assistant():

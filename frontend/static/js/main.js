@@ -92,9 +92,13 @@ class NavigationManager {
         
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                e.preventDefault();
-                const href = item.getAttribute('href');
-                this.navigate(href);
+                // Let browser handle navigation naturally for instant loading
+                // Just update active state immediately
+                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+                
+                // Optional: Add a subtle loading indicator
+                document.body.style.opacity = '0.95';
             });
         });
     }
