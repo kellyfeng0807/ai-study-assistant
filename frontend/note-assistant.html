@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note Assistant - AI Study Assistant</title>
+    <link rel="stylesheet" href="static/css/main.css">
+    <link rel="stylesheet" href="static/css/note-assistant.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1 class="app-title">AI Study Assistant</h1>
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="/dashboard" class="nav-item">
+                    <i class="fas fa-th-large"></i>
+                    <span>Overview</span>
+                </a>
+                <a href="/note-assistant" class="nav-item active">
+                    <i class="fas fa-file-text"></i>
+                    <span>Note Assistant</span>
+                </a>
+                <a href="/error-book" class="nav-item">
+                    <i class="fas fa-book-open"></i>
+                    <span>Error Book</span>
+                </a>
+                <a href="/map-generation" class="nav-item">
+                    <i class="fas fa-sitemap"></i>
+                    <span>Mind Map</span>
+                </a>
+                <a href="/learning-dashboard" class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Analytics</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <a href="/settings" class="nav-item">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+                <div class="user-profile">
+                    <div class="avatar">S</div>
+                    <div class="user-info">
+                        <div class="user-name">Student</div>
+                        <div class="user-email">student@example.com</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="content-header">
+                <div class="header-left">
+                    <h2 class="page-title">Note Assistant</h2>
+                    <p class="page-subtitle">Record and generate structured notes</p>
+                </div>
+                <div class="header-right">
+                    <button class="icon-button" id="notificationBtn">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </button>
+                    <button class="icon-button theme-toggle">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="content-body">
+                <div class="recording-section">
+                    <div class="recording-card">
+                        <div class="recording-controls">
+                            <button class="record-button" id="recordBtn">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                            <div class="recording-info">
+                                <div class="recording-status">Ready to record</div>
+                                <div class="recording-time">00:00</div>
+                            </div>
+                        </div>
+                        <div class="recording-actions">
+                            <button class="button-outline" id="uploadBtn">
+                                <i class="fas fa-upload"></i>
+                                Upload Audio
+                            </button>
+                            <button class="button-primary" id="transcribeBtn" disabled>
+                                <i class="fas fa-file-alt"></i>
+                                Generate Note
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="section">
+                    <div class="section-header">
+                        <h3 class="section-title">Recent Notes</h3>
+                        <a href="#" class="link-button">View All</a>
+                    </div>
+                    <div class="notes-grid">
+                        <div class="note-card">
+                            <div class="note-header">
+                                <span class="note-subject">Mathematics</span>
+                                <span class="note-date">Nov 10, 2025</span>
+                            </div>
+                            <h4 class="note-title">Quadratic Functions</h4>
+                            <p class="note-excerpt">Key concepts: vertex form, standard form, graphing techniques...</p>
+                            <div class="note-footer">
+                                <span class="note-meta">15 key points</span>
+                                <button class="button-outline">View</button>
+                            </div>
+                        </div>
+
+                        <div class="note-card">
+                            <div class="note-header">
+                                <span class="note-subject">Physics</span>
+                                <span class="note-date">Nov 9, 2025</span>
+                            </div>
+                            <h4 class="note-title">Newton's Laws</h4>
+                            <p class="note-excerpt">Three fundamental laws of motion, applications and examples...</p>
+                            <div class="note-footer">
+                                <span class="note-meta">12 key points</span>
+                                <button class="button-outline">View</button>
+                            </div>
+                        </div>
+
+                        <div class="note-card">
+                            <div class="note-header">
+                                <span class="note-subject">English</span>
+                                <span class="note-date">Nov 8, 2025</span>
+                            </div>
+                            <h4 class="note-title">Grammar Tenses</h4>
+                            <p class="note-excerpt">Present, past, future tenses and their various forms...</p>
+                            <div class="note-footer">
+                                <span class="note-meta">20 key points</span>
+                                <button class="button-outline">View</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div id="notificationPanel" class="notification-panel hidden">
+        <div class="panel-header">
+            <h3>Notifications</h3>
+            <button class="close-button">&times;</button>
+        </div>
+        <div class="notification-list">
+            <div class="notification-item unread">
+                <div class="notification-dot"></div>
+                <div class="notification-content">
+                    <div class="notification-title">Note Generation Complete</div>
+                    <div class="notification-time">5 minutes ago</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/js/main.js"></script>
+    <script src="static/js/note-assistant.js"></script>
+</body>
+</html>
