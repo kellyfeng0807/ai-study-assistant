@@ -553,6 +553,10 @@ class MapGenerationManager {
         const svg = container.querySelector('svg');
         if (!svg) return;
 
+        // Detect if this is a mindmap
+        const isMindmap = this.currentMermaidCode && this.currentMermaidCode.trim().startsWith('mindmap');
+        console.log('Is Mindmap:', isMindmap);
+
         let draggedElement = null;
         let draggedNodeId = null;
         let startX = 0;
@@ -601,8 +605,14 @@ class MapGenerationManager {
                 startX = svgP.x;
                 startY = svgP.y;
                 
-                // Find all connected edges by ID/class matching
-                connectedEdges = this.findConnectedEdgesByNodeId(svg, draggedNodeId);
+                // For mindmap, find connected edges differently
+                if (isMindmap) {
+                    connectedEdges = this.findMindmapConnectedEdges(svg, draggedElement);
+                } else {
+                    // For flowchart, use ID-based matching
+                    connectedEdges = this.findConnectedEdgesByNodeId(svg, draggedNodeId, false);
+                }
+                
                 console.log('Found', connectedEdges.length, 'connected edges');
                 connectedEdges.forEach((e, i) => {
                     console.log(`Edge ${i}:`, e.sourceNode, '->', e.targetNode, 
@@ -683,14 +693,90 @@ class MapGenerationManager {
         });
     }
 
+    // Find connected edges for mindmap by geometric proximity
+    findMindmapConnectedEdges(svg, nodeElement) {
+        const edges = [];
+        
+        try {
+            // Get node center position
+            const nodeBBox = nodeElement.getBBox();
+            const transform = nodeElement.getAttribute('transform') || '';
+            const match = transform.match(/translate\(([^,]+),([^)]+)\)/);
+            const tx = match ? parseFloat(match[1]) : 0;
+            const ty = match ? parseFloat(match[2]) : 0;
+            
+            const nodeCenterX = tx + nodeBBox.x + nodeBBox.width / 2;
+            const nodeCenterY = ty + nodeBBox.y + nodeBBox.height / 2;
+            
+            // Find all path elements (mindmap uses simple paths for connections)
+            const allPaths = svg.querySelectorAll('path');
+            console.log('Checking', allPaths.length, 'paths for mindmap connections');
+            
+            allPaths.forEach(path => {
+                const d = path.getAttribute('d');
+                if (!d) return;
+                
+                // Parse path to get start and end points
+                const pathPoints = this.parsePathData(d);
+                if (!pathPoints || pathPoints.length < 2) return;
+                
+                const startPoint = pathPoints[0];
+                const endPoint = pathPoints[pathPoints.length - 1];
+                
+                // Get actual end coordinates (handle different point types)
+                const endX = endPoint.x3 || endPoint.x2 || endPoint.x;
+                const endY = endPoint.y3 || endPoint.y2 || endPoint.y;
+                
+                // Check if path starts or ends near this node (within 50px)
+                const threshold = 50;
+                const startDist = Math.sqrt(Math.pow(startPoint.x - nodeCenterX, 2) + Math.pow(startPoint.y - nodeCenterY, 2));
+                const endDist = Math.sqrt(Math.pow(endX - nodeCenterX, 2) + Math.pow(endY - nodeCenterY, 2));
+                
+                const isSource = startDist < threshold;
+                const isTarget = endDist < threshold;
+                
+                if (isSource || isTarget) {
+                    console.log('Found connected path, isSource:', isSource, 'isTarget:', isTarget);
+                    edges.push({
+                        path: path,
+                        pathData: d,
+                        initialPoints: pathPoints.map(p => ({
+                            x: p.x,
+                            y: p.y,
+                            command: p.command,
+                            x2: p.x2,
+                            y2: p.y2,
+                            x3: p.x3,
+                            y3: p.y3
+                        })),
+                        sourceNode: 'mindmap-node',
+                        targetNode: 'mindmap-node',
+                        isSource: isSource,
+                        isTarget: isTarget
+                    });
+                }
+            });
+        } catch (e) {
+            console.error('Error finding mindmap edges:', e);
+        }
+        
+        return edges;
+    }
+
     // Extract clean node ID from Mermaid's generated ID
     extractNodeId(rawId) {
         // Mermaid generates IDs like "flowchart-A-123" or just "A"
+        // Mindmap uses IDs like "mindmap-section-0", "mindmap-section-0-0", etc.
         // We need to extract the actual node identifier
         if (!rawId) return '';
         
         // If it's a simple ID without prefixes, return as is
         if (!rawId.includes('-')) {
+            return rawId;
+        }
+        
+        // For mindmap sections, keep the full ID as it's meaningful
+        if (rawId.startsWith('mindmap-')) {
             return rawId;
         }
         
@@ -712,47 +798,65 @@ class MapGenerationManager {
         // Pattern: NodeName-123 -> NodeName (remove trailing numbers only)
         cleanId = cleanId.replace(/-\d+$/, '');
         
-        // Remove common prefixes as last resort
-        cleanId = cleanId.replace(/^(?:flowchart|node|mindmap)-/i, '');
+        // Remove common prefixes as last resort (but not mindmap)
+        cleanId = cleanId.replace(/^(?:flowchart|node)-/i, '');
         
         return cleanId;
     }
 
     // Find edges by parsing their IDs which contain node references
-    findConnectedEdgesByNodeId(svg, nodeId) {
+    findConnectedEdgesByNodeId(svg, nodeId, isMindmap = false) {
         if (!nodeId) return [];
         
         const edges = [];
-        // Expand selectors to include mindmap edges and more Mermaid edge types
-        const allPaths = svg.querySelectorAll([
-            'path.flowchart-link',
-            'path[class*="edge"]',
-            'path[id*="L-"]',
-            'path[marker-end]',
-            'path.edge',
-            'line.edge',
-            'polyline.edge',
-            'path[class*="link"]'
-        ].join(', '));
+        
+        // For mindmap, use different selectors - mindmap uses path elements with specific classes
+        let allPaths;
+        if (isMindmap) {
+            // Mindmap edges are typically path elements, often without specific classes
+            // They connect section nodes directly
+            allPaths = svg.querySelectorAll('path');
+            console.log('Mindmap mode: found', allPaths.length, 'path elements');
+        } else {
+            // Flowchart uses more specific edge classes
+            allPaths = svg.querySelectorAll([
+                'path.flowchart-link',
+                'path[class*="edge"]',
+                'path[id*="L-"]',
+                'path[marker-end]',
+                'path.edge',
+                'line.edge',
+                'polyline.edge',
+                'path[class*="link"]'
+            ].join(', '));
+        }
         
         allPaths.forEach(path => {
             const pathId = path.getAttribute('id') || '';
             const pathClass = path.getAttribute('class') || '';
             const d = path.getAttribute('d');
             
-            console.log('Checking path:', pathId, 'class:', pathClass);
-            
             if (!d) return;
             
-            // Parse edge ID to determine connection
-            // Mermaid typically uses format like "L-A-B" for edge from A to B
-            // Or class might contain node references
+            // For mindmap, always use geometric detection since mindmap paths don't have meaningful IDs
+            if (isMindmap) {
+                console.log('Mindmap path - using geometric detection');
+                const geometricConnection = this.detectEdgeConnectionGeometric(svg, path, nodeId, d, true);
+                if (geometricConnection) {
+                    console.log('Found mindmap edge connection');
+                    edges.push(geometricConnection);
+                }
+                return;
+            }
+            
+            console.log('Checking path:', pathId, 'class:', pathClass);
+            
+            // Parse edge ID to determine connection (for flowchart)
             const edgeConnection = this.parseEdgeConnection(pathId, pathClass);
             
             if (!edgeConnection) {
                 // If we can't parse the connection from ID/class, fall back to geometric detection
-                // This is necessary for mindmap and some complex diagrams
-                const geometricConnection = this.detectEdgeConnectionGeometric(svg, path, nodeId, d);
+                const geometricConnection = this.detectEdgeConnectionGeometric(svg, path, nodeId, d, false);
                 if (geometricConnection) {
                     edges.push(geometricConnection);
                 }
@@ -798,25 +902,44 @@ class MapGenerationManager {
     }
 
     // Geometric detection as fallback for edges that don't have clear IDs
-    detectEdgeConnectionGeometric(svg, path, nodeId, pathData) {
-        console.log('Using geometric detection for nodeId:', nodeId);
+    detectEdgeConnectionGeometric(svg, path, nodeId, pathData, isMindmap = false) {
+        console.log('Using geometric detection for nodeId:', nodeId, 'isMindmap:', isMindmap);
         
-        // Find the node element - try multiple selectors
-        let nodeElement = svg.querySelector(`[id*="${nodeId}"]`);
+        // Find the dragged node element
+        let nodeElement = null;
         
-        if (!nodeElement) {
-            // Try with flowchart prefix
-            nodeElement = svg.querySelector(`[id*="flowchart-${nodeId}"]`);
-        }
-        
-        if (!nodeElement) {
-            // Try to find by exact ID match
-            const allNodes = svg.querySelectorAll('g.node, g[class*="node"], g[id*="flowchart"]');
+        if (isMindmap) {
+            // For mindmap, nodes are typically in section groups
+            // Try to find by matching text content or by proximity
+            const allNodes = svg.querySelectorAll('g.section, g[class*="section"], g');
             for (const node of allNodes) {
-                const rawId = node.id || node.getAttribute('id') || '';
-                if (this.extractNodeId(rawId) === nodeId) {
-                    nodeElement = node;
-                    break;
+                const textElements = node.querySelectorAll('text');
+                if (textElements.length > 0) {
+                    // Check if this might be our node by comparing positions or content
+                    // For now, just check by ID extraction
+                    const rawId = node.id || node.getAttribute('id') || '';
+                    if (rawId && this.extractNodeId(rawId) === nodeId) {
+                        nodeElement = node;
+                        break;
+                    }
+                }
+            }
+        } else {
+            // For flowchart, use standard selectors
+            nodeElement = svg.querySelector(`[id*="${nodeId}"]`);
+            
+            if (!nodeElement) {
+                nodeElement = svg.querySelector(`[id*="flowchart-${nodeId}"]`);
+            }
+            
+            if (!nodeElement) {
+                const allNodes = svg.querySelectorAll('g.node, g[class*="node"], g[id*="flowchart"]');
+                for (const node of allNodes) {
+                    const rawId = node.id || node.getAttribute('id') || '';
+                    if (this.extractNodeId(rawId) === nodeId) {
+                        nodeElement = node;
+                        break;
+                    }
                 }
             }
         }
@@ -826,7 +949,7 @@ class MapGenerationManager {
             return null;
         }
         
-        console.log('Found node element:', nodeElement.id);
+        console.log('Found node element:', nodeElement.id || 'no-id');
         
         try {
             const nodeBBox = nodeElement.getBBox();
@@ -835,11 +958,14 @@ class MapGenerationManager {
             const tx = match ? parseFloat(match[1]) : 0;
             const ty = match ? parseFloat(match[2]) : 0;
             
+            // For mindmap, use a larger threshold since connections might be further
+            const threshold = isMindmap ? 30 : 10;
+            
             const nodeBounds = {
-                left: tx + nodeBBox.x - 10,
-                right: tx + nodeBBox.x + nodeBBox.width + 10,
-                top: ty + nodeBBox.y - 10,
-                bottom: ty + nodeBBox.y + nodeBBox.height + 10
+                left: tx + nodeBBox.x - threshold,
+                right: tx + nodeBBox.x + nodeBBox.width + threshold,
+                top: ty + nodeBBox.y - threshold,
+                bottom: ty + nodeBBox.y + nodeBBox.height + threshold
             };
             
             console.log('Node bounds:', nodeBounds);
@@ -854,8 +980,10 @@ class MapGenerationManager {
             
             const startNear = startPoint.x >= nodeBounds.left && startPoint.x <= nodeBounds.right &&
                             startPoint.y >= nodeBounds.top && startPoint.y <= nodeBounds.bottom;
-            const endNear = endPoint.x >= nodeBounds.left && endPoint.x <= nodeBounds.right &&
-                          endPoint.y >= nodeBounds.top && endPoint.y <= nodeBounds.bottom;
+            const endNear = (endPoint.x || endPoint.x3 || endPoint.x2) >= nodeBounds.left && 
+                          (endPoint.x || endPoint.x3 || endPoint.x2) <= nodeBounds.right &&
+                          (endPoint.y || endPoint.y3 || endPoint.y2) >= nodeBounds.top && 
+                          (endPoint.y || endPoint.y3 || endPoint.y2) <= nodeBounds.bottom;
             
             console.log('Start near:', startNear, 'End near:', endNear);
             
