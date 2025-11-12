@@ -405,21 +405,28 @@
     overflow: auto;
     position: relative;
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .edit-preview-container .mermaid-preview {
-    width: 100%;
+    width: auto;
+    min-width: 100%;
     min-height: 100%;
     border: none;
     border-radius: 0;
     transition: transform 0.3s ease;
-    transform-origin: top left;
+    transform-origin: center center;
     padding: var(--spacing-xl);
     overflow: visible;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .edit-preview-container .mermaid-preview .mermaid {
-    display: block;
+    display: inline-block;
 }
 
 .edit-preview-container .mermaid-preview svg {

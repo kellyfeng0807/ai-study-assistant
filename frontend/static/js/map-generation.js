@@ -478,6 +478,15 @@ class MapGenerationManager {
         if (this.isEditMode && codeEditor) {
             // Entering edit mode - use current saved version
             codeEditor.value = this.savedMermaidCode;
+            
+            // Check if it's a mindmap and set initial zoom to 2x
+            const isMindmap = this.savedMermaidCode && this.savedMermaidCode.trim().startsWith('mindmap');
+            if (isMindmap) {
+                this.editZoomLevel = 2.0;
+            } else {
+                this.editZoomLevel = 1.0;
+            }
+            
             this.refreshPreview();
         }
     }
@@ -499,6 +508,9 @@ class MapGenerationManager {
             
             // Apply stored node positions after rendering
             this.applyStoredPositions(previewContainer);
+            
+            // Apply zoom level
+            this.updateEditZoom();
             
             // Enable drag and drop on preview nodes after rendering
             this.enableDragAndDrop(previewContainer);
@@ -610,7 +622,7 @@ class MapGenerationManager {
                     connectedEdges = this.findMindmapConnectedEdges(svg, draggedElement);
                 } else {
                     // For flowchart, use ID-based matching
-                    connectedEdges = this.findConnectedEdgesByNodeId(svg, draggedNodeId, false);
+                    connectedEdges = this.findConnectedEdgesByNodeId(svg, draggedNodeId);
                 }
                 
                 console.log('Found', connectedEdges.length, 'connected edges');
@@ -804,62 +816,37 @@ class MapGenerationManager {
         return cleanId;
     }
 
-    // Find edges by parsing their IDs which contain node references
-    findConnectedEdgesByNodeId(svg, nodeId, isMindmap = false) {
+    // Find edges by parsing their IDs which contain node references (for flowchart only)
+    findConnectedEdgesByNodeId(svg, nodeId) {
         if (!nodeId) return [];
         
         const edges = [];
         
-        // For mindmap, use different selectors - mindmap uses path elements with specific classes
-        let allPaths;
-        if (isMindmap) {
-            // Mindmap edges are typically path elements, often without specific classes
-            // They connect section nodes directly
-            allPaths = svg.querySelectorAll('path');
-            console.log('Mindmap mode: found', allPaths.length, 'path elements');
-        } else {
-            // Flowchart uses more specific edge classes
-            allPaths = svg.querySelectorAll([
-                'path.flowchart-link',
-                'path[class*="edge"]',
-                'path[id*="L-"]',
-                'path[marker-end]',
-                'path.edge',
-                'line.edge',
-                'polyline.edge',
-                'path[class*="link"]'
-            ].join(', '));
-        }
+        // Flowchart uses specific edge classes
+        const allPaths = svg.querySelectorAll([
+            'path.flowchart-link',
+            'path[class*="edge"]',
+            'path[id*="L-"]',
+            'path[marker-end]',
+            'path.edge',
+            'line.edge',
+            'polyline.edge',
+            'path[class*="link"]'
+        ].join(', '));
         
         allPaths.forEach(path => {
             const pathId = path.getAttribute('id') || '';
             const pathClass = path.getAttribute('class') || '';
             const d = path.getAttribute('d');
             
-            if (!d) return;
-            
-            // For mindmap, always use geometric detection since mindmap paths don't have meaningful IDs
-            if (isMindmap) {
-                console.log('Mindmap path - using geometric detection');
-                const geometricConnection = this.detectEdgeConnectionGeometric(svg, path, nodeId, d, true);
-                if (geometricConnection) {
-                    console.log('Found mindmap edge connection');
-                    edges.push(geometricConnection);
-                }
-                return;
-            }
-            
             console.log('Checking path:', pathId, 'class:', pathClass);
             
-            // Parse edge ID to determine connection (for flowchart)
+            if (!d) return;
+            
+            // Parse edge ID to determine connection
             const edgeConnection = this.parseEdgeConnection(pathId, pathClass);
             
             if (!edgeConnection) {
-                // If we can't parse the connection from ID/class, fall back to geometric detection
-                const geometricConnection = this.detectEdgeConnectionGeometric(svg, path, nodeId, d, false);
-                if (geometricConnection) {
-                    edges.push(geometricConnection);
-                }
                 return;
             }
             
@@ -889,8 +876,8 @@ class MapGenerationManager {
                     initialPoints: initialPoints,
                     sourceNode: sourceNode,
                     targetNode: targetNode,
-                    isSource: isSource,  // True if dragged node is the source
-                    isTarget: isTarget   // True if dragged node is the target
+                    isSource: isSource,
+                    isTarget: isTarget
                 });
                 
                 console.log('Edge found:', sourceNode, '->', targetNode, 
@@ -899,120 +886,6 @@ class MapGenerationManager {
         });
         
         return edges;
-    }
-
-    // Geometric detection as fallback for edges that don't have clear IDs
-    detectEdgeConnectionGeometric(svg, path, nodeId, pathData, isMindmap = false) {
-        console.log('Using geometric detection for nodeId:', nodeId, 'isMindmap:', isMindmap);
-        
-        // Find the dragged node element
-        let nodeElement = null;
-        
-        if (isMindmap) {
-            // For mindmap, nodes are typically in section groups
-            // Try to find by matching text content or by proximity
-            const allNodes = svg.querySelectorAll('g.section, g[class*="section"], g');
-            for (const node of allNodes) {
-                const textElements = node.querySelectorAll('text');
-                if (textElements.length > 0) {
-                    // Check if this might be our node by comparing positions or content
-                    // For now, just check by ID extraction
-                    const rawId = node.id || node.getAttribute('id') || '';
-                    if (rawId && this.extractNodeId(rawId) === nodeId) {
-                        nodeElement = node;
-                        break;
-                    }
-                }
-            }
-        } else {
-            // For flowchart, use standard selectors
-            nodeElement = svg.querySelector(`[id*="${nodeId}"]`);
-            
-            if (!nodeElement) {
-                nodeElement = svg.querySelector(`[id*="flowchart-${nodeId}"]`);
-            }
-            
-            if (!nodeElement) {
-                const allNodes = svg.querySelectorAll('g.node, g[class*="node"], g[id*="flowchart"]');
-                for (const node of allNodes) {
-                    const rawId = node.id || node.getAttribute('id') || '';
-                    if (this.extractNodeId(rawId) === nodeId) {
-                        nodeElement = node;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        if (!nodeElement) {
-            console.log('Node element not found for geometric detection');
-            return null;
-        }
-        
-        console.log('Found node element:', nodeElement.id || 'no-id');
-        
-        try {
-            const nodeBBox = nodeElement.getBBox();
-            const transform = nodeElement.getAttribute('transform') || '';
-            const match = transform.match(/translate\(([^,]+),([^)]+)\)/);
-            const tx = match ? parseFloat(match[1]) : 0;
-            const ty = match ? parseFloat(match[2]) : 0;
-            
-            // For mindmap, use a larger threshold since connections might be further
-            const threshold = isMindmap ? 30 : 10;
-            
-            const nodeBounds = {
-                left: tx + nodeBBox.x - threshold,
-                right: tx + nodeBBox.x + nodeBBox.width + threshold,
-                top: ty + nodeBBox.y - threshold,
-                bottom: ty + nodeBBox.y + nodeBBox.height + threshold
-            };
-            
-            console.log('Node bounds:', nodeBounds);
-            
-            const pathPoints = this.parsePathData(pathData);
-            if (!pathPoints || pathPoints.length === 0) return null;
-            
-            const startPoint = pathPoints[0];
-            const endPoint = pathPoints[pathPoints.length - 1];
-            
-            console.log('Path start:', startPoint, 'end:', endPoint);
-            
-            const startNear = startPoint.x >= nodeBounds.left && startPoint.x <= nodeBounds.right &&
-                            startPoint.y >= nodeBounds.top && startPoint.y <= nodeBounds.bottom;
-            const endNear = (endPoint.x || endPoint.x3 || endPoint.x2) >= nodeBounds.left && 
-                          (endPoint.x || endPoint.x3 || endPoint.x2) <= nodeBounds.right &&
-                          (endPoint.y || endPoint.y3 || endPoint.y2) >= nodeBounds.top && 
-                          (endPoint.y || endPoint.y3 || endPoint.y2) <= nodeBounds.bottom;
-            
-            console.log('Start near:', startNear, 'End near:', endNear);
-            
-            if (startNear || endNear) {
-                const initialPoints = pathPoints.map(p => ({
-                    x: p.x,
-                    y: p.y,
-                    command: p.command,
-                    x2: p.x2,
-                    y2: p.y2,
-                    x3: p.x3,
-                    y3: p.y3
-                }));
-                
-                return {
-                    path: path,
-                    pathData: pathData,
-                    initialPoints: initialPoints,
-                    sourceNode: nodeId,
-                    targetNode: 'unknown',
-                    isSource: startNear,
-                    isTarget: endNear
-                };
-            }
-        } catch (e) {
-            console.error('Error in geometric detection:', e);
-        }
-        
-        return null;
     }
 
     // Parse edge ID/class to extract source and target node IDs
