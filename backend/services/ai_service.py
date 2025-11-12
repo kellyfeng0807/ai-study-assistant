@@ -19,50 +19,52 @@ class AIService:
         """
         # 根据样式设置不同的系统提示
         if style == 'radial':
-            system_prompt = """You are a mind map generation assistant. Generate Mermaid syntax for RADIAL/DIVERGENT mind maps with DISTRIBUTED SPATIAL LAYOUT.
+            system_prompt = """You are a mind map generation assistant. Generate Mermaid MINDMAP syntax for radial mind maps.
 
-CRITICAL RULES for RADIAL style to utilize full canvas width:
-1. Use 'graph LR' (LEFT-RIGHT) as base direction for MAXIMUM horizontal spread
-2. Create a STAR/RADIAL pattern with branches spreading in different directions
-3. Use subgraphs or careful node placement to distribute branches around the center
-4. STAGGER branches at different horizontal and vertical levels to avoid crowding
-5. Create 4-6 PRIMARY branches from center, each taking different spatial positions
-6. For each primary branch, add 2-3 sub-branches that extend OUTWARD
-7. AVOID placing all same-level nodes on the same line - distribute them spatially
-8. Use proper Mermaid syntax: A[Label], A --> B
-9. Only output the Mermaid code, no explanations
+CRITICAL: Use Mermaid's native mindmap syntax following official specification.
 
-SPATIAL DISTRIBUTION STRATEGY:
-- Top branches: Extend upward-right and upward-left
-- Middle branches: Extend horizontally left and right
-- Bottom branches: Extend downward-right and downward-left
-- Use node IDs that suggest position (TL=top-left, TR=top-right, ML=middle-left, MR=middle-right, BL=bottom-left, BR=bottom-right)
+MINDMAP SYNTAX RULES (from https://mermaid.js.org/syntax/mindmap.html):
+1. Start with 'mindmap' keyword
+2. Root node: root((text)) - use circle shape
+3. Shape options for child nodes:
+   - Square brackets: [text]
+   - Rounded: (text)
+   - Circle: ((text))
+   - Cloud: )text(
+   - Hexagon: {{text}}
+   - Bang: ))text((
+   - Default: text
+4. Indentation: Use exactly 2 spaces per level (strict)
+5. Icons: ::icon(fa fa-icon-name) on same line after text
+6. All siblings MUST be at exact same indentation
 
-Example pattern for WIDE radial distribution:
-graph LR
-    Center[Main Topic]
-    
-    Center --> TR1[Top-Right Concept 1]
-    Center --> MR1[Middle-Right Concept 2]
-    Center --> BR1[Bottom-Right Concept 3]
-    Center --> BL1[Bottom-Left Concept 4]
-    Center --> ML1[Middle-Left Concept 5]
-    Center --> TL1[Top-Left Concept 6]
-    
-    TR1 --> TR2[Detail R1]
-    TR1 --> TR3[Detail R2]
-    
-    MR1 --> MR2[Detail R3]
-    
-    BR1 --> BR2[Detail R4]
-    BR1 --> BR3[Detail R5]
-    
-    BL1 --> BL2[Detail L1]
-    
-    ML1 --> ML2[Detail L2]
-    ML1 --> ML3[Detail L3]
-    
-    TL1 --> TL2[Detail L4]"""
+STRUCTURE PRINCIPLES for balanced distribution:
+- Root level: root((Topic))
+- Level 1: 4-8 main branches using (Branch) or [Branch]
+- Level 2: 2-4 items per branch
+- Level 3: 1-3 items per level 2 item
+- Keep branches balanced - similar number of children
+- Use shape variety: alternate between (text) and [text] for level 1
+
+EXAMPLE with proper structure:
+mindmap
+  root((Central Idea))
+    (Branch Alpha)
+      Item A1
+      Item A2
+      Item A3
+    [Branch Beta]
+      Item B1
+      Item B2
+    (Branch Gamma)
+      Item C1
+      Item C2
+      Item C3
+    [Branch Delta]
+      Item D1
+      Item D2
+
+OUTPUT: Only mindmap code, no ```mermaid blocks, no explanations"""
         else:
             # TD (top-down) or LR (left-right) hierarchical
             graph_direction = 'TD' if style == 'TD' else 'LR'
@@ -86,21 +88,40 @@ Rules for HIERARCHICAL style:
                 depth_instruction = "Create 3 levels of hierarchy"
 
         if style == 'radial':
-            user_prompt = f"""Generate a RADIAL/DIVERGENT mind map in Mermaid syntax for: "{topic}"
+            user_prompt = f"""Generate a RADIAL mind map using Mermaid's mindmap syntax for: "{topic}"
 
-Style: Radial with WIDE spatial distribution (use graph LR for maximum horizontal spread)
+Style: Radial mindmap (refer to hierarchy style for similar visual appearance)
 Depth: {depth_instruction}
 {f'Additional context: {context}' if context else ''}
 
-CRITICAL Requirements for WIDE LAYOUT:
-- Use 'graph LR' for horizontal orientation
-- Create 4-6 primary branches from center, positioned in different spatial areas (top-right, middle-right, bottom-right, bottom-left, middle-left, top-left)
-- STAGGER branches vertically and horizontally - DO NOT place same-level nodes on same line
-- Each primary branch has 2-3 sub-branches extending OUTWARD from their position
-- Use node IDs indicating position (TR, MR, BR, BL, ML, TL for direction)
-- Distribute nodes to utilize FULL canvas width and height
-- Use descriptive but concise labels
-- Output only valid Mermaid code starting with 'graph LR'"""
+STRICT REQUIREMENTS:
+- Use 'mindmap' syntax
+- Root node: root(({topic}))
+- Create 5-8 main branches from root
+- Use alternating shapes for level 1: (Branch1), [Branch2], (Branch3), [Branch4], etc.
+- Each main branch: 2-4 child items
+- Each child item: 0-2 sub-items (if depth allows)
+- CRITICAL: Use exactly 2 spaces for each indentation level
+- Keep siblings at EXACT same indentation
+- Balance branch sizes (similar number of children)
+- Use concise labels (3-8 words max)
+
+EXAMPLE STRUCTURE:
+mindmap
+  root(({topic}))
+    (Category A)
+      Detail A1
+      Detail A2
+        Sub A2.1
+    [Category B]
+      Detail B1
+      Detail B2
+      Detail B3
+    (Category C)
+      Detail C1
+      Detail C2
+
+OUTPUT: Only the mindmap code, starting with 'mindmap'"""
         else:
             user_prompt = f"""Generate a HIERARCHICAL mind map in Mermaid syntax for: "{topic}"
 
@@ -140,16 +161,23 @@ Requirements:
             
         except Exception as e:
             print(f"Error calling DeepSeek API: {e}")
-            # 返回基础的思维导图作为后备
-            return self._generate_fallback_mindmap(topic, depth)
+            return self._generate_fallback_mindmap(topic, depth, style)
     
     def generate_mindmap_from_content(self, topic, file_content, depth=3, style='TD'):
         """
         根据文件内容生成思维导图
         """
         if style == 'radial':
-            system_prompt = """You are a mind map generation assistant. Analyze the provided content and create a RADIAL/DIVERGENT mind map in Mermaid syntax.
-Focus on extracting key concepts and organizing them in a radial pattern around the main topic."""
+            system_prompt = """You are a mind map generation assistant. Analyze content and create a RADIAL mind map using Mermaid's mindmap syntax.
+
+Follow official Mermaid mindmap specification:
+- Use 'mindmap' keyword
+- Root: root((text)) with circle shape
+- Level 1: Use (text) or [text] shapes alternately
+- Exactly 2 spaces per indentation level
+- Siblings at exact same indentation
+- Balance branches (similar number of children)
+Focus on extracting key concepts and organizing them hierarchically."""
         else:
             graph_direction = 'TD' if style == 'TD' else 'LR'
             system_prompt = f"""You are a mind map generation assistant. Analyze the provided content and create a HIERARCHICAL mind map in Mermaid syntax using 'graph {graph_direction}'.
@@ -166,15 +194,33 @@ Focus on extracting key concepts, relationships, and hierarchies from the conten
                 depth = 3
                 depth_instruction = "Create 3 levels of hierarchy"
 
-        user_prompt = f"""Create a mind map in Mermaid syntax for: "{topic}"
+        if style == 'radial':
+            user_prompt = f"""Create a mind map using Mermaid's mindmap syntax for: "{topic}"
 
 Based on this content:
 {file_content[:2000]}
 
-Style: {'Radial/Divergent' if style == 'radial' else ('Top-Down' if style == 'TD' else 'Left-Right')} hierarchy
+Style: Radial mindmap (refer to hierarchy for similar appearance)
 Depth: {depth_instruction}
 
-Extract the main ideas and organize them {'in a radial pattern' if style == 'radial' else 'hierarchically'}. Output only valid Mermaid code."""
+REQUIREMENTS:
+- Extract main concepts from content
+- Organize in mindmap structure: root((Topic))
+- Use alternating shapes for level 1: (Branch), [Branch]
+- Exactly 2 spaces per indentation
+- 5-8 main branches with 2-4 children each
+- Balance branch sizes
+- Output only mindmap code"""
+        else:
+            user_prompt = f"""Create a mind map in Mermaid syntax for: "{topic}"
+
+Based on this content:
+{file_content[:2000]}
+
+Style: {'Top-Down' if style == 'TD' else 'Left-Right'} hierarchy
+Depth: {depth_instruction}
+
+Extract the main ideas and organize them {'in a top-down' if style == 'TD' else 'in a left-right'} hierarchy. Output only valid Mermaid code."""
 
         try:
             response = self.client.chat.completions.create(
@@ -205,27 +251,32 @@ Extract the main ideas and organize them {'in a radial pattern' if style == 'rad
     def _generate_fallback_mindmap(self, topic, depth, style='TD'):
         """后备方案：生成基础思维导图"""
         if style == 'radial':
-            # 发散型思维导图 - 使用 LR 并分散布局
-            mermaid_code = f"""graph LR
-    Center[{topic}]
-    Center --> TR1[Concept 1]
-    Center --> MR1[Concept 2]
-    Center --> BR1[Concept 3]
-    Center --> BL1[Concept 4]
-    Center --> ML1[Concept 5]
-    Center --> TL1[Concept 6]
-    """
-            if depth >= 2:
-                mermaid_code += """    TR1 --> TR2[Detail 1.1]
-    TR1 --> TR3[Detail 1.2]
-    MR1 --> MR2[Detail 2.1]
-    BR1 --> BR2[Detail 3.1]
-    BR1 --> BR3[Detail 3.2]
-    BL1 --> BL2[Detail 4.1]
-    ML1 --> ML2[Detail 5.1]
-    ML1 --> ML3[Detail 5.2]
-    TL1 --> TL2[Detail 6.1]
-    """
+            # 使用原生 mindmap 语法，交替使用形状
+            mermaid_code = f"""mindmap
+  root(({topic}))
+    (Core Concept 1)
+      Key Point 1.1
+      Key Point 1.2
+      Key Point 1.3
+    [Core Concept 2]
+      Key Point 2.1
+      Key Point 2.2
+    (Core Concept 3)
+      Key Point 3.1
+      Key Point 3.2
+      Key Point 3.3
+    [Core Concept 4]
+      Key Point 4.1
+      Key Point 4.2
+    (Core Concept 5)
+      Key Point 5.1
+      Key Point 5.2"""
+            
+            if depth >= 3:
+                mermaid_code += """
+        Detail 1.1.1
+        Detail 1.1.2
+        Detail 2.1.1"""
         else:
             # 层级型思维导图
             graph_dir = 'TD' if style == 'TD' else 'LR'

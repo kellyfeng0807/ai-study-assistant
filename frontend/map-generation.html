@@ -190,6 +190,15 @@
                                     placeholder="Override topic name from file..."
                                 >
                             </div>
+                            <div class="input-area">
+                                <label class="input-label">Additional Context (Optional)</label>
+                                <textarea 
+                                    class="context-textarea" 
+                                    id="fileContextInput"
+                                    rows="3"
+                                    placeholder="Add any specific instructions or context for the AI..."
+                                ></textarea>
+                            </div>
                             <div class="options-area">
                                 <div class="option-group">
                                     <label class="input-label">Depth Level</label>
@@ -213,6 +222,14 @@
                                         max="10"
                                         value="3"
                                     >
+                                </div>
+                                <div class="option-group">
+                                    <label class="input-label">Style</label>
+                                    <select class="option-select" id="fileStyleSelect">
+                                        <option value="TD" selected>Hierarchical (Top-Down)</option>
+                                        <option value="LR">Hierarchical (Left-Right)</option>
+                                        <option value="radial">Radial (Divergent)</option>
+                                    </select>
                                 </div>
                             </div>
                             <button class="button-primary" id="uploadGenerateBtn" disabled>
@@ -265,9 +282,15 @@
                             <div class="code-panel">
                                 <div class="panel-header">
                                     <h4>Mermaid Code</h4>
-                                    <button class="icon-button" id="formatCodeBtn" title="Format Code">
-                                        <i class="fas fa-align-left"></i>
-                                    </button>
+                                    <div class="panel-actions">
+                                        <button class="icon-button" id="formatCodeBtn" title="Format Code">
+                                            <i class="fas fa-align-left"></i>
+                                        </button>
+                                        <button class="button-primary button-sm" id="applyCodeBtn" title="Apply Changes">
+                                            <i class="fas fa-check"></i>
+                                            Apply
+                                        </button>
+                                    </div>
                                 </div>
                                 <textarea 
                                     class="code-editor" 
@@ -277,22 +300,30 @@
                             </div>
                             <div class="preview-panel">
                                 <div class="panel-header">
-                                    <h4>Live Preview</h4>
-                                    <button class="icon-button" id="refreshPreviewBtn" title="Refresh Preview">
-                                        <i class="fas fa-sync"></i>
-                                    </button>
+                                    <h4>Editable Canvas</h4>
+                                    <div class="panel-actions">
+                                        <div class="edit-zoom-controls">
+                                            <button class="icon-button" id="editZoomOutBtn" title="Zoom Out">
+                                                <i class="fas fa-search-minus"></i>
+                                            </button>
+                                            <span class="zoom-level" id="editZoomLevel">100%</span>
+                                            <button class="icon-button" id="editZoomInBtn" title="Zoom In">
+                                                <i class="fas fa-search-plus"></i>
+                                            </button>
+                                            <button class="icon-button" id="editZoomResetBtn" title="Reset Zoom">
+                                                <i class="fas fa-expand"></i>
+                                            </button>
+                                        </div>
+                                        <button class="icon-button" id="refreshPreviewBtn" title="Refresh Canvas">
+                                            <i class="fas fa-sync"></i>
+                                        </button>
+                                        <span class="hint-text">Drag nodes to reposition</span>
+                                    </div>
                                 </div>
-                                <div class="mermaid-preview" id="mermaidPreview"></div>
+                                <div class="edit-preview-container">
+                                    <div class="mermaid-preview editable-canvas" id="mermaidPreview"></div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="edit-hints">
-                            <h5>Quick Reference:</h5>
-                            <ul>
-                                <li><code>graph TD</code> - Top Down graph</li>
-                                <li><code>A[Text]</code> - Node with text</li>
-                                <li><code>A --> B</code> - Arrow connection</li>
-                                <li><code>A -.->|label| B</code> - Dotted arrow with label</li>
-                            </ul>
                         </div>
                     </div>
                 </div>

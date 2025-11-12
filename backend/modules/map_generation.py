@@ -207,7 +207,9 @@ def upload_file_for_mindmap():
         
         file = request.files['file']
         topic = request.form.get('topic', '')
+        context = request.form.get('context', '')
         depth_value = request.form.get('depth', 3)
+        style = request.form.get('style', 'TD')
         
         # 处理depth参数（可能是'auto'或数字）
         if depth_value == 'auto':
@@ -240,29 +242,43 @@ def upload_file_for_mindmap():
         # 提取文件内容
         file_content = extract_text_from_file(filepath)
         
-        # 结合文件内容和用户输入生成思维导图（使用AI）
-        style = 'TD'  # 文件上传默认使用top-down样式
+        # 结合文件内容、用户输入和context生成思维导图（使用AI）
         try:
             if file_content and not file_content.startswith('['):
                 # 如果成功提取了文本，使用AI基于内容生成
+                # 将用户的context添加到文件内容中
+                full_context = file_content
+                if context:
+                    full_context = f"{context}\n\nFile content:\n{file_content}"
+                
                 mermaid_code = ai_service.generate_mindmap_from_content(
                     topic or filename, 
-                    file_content, 
+                    full_context, 
                     depth,
                     style
                 )
             else:
                 # 如果是待实现的文件类型，使用基于主题的生成
+                combined_context = f"File: {filename}"
+                if context:
+                    combined_context += f"\nUser instructions: {context}"
+                if file_content:
+                    combined_context += f"\n{file_content}"
+                
                 mermaid_code = ai_service.generate_mindmap_mermaid(
                     topic or filename,
                     depth,
-                    file_content,
+                    combined_context,
                     style
                 )
         except Exception as e:
             print(f"Error generating mindmap from file: {e}")
-            context = f"File: {filename}\nUser input: {topic}"
-            mermaid_code = generate_mermaid_from_text(topic or filename, depth, context, style)
+            combined_context = f"File: {filename}"
+            if topic:
+                combined_context += f"\nTopic: {topic}"
+            if context:
+                combined_context += f"\nContext: {context}"
+            mermaid_code = generate_mermaid_from_text(topic or filename, depth, combined_context, style)
         
         # 创建思维导图记录
         mindmap_id = str(uuid.uuid4())
@@ -271,13 +287,13 @@ def upload_file_for_mindmap():
             'title': topic or filename.rsplit('.', 1)[0],
             'mermaid_code': mermaid_code,
             'depth': depth,
-            'style': 'hierarchical',
+            'style': style,
             'created_at': datetime.now().isoformat(),
             'updated_at': datetime.now().isoformat(),
             'source': 'file_upload',
             'source_file': unique_filename,
             'file_type': filename.rsplit('.', 1)[1].lower(),
-            'context': file_content[:200]
+            'context': (context or file_content)[:200]
         }
         
         # 保存到数据库
