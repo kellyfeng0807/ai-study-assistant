@@ -23,7 +23,7 @@ class MapGenerationManager {
         this.currentMermaidCode = '';
         this.savedMermaidCode = '';  // Store last saved version
         this.isEditMode = false;
-        this.uploadedFile = null;
+        this.uploadedFiles = [];  // Changed to array for multiple files
         this.zoomLevel = 1.0;
         this.editZoomLevel = 1.0;  // Separate zoom for edit mode
         this.nodePositions = new Map();  // Store custom node positions
@@ -69,7 +69,7 @@ class MapGenerationManager {
         // File upload
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
-        const removeFileBtn = document.getElementById('removeFileBtn');
+        const removeAllFilesBtn = document.getElementById('removeAllFilesBtn');
         const uploadGenerateBtn = document.getElementById('uploadGenerateBtn');
 
         if (uploadArea) {
@@ -80,10 +80,10 @@ class MapGenerationManager {
             fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
         }
 
-        if (removeFileBtn) {
-            removeFileBtn.addEventListener('click', (e) => {
+        if (removeAllFilesBtn) {
+            removeAllFilesBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.clearFile();
+                this.clearFiles();
             });
         }
 
@@ -240,26 +240,63 @@ class MapGenerationManager {
     }
 
     handleFileSelect(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
 
-        this.uploadedFile = file;
+        this.uploadedFiles = files;
 
         const uploadPreview = document.getElementById('uploadPreview');
         const uploadPlaceholder = document.querySelector('.upload-placeholder');
-        const fileName = document.getElementById('fileName');
-        const fileSize = document.getElementById('fileSize');
+        const filesList = document.getElementById('filesList');
         const uploadGenerateBtn = document.getElementById('uploadGenerateBtn');
+
+        // Clear existing list
+        if (filesList) filesList.innerHTML = '';
+
+        // Add each file
+        files.forEach((file, index) => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.innerHTML = `
+                <div class="file-icon">
+                    <i class="fas fa-file"></i>
+                </div>
+                <div class="file-info">
+                    <div class="file-name">${file.name}</div>
+                    <div class="file-size">${this.formatFileSize(file.size)}</div>
+                </div>
+                <button class="remove-file-btn" data-index="${index}" title="Remove this file">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            // Add remove handler for individual file
+            const removeBtn = fileItem.querySelector('.remove-file-btn');
+            removeBtn.addEventListener('click', () => this.removeFile(index));
+            
+            filesList.appendChild(fileItem);
+        });
 
         if (uploadPlaceholder) uploadPlaceholder.style.display = 'none';
         if (uploadPreview) uploadPreview.style.display = 'flex';
-        if (fileName) fileName.textContent = file.name;
-        if (fileSize) fileSize.textContent = this.formatFileSize(file.size);
         if (uploadGenerateBtn) uploadGenerateBtn.disabled = false;
     }
 
-    clearFile() {
-        this.uploadedFile = null;
+    removeFile(index) {
+        this.uploadedFiles.splice(index, 1);
+        
+        if (this.uploadedFiles.length === 0) {
+            this.clearFiles();
+        } else {
+            // Re-render the list
+            const fileInput = document.getElementById('fileInput');
+            const event = { target: { files: this.uploadedFiles } };
+            this.handleFileSelect(event);
+        }
+    }
+
+    clearFiles() {
+        this.uploadedFiles = [];
         const fileInput = document.getElementById('fileInput');
         const uploadPreview = document.getElementById('uploadPreview');
         const uploadPlaceholder = document.querySelector('.upload-placeholder');
@@ -334,8 +371,8 @@ class MapGenerationManager {
     }
 
     async generateFromFile() {
-        if (!this.uploadedFile) {
-            Utils.showNotification('Please select a file first', 'error');
+        if (this.uploadedFiles.length === 0) {
+            Utils.showNotification('Please select at least one file', 'error');
             return;
         }
 
@@ -362,14 +399,19 @@ class MapGenerationManager {
         }
 
         const formData = new FormData();
-        formData.append('file', this.uploadedFile);
+        
+        // Append all files
+        this.uploadedFiles.forEach(file => {
+            formData.append('files', file);
+        });
+        
         formData.append('topic', fileTopicInput?.value.trim() || '');
         formData.append('context', fileContextInput?.value.trim() || '');
         formData.append('depth', depth);
         formData.append('style', fileStyleSelect?.value || 'TD');
 
         // Show loading state
-        this.showLoadingState(uploadGenerateBtn, 'Processing file...');
+        this.showLoadingState(uploadGenerateBtn, `Processing ${this.uploadedFiles.length} file(s)...`);
 
         try {
             const response = await fetch('/api/map/upload', {

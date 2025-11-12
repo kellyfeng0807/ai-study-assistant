@@ -161,23 +161,17 @@
                         <!-- File Upload Tab -->
                         <div class="tab-content" id="file-upload">
                             <div class="upload-area" id="uploadArea">
-                                <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.mp3,.wav,.mp4,.m4a" hidden>
+                                <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.mp3,.wav,.mp4,.m4a" multiple hidden>
                                 <div class="upload-placeholder">
                                     <i class="fas fa-cloud-upload-alt"></i>
-                                    <p class="upload-title">Drag & drop a file here</p>
+                                    <p class="upload-title">Drag & drop files here</p>
                                     <p class="upload-subtitle">or click to browse</p>
-                                    <p class="upload-hint">Supports: PDF, Word, PPT, TXT, Audio</p>
+                                    <p class="upload-hint">Supports: PDF, Word, PPT, TXT, Audio (Multiple files allowed)</p>
                                 </div>
                                 <div class="upload-preview" id="uploadPreview" style="display: none;">
-                                    <div class="file-icon">
-                                        <i class="fas fa-file"></i>
-                                    </div>
-                                    <div class="file-info">
-                                        <div class="file-name" id="fileName"></div>
-                                        <div class="file-size" id="fileSize"></div>
-                                    </div>
-                                    <button class="remove-file-btn" id="removeFileBtn">
-                                        <i class="fas fa-times"></i>
+                                    <div class="files-list" id="filesList"></div>
+                                    <button class="remove-file-btn" id="removeAllFilesBtn" title="Remove all files">
+                                        <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
                             </div>

@@ -197,15 +197,20 @@ def generate_mindmap():
 
 @map_bp.route('/upload', methods=['POST'])
 def upload_file_for_mindmap():
-    """上传文件并生成思维导图"""
+    """上传文件并生成思维导图 - 支持多文件"""
     try:
-        if 'file' not in request.files:
-            return jsonify({
-                'success': False,
-                'error': 'No file uploaded'
-            }), 400
+        # Check for multiple files
+        files = request.files.getlist('files')
         
-        file = request.files['file']
+        # Fallback to single file for backward compatibility
+        if not files:
+            if 'file' not in request.files:
+                return jsonify({
+                    'success': False,
+                    'error': 'No file uploaded'
+                }), 400
+            files = [request.files['file']]
+        
         topic = request.form.get('topic', '')
         context = request.form.get('context', '')
         depth_value = request.form.get('depth', 3)
@@ -220,80 +225,93 @@ def upload_file_for_mindmap():
             except:
                 depth = 3
         
-        if file.filename == '':
-            return jsonify({
-                'success': False,
-                'error': 'No file selected'
-            }), 400
+        # Validate all files
+        for file in files:
+            if file.filename == '':
+                return jsonify({
+                    'success': False,
+                    'error': 'One or more files have no name'
+                }), 400
+            
+            if not allowed_file(file.filename):
+                return jsonify({
+                    'success': False,
+                    'error': f'File type not allowed for {file.filename}. Allowed types: {", ".join(ALLOWED_EXTENSIONS)}'
+                }), 400
         
-        if not allowed_file(file.filename):
-            return jsonify({
-                'success': False,
-                'error': f'File type not allowed. Allowed types: {", ".join(ALLOWED_EXTENSIONS)}'
-            }), 400
+        # Process all files and extract content
+        all_file_contents = []
+        saved_files = []
         
-        # 保存文件
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        unique_filename = f"{timestamp}_{filename}"
-        filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
-        file.save(filepath)
-        
-        # 提取文件内容
-        file_content = extract_text_from_file(filepath)
-        
-        # 结合文件内容、用户输入和context生成思维导图（使用AI）
-        try:
+        for file in files:
+            # 保存文件
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            unique_filename = f"{timestamp}_{filename}"
+            filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
+            file.save(filepath)
+            saved_files.append((filepath, filename))
+            
+            # 提取文件内容
+            file_content = extract_text_from_file(filepath)
             if file_content and not file_content.startswith('['):
-                # 如果成功提取了文本，使用AI基于内容生成
-                # 将用户的context添加到文件内容中
-                full_context = file_content
-                if context:
-                    full_context = f"{context}\n\nFile content:\n{file_content}"
-                
-                mermaid_code = ai_service.generate_mindmap_from_content(
-                    topic or filename, 
-                    full_context, 
-                    depth,
-                    style
-                )
+                all_file_contents.append(f"=== {filename} ===\n{file_content}")
             else:
-                # 如果是待实现的文件类型，使用基于主题的生成
-                combined_context = f"File: {filename}"
-                if context:
-                    combined_context += f"\nUser instructions: {context}"
-                if file_content:
-                    combined_context += f"\n{file_content}"
-                
-                mermaid_code = ai_service.generate_mindmap_mermaid(
-                    topic or filename,
-                    depth,
-                    combined_context,
-                    style
-                )
+                all_file_contents.append(f"=== {filename} ===\n{file_content or '[Content extraction not yet implemented]'}")
+        
+        # Combine all file contents
+        combined_file_content = "\n\n".join(all_file_contents)
+        
+        # 结合文件内容、用户输入和context生成思维导图
+        try:
+            # 将用户的context添加到文件内容中
+            full_context = combined_file_content
+            if context:
+                full_context = f"{context}\n\nFiles content:\n{combined_file_content}"
+            
+            # Use first filename or user topic
+            main_topic = topic or (files[0].filename if len(files) == 1 else f"{len(files)} Files Analysis")
+            
+            mermaid_code = ai_service.generate_mindmap_from_content(
+                main_topic, 
+                full_context, 
+                depth,
+                style
+            )
         except Exception as e:
-            print(f"Error generating mindmap from file: {e}")
-            combined_context = f"File: {filename}"
+            print(f"Error generating mindmap from files: {e}")
+            combined_context = f"Files: {', '.join([f[1] for f in saved_files])}"
             if topic:
                 combined_context += f"\nTopic: {topic}"
             if context:
                 combined_context += f"\nContext: {context}"
-            mermaid_code = generate_mermaid_from_text(topic or filename, depth, combined_context, style)
+            mermaid_code = generate_mermaid_from_text(topic or main_topic, depth, combined_context, style)
         
         # 创建思维导图记录
         mindmap_id = str(uuid.uuid4())
+        
+        # Get main file info
+        first_filename = saved_files[0][1] if saved_files else 'unknown'
+        file_type = first_filename.rsplit('.', 1)[1].lower() if '.' in first_filename else 'unknown'
+        
+        # Store filenames for multi-file case
+        if len(saved_files) > 1:
+            source_file = f"{len(saved_files)} files: " + ", ".join([f[1] for f in saved_files])
+        else:
+            source_file = saved_files[0][0].split(os.sep)[-1] if saved_files else 'unknown'
+        
         mindmap = {
             'id': mindmap_id,
-            'title': topic or filename.rsplit('.', 1)[0],
+            'title': topic or (first_filename.rsplit('.', 1)[0] if len(saved_files) == 1 else f"{len(saved_files)} Files Analysis"),
             'mermaid_code': mermaid_code,
             'depth': depth,
             'style': style,
             'created_at': datetime.now().isoformat(),
             'updated_at': datetime.now().isoformat(),
             'source': 'file_upload',
-            'source_file': unique_filename,
-            'file_type': filename.rsplit('.', 1)[1].lower(),
-            'context': (context or file_content)[:200]
+            'source_file': source_file,
+            'file_type': file_type,
+            'context': (context or combined_file_content)[:200]
         }
         
         # 保存到数据库
@@ -301,14 +319,31 @@ def upload_file_for_mindmap():
         mindmaps.insert(0, mindmap)
         save_mindmaps(mindmaps)
         
+        # Clean up uploaded files
+        for filepath, _ in saved_files:
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+            except Exception as e:
+                print(f"Error deleting file {filepath}: {e}")
+        
         return jsonify({
             'success': True,
             'mindmap': mindmap,
             'mermaid_code': mermaid_code,
-            'file_content_preview': file_content[:200]
+            'file_content_preview': combined_file_content[:200]
         })
     
     except Exception as e:
+        # Clean up any uploaded files in case of error
+        if 'saved_files' in locals():
+            for filepath, _ in saved_files:
+                try:
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                except:
+                    pass
+        
         return jsonify({
             'success': False,
             'error': str(e)
