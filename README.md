@@ -8,29 +8,29 @@ AI Study Assistant 是一个基于人工智能的学习辅助系统，专为中�
 
 ## 核心功能
 
-### 📝 笔记助手 (Note Assistant)
+### 笔记助手 (Note Assistant)
 - **录音转写**：使用 Whisper 或其他语音识别 API
 - **智能笔记生成**：提取关键点和示例
 - **LLM 总结**：自动生成结构化笔记
 
-### 🗺️ 思维导图生成 (Map Generation - Optional)
+### 思维导图生成 (Map Generation - Optional)
 - **层次化内容转换**：将笔记转换为可视化导图
 - **交互式编辑**：使用 Mermaid.js 等图形库
 - **多格式导出**：PNG、SVG、PDF
 
-### 📚 错题本管理 (Error Book Manager)
+### 错题本管理 (Error Book Manager)
 - **拍照上传**：智能识别题目
 - **OCR 识别**：自动提取文字
 - **智能分类**：LLM 自动分类题目类型
 - **生成练习**：基于错题生成相似练习
 
-### 📊 学习数据分析 (Learning Dashboard)
+### 学习数据分析 (Learning Dashboard)
 - **学习时长统计**
 - **技能水平追踪**
 - **进度可视化**
 - **数据图表展示**
 
-### ⚙️ 设置 (Settings)
+### 设置 (Settings)
 - 账户设置
 - AI 功能配置
 - 通知设置

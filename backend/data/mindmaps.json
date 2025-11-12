@@ -1,0 +1,46 @@
+[
+  {
+    "id": "96e260a9-81f1-4ddb-86c0-0531de220ded",
+    "title": "machine learning",
+    "mermaid_code": "graph LR\n    A[Machine Learning]\n    \n    A --> B[Supervised Learning]\n    A --> C[Unsupervised Learning]\n    A --> D[Reinforcement Learning]\n    \n    B --> B1[Classification]\n    B --> B2[Regression]\n    \n    C --> C1[Clustering]\n    C --> C2[Dimensionality Reduction]\n    C --> C3[Association]\n    \n    D --> D1[Value-Based]\n    D --> D2[Policy-Based]\n    D --> D3[Model-Based]\n    \n    B1 --> B1A[Logistic Regression]\n    B1 --> B1B[Decision Trees]\n    B1 --> B1C[Support Vector Machines]\n    B1 --> B1D[Neural Networks]\n    \n    B2 --> B2A[Linear Regression]\n    B2 --> B2B[Polynomial Regression]\n    B2 --> B2C[Random Forest Regression]\n    \n    C1 --> C1A[K-Means]\n    C1 --> C1B[Hierarchical]\n    C1 --> C1C[DBSCAN]\n    \n    C2 --> C2A[PCA]\n    C2 --> C2B[t-SNE]\n    C2 --> C2C[Autoencoders]\n    \n    C3 --> C3A[Apriori]\n    C3 --> C3B[FP-Growth]\n    \n    D1 --> D1A[Q-Learning]\n    D1 --> D1B[Deep Q-Networks]\n    \n    D2 --> D2A[REINFORCE]\n    D2 --> D2B[Actor-Critic]\n    \n    D3 --> D3A[Dyna-Q]\n    D3 --> D3B[Monte Carlo Tree Search]",
+    "depth": "auto",
+    "style": "LR",
+    "created_at": "2025-11-12T14:30:54.499900",
+    "updated_at": "2025-11-12T14:30:54.499900",
+    "source": "text_input",
+    "context": ""
+  },
+  {
+    "id": "4a23273b-930f-48bf-833f-9441c7a8cf64",
+    "title": "machine learning",
+    "mermaid_code": "graph LR\n    Center[Machine Learning]\n    \n    %% Top-Right Branch - Supervised Learning\n    Center --> TR1[Supervised Learning]\n    TR1 --> TR2[Classification]\n    TR1 --> TR3[Regression]\n    TR2 --> TR4[Decision Trees]\n    TR2 --> TR5[SVMs]\n    TR3 --> TR6[Linear Regression]\n    TR3 --> TR7[Random Forests]\n    \n    %% Middle-Right Branch - Unsupervised Learning\n    Center --> MR1[Unsupervised Learning]\n    MR1 --> MR2[Clustering]\n    MR1 --> MR3[Dimensionality Reduction]\n    MR2 --> MR4[K-Means]\n    MR2 --> MR5[Hierarchical]\n    MR3 --> MR6[PCA]\n    MR3 --> MR7[t-SNE]\n    \n    %% Bottom-Right Branch - Deep Learning\n    Center --> BR1[Deep Learning]\n    BR1 --> BR2[Neural Networks]\n    BR1 --> BR3[Computer Vision]\n    BR2 --> BR4[CNNs]\n    BR2 --> BR5[RNNs]\n    BR3 --> BR6[Image Recognition]\n    BR3 --> BR7[Object Detection]\n    \n    %% Bottom-Left Branch - Reinforcement Learning\n    Center --> BL1[Reinforcement Learning]\n    BL1 --> BL2[Q-Learning]\n    BL1 --> BL3[Policy Gradients]\n    BL2 --> BL4[Value Iteration]\n    BL2 --> BL5[Deep Q-Networks]\n    BL3 --> BL6[Actor-Critic]\n    BL3 --> BL7[PPO]\n    \n    %% Middle-Left Branch - Applications\n    Center --> ML1[Applications]\n    ML1 --> ML2[Natural Language Processing]\n    ML1 --> ML3[Recommendation Systems]\n    ML2 --> ML4[Chatbots]\n    ML2 --> ML5[Translation]\n    ML3 --> ML6[E-commerce]\n    ML3 --> ML7[Content Filtering]\n    \n    %% Top-Left Branch - Tools & Frameworks\n    Center --> TL1[Tools & Frameworks]\n    TL1 --> TL2[Python Libraries]\n    TL1 --> TL3[Deep Learning Frameworks]\n    TL2 --> TL4[Scikit-learn]\n    TL2 --> TL5[Pandas]\n    TL3 --> TL6[TensorFlow]\n    TL3 --> TL7[PyTorch]",
+    "depth": "auto",
+    "style": "radial",
+    "created_at": "2025-11-12T14:29:56.177201",
+    "updated_at": "2025-11-12T14:29:56.177201",
+    "source": "text_input",
+    "context": ""
+  },
+  {
+    "id": "bcf25b60-f4e2-4ce4-bdcb-baa251f0b0ed",
+    "title": "data structure",
+    "mermaid_code": "graph LR\n    A[Data Structures] --> B1[Linear]\n    A --> B2[Non-Linear]\n    A --> B3[File]\n    \n    B1 --> C1[Arrays]\n    B1 --> C2[Linked Lists]\n    B1 --> C3[Stacks]\n    B1 --> C4[Queues]\n    \n    C1 --> D1[1D Array]\n    C1 --> D2[2D Array]\n    C1 --> D3[Dynamic Array]\n    \n    C2 --> D4[Singly Linked]\n    C2 --> D5[Doubly Linked]\n    C2 --> D6[Circular Linked]\n    \n    C3 --> D7[Array-based]\n    C3 --> D8[Linked List-based]\n    \n    C4 --> D9[Simple Queue]\n    C4 --> D10[Circular Queue]\n    C4 --> D11[Priority Queue]\n    \n    B2 --> C5[Trees]\n    B2 --> C6[Graphs]\n    B2 --> C7[Hash Tables]\n    \n    C5 --> D12[Binary Tree]\n    C5 --> D13[BST]\n    C5 --> D14[AVL Tree]\n    C5 --> D15[Heap]\n    \n    D12 --> E1[Complete Binary]\n    D12 --> E2[Full Binary]\n    \n    D13 --> E3[Balanced BST]\n    D13 --> E4[Unbalanced BST]\n    \n    C6 --> D16[Directed Graph]\n    C6 --> D17[Undirected Graph]\n    C6 --> D18[Weighted Graph]\n    \n    C7 --> D19[Separate Chaining]\n    C7 --> D20[Open Addressing]\n    \n    B3 --> C8[Sequential Files]\n    B3 --> C9[Indexed Files]\n    B3 --> C10[Direct Files]",
+    "depth": "auto",
+    "style": "LR",
+    "created_at": "2025-11-12T14:18:21.898404",
+    "updated_at": "2025-11-12T14:18:21.898404",
+    "source": "text_input",
+    "context": ""
+  },
+  {
+    "id": "cd0202d9-7ae6-4716-86a5-d7f9d6b638b9",
+    "title": "operation system",
+    "mermaid_code": "graph TD\n    OS[Operating System]\n    OS --> PM[Process Management]\n    OS --> MM[Memory Management]\n    OS --> FS[File Systems]\n    OS --> IO[I/O Management]\n    OS --> SEC[Security]\n    OS --> NET[Networking]\n    \n    PM --> SCH[Scheduling]\n    PM --> SYNC[Synchronization]\n    PM --> DEAD[Deadlocks]\n    \n    MM --> VM[Virtual Memory]\n    MM --> PMM[Physical Memory]\n    MM --> PAG[Paging]\n    \n    FS --> STOR[Storage]\n    FS --> DIR[Directory Structure]\n    FS --> PERM[Permissions]\n    \n    IO --> DEVS[Device Drivers]\n    IO --> BUFF[Buffering]\n    IO --> SPOOL[Spooling]\n    \n    SEC --> AUTH[Authentication]\n    SEC --> ACCESS[Access Control]\n    SEC --> ENCR[Encryption]\n    \n    NET --> PROTO[Protocols]\n    NET --> SOCK[Sockets]\n    NET --> ROUT[Routing]",
+    "depth": "auto",
+    "style": "radial",
+    "created_at": "2025-11-12T13:57:01.381658",
+    "updated_at": "2025-11-12T13:57:01.381658",
+    "source": "text_input",
+    "context": ""
+  }
+]

@@ -5,7 +5,11 @@ AI Study Assistant - 启动文件
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
+from dotenv import load_dotenv
 import os
+
+# 加载环境变量
+load_dotenv()
 
 from config import config
 from ui_controller import ui_bp
@@ -51,7 +55,20 @@ def create_app(config_name='development'):
 
 if __name__ == '__main__':
     app = create_app('development')
+    print("=" * 50)
     print("AI Study Assistant Backend Starting...")
-    print("Server running on: http://localhost:5000")
-    print("API Documentation: http://localhost:5000/api/health")
+    print("=" * 50)
+    print(f"Server: http://localhost:5000")
+    print(f"Mind Map: http://localhost:5000/map-generation")
+    print(f"Health Check: http://localhost:5000/api/health")
+    
+    # 检查DeepSeek API Key
+    if not os.environ.get('DEEPSEEK_API_KEY'):
+        print("\nWARNING: DEEPSEEK_API_KEY not set!")
+        print("   AI features will use fallback mode.")
+        print("   Set your API key in backend/.env file")
+    else:
+        print("DeepSeek API Key loaded")
+    
+    print("=" * 50)
     app.run(debug=True, host='0.0.0.0', port=5000)
