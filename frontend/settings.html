@@ -73,9 +73,6 @@
                         <i class="fas fa-bell"></i>
                         <span class="badge">3</span>
                     </button>
-                    <button class="icon-button theme-toggle">
-                        <i class="fas fa-moon"></i>
-                    </button>
                 </div>
             </header>
 
@@ -88,7 +85,15 @@
                                 <label>Username</label>
                                 <p>Set your display name</p>
                             </div>
-                            <input type="text" value="Student" class="setting-input">
+                            <input type="text" id="username" class="setting-input" placeholder="Enter username">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Email</label>
+                                <p>Your email address</p>
+                            </div>
+                            <input type="email" id="email" class="setting-input" placeholder="Enter email">
                         </div>
                         
                         <div class="setting-item">
@@ -96,13 +101,13 @@
                                 <label>Grade Level</label>
                                 <p>Select your current grade</p>
                             </div>
-                            <select class="setting-select">
-                                <option>Grade 7</option>
-                                <option>Grade 8</option>
-                                <option selected>Grade 9</option>
-                                <option>Grade 10</option>
-                                <option>Grade 11</option>
-                                <option>Grade 12</option>
+                            <select id="gradeLevel" class="setting-select">
+                                <option value="7">Grade 7</option>
+                                <option value="8">Grade 8</option>
+                                <option value="9">Grade 9</option>
+                                <option value="10">Grade 10</option>
+                                <option value="11">Grade 11</option>
+                                <option value="12">Grade 12</option>
                             </select>
                         </div>
                         
@@ -111,140 +116,7 @@
                                 <label>Daily Study Goal</label>
                                 <p>Target study time per day (minutes)</p>
                             </div>
-                            <input type="number" value="120" class="setting-input" min="30" max="480">
-                        </div>
-                    </div>
-                </section>
-
-                <section class="settings-section">
-                    <h3 class="section-title">AI Features</h3>
-                    <div class="settings-group">
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Speech Recognition Language</label>
-                                <p>Primary language for audio transcription</p>
-                            </div>
-                            <select class="setting-select">
-                                <option>Chinese (Simplified)</option>
-                                <option selected>English</option>
-                                <option>Chinese-English Mixed</option>
-                            </select>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Note Generation Detail Level</label>
-                                <p>AI note generation verbosity</p>
-                            </div>
-                            <select class="setting-select">
-                                <option>Concise</option>
-                                <option selected>Standard</option>
-                                <option>Detailed</option>
-                            </select>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Auto-generate Practice Questions</label>
-                                <p>Create similar problems after error entry</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="settings-section">
-                    <h3 class="section-title">Notifications</h3>
-                    <div class="settings-group">
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Study Reminders</label>
-                                <p>Scheduled reminders to start studying</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Error Review Reminders</label>
-                                <p>Spaced repetition based reminders</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Achievement Notifications</label>
-                                <p>Receive notifications when goals completed</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="settings-section">
-                    <h3 class="section-title">Appearance</h3>
-                    <div class="settings-group">
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Theme Mode</label>
-                                <p>Choose light or dark theme</p>
-                            </div>
-                            <select class="setting-select" id="themeSelect">
-                                <option value="light" selected>Light Mode</option>
-                                <option value="dark">Dark Mode</option>
-                                <option value="auto">System Default</option>
-                            </select>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Animation Effects</label>
-                                <p>Enable interface transitions</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="settings-section">
-                    <h3 class="section-title">Data Management</h3>
-                    <div class="settings-group">
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Export Learning Data</label>
-                                <p>Download all notes and error records</p>
-                            </div>
-                            <button class="button-outline">
-                                <i class="fas fa-download"></i>
-                                Export Data
-                            </button>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <label>Clear Cache</label>
-                                <p>Remove temporary files and cached data</p>
-                            </div>
-                            <button class="button-outline">
-                                <i class="fas fa-trash"></i>
-                                Clear Cache
-                            </button>
+                            <input type="number" id="dailyGoal" class="setting-input" min="30" max="480" placeholder="120">
                         </div>
                     </div>
                 </section>

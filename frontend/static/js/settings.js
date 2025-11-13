@@ -1,72 +1,67 @@
 /**
- * Settings 页面JavaScript
+ * Settings 页面JavaScript - 简化版
+ * 仅包含账户设置功能，与后端API集成
  */
 
 class SettingsManager {
     constructor() {
-        this.settings = this.loadSettings();
+        this.settings = null;
         this.init();
     }
     
-    init() {
+    async init() {
         this.bindEventListeners();
-        this.loadCurrentSettings();
+        await this.loadSettings();
     }
     
     /**
-     * 从localStorage加载设置
+     * 从后端加载设置
      */
-    loadSettings() {
-        const defaultSettings = {
-            username: '学生用户',
-            grade: '初三',
-            studyGoal: 120,
-            voiceLanguage: '中文（简体）',
-            noteDetail: '标准',
-            autoGenerateExercises: true,
-            studyReminder: true,
-            reviewReminder: true,
-            achievementNotify: true,
-            theme: 'light',
-            animations: true
-        };
-        
-        const saved = localStorage.getItem('userSettings');
-        return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+    async loadSettings() {
+        try {
+            const response = await Utils.apiCall('/api/settings/', 'GET');
+            
+            if (response.success) {
+                this.settings = response.settings;
+                this.populateForm();
+            } else {
+                Utils.showNotification('加载设置失败', 'error');
+            }
+        } catch (error) {
+            console.error('加载设置出错:', error);
+            Utils.showNotification('加载设置时出错', 'error');
+        }
     }
     
     /**
-     * 保存设置到localStorage
+     * 填充表单
      */
-    saveSettings() {
-        localStorage.setItem('userSettings', JSON.stringify(this.settings));
-    }
-    
-    /**
-     * 加载当前设置到界面
-     */
-    loadCurrentSettings() {
-        // 加载各个设置项
-        document.querySelectorAll('.setting-input').forEach(input => {
-            const key = input.name || input.id;
-            if (key && this.settings[key] !== undefined) {
-                input.value = this.settings[key];
-            }
-        });
+    populateForm() {
+        if (!this.settings) return;
         
-        document.querySelectorAll('.setting-select').forEach(select => {
-            const key = select.name || select.id;
-            if (key && this.settings[key] !== undefined) {
-                select.value = this.settings[key];
-            }
-        });
+        // 填充用户名
+        const usernameInput = document.getElementById('username');
+        if (usernameInput) {
+            usernameInput.value = this.settings.username || '';
+        }
         
-        document.querySelectorAll('.toggle-switch input[type="checkbox"]').forEach(checkbox => {
-            const key = checkbox.name || checkbox.id;
-            if (key && this.settings[key] !== undefined) {
-                checkbox.checked = this.settings[key];
-            }
-        });
+        // 填充邮箱
+        const emailInput = document.getElementById('email');
+        if (emailInput) {
+            emailInput.value = this.settings.email || '';
+        }
+        
+        // 填充年级
+        const gradeSelect = document.getElementById('gradeLevel');
+        if (gradeSelect) {
+            gradeSelect.value = this.settings.grade_level || '9';
+        }
+        
+        // 填充学习目标
+        const goalInput = document.getElementById('dailyGoal');
+        if (goalInput) {
+            goalInput.value = this.settings.daily_goal || 120;
+        }
     }
     
     /**
@@ -84,148 +79,80 @@ class SettingsManager {
         if (resetBtn) {
             resetBtn.addEventListener('click', () => this.handleReset());
         }
-        
-        // 主题选择
-        const themeSelect = document.getElementById('themeSelect');
-        if (themeSelect) {
-            themeSelect.addEventListener('change', (e) => {
-                this.handleThemeChange(e.target.value);
-            });
-        }
-        
-        // 导出数据按钮
-        const exportBtn = document.querySelector('button[class*="download"]')?.parentElement;
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportData());
-        }
-        
-        // 清除缓存按钮
-        const clearBtn = document.querySelector('button[class*="trash"]')?.parentElement;
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.clearCache());
-        }
     }
     
     /**
      * 保存设置
      */
     async handleSave() {
-        // 收集所有设置
-        const newSettings = {};
-        
-        // 输入框
-        document.querySelectorAll('.setting-input').forEach(input => {
-            const name = input.closest('.setting-item')?.querySelector('label')?.textContent;
-            const value = input.type === 'number' ? parseInt(input.value) : input.value;
-            if (name) {
-                newSettings[this.getSettingKey(name)] = value;
+        try {
+            // 收集表单数据
+            const username = document.getElementById('username')?.value || '';
+            const email = document.getElementById('email')?.value || '';
+            const gradeLevel = document.getElementById('gradeLevel')?.value || '9';
+            const dailyGoal = parseInt(document.getElementById('dailyGoal')?.value) || 120;
+            
+            // 验证数据
+            if (!username.trim()) {
+                Utils.showNotification('请输入用户名', 'warning');
+                return;
             }
-        });
-        
-        // 下拉框
-        document.querySelectorAll('.setting-select').forEach(select => {
-            const name = select.closest('.setting-item')?.querySelector('label')?.textContent;
-            if (name) {
-                newSettings[this.getSettingKey(name)] = select.value;
+            
+            if (!email.trim()) {
+                Utils.showNotification('请输入邮箱', 'warning');
+                return;
             }
-        });
-        
-        // 开关
-        document.querySelectorAll('.toggle-switch input[type="checkbox"]').forEach(checkbox => {
-            const name = checkbox.closest('.setting-item')?.querySelector('label')?.textContent;
-            if (name) {
-                newSettings[this.getSettingKey(name)] = checkbox.checked;
+            
+            if (dailyGoal < 30 || dailyGoal > 480) {
+                Utils.showNotification('学习目标应在30-480分钟之间', 'warning');
+                return;
             }
-        });
-        
-        // 合并设置
-        this.settings = { ...this.settings, ...newSettings };
-        
-        // 保存到localStorage
-        this.saveSettings();
-        
-        // 显示成功消息
-        Utils.showNotification('设置已保存！', 'success');
-        
-        // 调用后端API（可选）
-        await Utils.apiCall('/ui/settings', 'POST', this.settings);
+            
+            // 准备更新数据
+            const updatedSettings = {
+                username: username.trim(),
+                email: email.trim(),
+                grade_level: gradeLevel,
+                daily_goal: dailyGoal
+            };
+            
+            // 调用后端API保存
+            const response = await Utils.apiCall('/api/settings/', 'PUT', updatedSettings);
+            
+            if (response.success) {
+                this.settings = response.settings;
+                Utils.showNotification('设置已保存！', 'success');
+            } else {
+                Utils.showNotification(response.error || '保存设置失败', 'error');
+            }
+        } catch (error) {
+            console.error('保存设置出错:', error);
+            Utils.showNotification('保存设置时出错', 'error');
+        }
     }
     
     /**
      * 重置设置
      */
-    handleReset() {
-        if (confirm('确定要重置所有设置为默认值吗？')) {
-            localStorage.removeItem('userSettings');
-            this.settings = this.loadSettings();
-            this.loadCurrentSettings();
-            Utils.showNotification('设置已重置为默认值', 'info');
+    async handleReset() {
+        if (!confirm('确定要重置所有设置为默认值吗？')) {
+            return;
         }
-    }
-    
-    /**
-     * 处理主题切换
-     */
-    handleThemeChange(theme) {
-        if (window.themeManager) {
-            window.themeManager.currentTheme = theme;
-            window.themeManager.applyTheme(theme);
-            Utils.showNotification(`已切换到${theme === 'light' ? '浅色' : '深色'}主题`, 'success');
+        
+        try {
+            const response = await Utils.apiCall('/api/settings/reset', 'POST');
+            
+            if (response.success) {
+                this.settings = response.settings;
+                this.populateForm();
+                Utils.showNotification('设置已重置为默认值', 'success');
+            } else {
+                Utils.showNotification(response.error || '重置设置失败', 'error');
+            }
+        } catch (error) {
+            console.error('重置设置出错:', error);
+            Utils.showNotification('重置设置时出错', 'error');
         }
-    }
-    
-    /**
-     * 导出数据
-     */
-    async exportData() {
-        Utils.showNotification('正在准备导出数据...', 'info');
-        
-        // 模拟数据导出
-        const data = {
-            settings: this.settings,
-            exportDate: new Date().toISOString(),
-            version: '1.0'
-        };
-        
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `study_data_${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        
-        Utils.showNotification('数据导出成功！', 'success');
-    }
-    
-    /**
-     * 清除缓存
-     */
-    clearCache() {
-        if (confirm('确定要清除所有缓存数据吗？这不会影响你的学习数据。')) {
-            // 清除缓存逻辑
-            Utils.showNotification('缓存已清除', 'success');
-        }
-    }
-    
-    /**
-     * 将标签文本转换为设置键名
-     */
-    getSettingKey(label) {
-        const keyMap = {
-            '用户名': 'username',
-            '年级': 'grade',
-            '学习目标': 'studyGoal',
-            '语音识别语言': 'voiceLanguage',
-            '笔记生成详细度': 'noteDetail',
-            '自动生成练习题': 'autoGenerateExercises',
-            '学习提醒': 'studyReminder',
-            '错题复习提醒': 'reviewReminder',
-            '成就通知': 'achievementNotify',
-            '主题模式': 'theme',
-            '动画效果': 'animations'
-        };
-        return keyMap[label] || label;
     }
 }
 
