@@ -17,6 +17,7 @@ from modules.note_assistant import note_bp
 from modules.map_generation import map_bp
 from modules.error_book import error_bp
 from modules.learning_dashboard import dashboard_bp
+from modules.chat import chat_bp
 
 def create_app(config_name='development'):
     """应用工厂函数"""
@@ -36,6 +37,7 @@ def create_app(config_name='development'):
     app.register_blueprint(map_bp)
     app.register_blueprint(error_bp)
     app.register_blueprint(dashboard_bp)
+    app.register_blueprint(chat_bp)
     
     # 静态文件路由
     @app.route('/static/<path:path>')

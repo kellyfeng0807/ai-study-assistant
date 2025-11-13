@@ -10,7 +10,23 @@
     <link rel="stylesheet" href="static/css/main.css">
     <link rel="stylesheet" href="static/css/learning-dashboard.css">
     <link rel="stylesheet" href="static/css/ai-chat.css">
+    <link rel="stylesheet" href="static/css/message-modal.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- MathJax for LaTeX formula rendering -->
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
     
     <!-- DNS prefetch for faster navigation -->
     <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
@@ -299,6 +315,7 @@
     </div>
 
     <script src="static/js/main.js"></script>
+    <script src="static/js/message-modal.js"></script>
     <script src="static/js/ai-chat.js"></script>
     <script src="static/js/learning-dashboard.js"></script>
 </body>

@@ -16,6 +16,10 @@ class AIService:
         """
         使用DeepSeek生成Mermaid思维导图代码
         style: 'TD' (top-down), 'LR' (left-right), 'radial' (radial/divergent)
+        
+        Temperature设置说明(官方推荐):
+        - Data Cleaning/Data Analysis: 1.0 (思维导图生成属于数据分析类任务)
+        - 需要在准确性和创造性之间取得平衡
         """
         # 根据样式设置不同的系统提示
         if style == 'radial':
@@ -145,7 +149,7 @@ Requirements:
                     {"role": "user", "content": user_prompt}
                 ],
                 stream=False,
-                temperature=0.7,
+                temperature=1.0,
                 max_tokens=2000
             )
             
@@ -230,7 +234,7 @@ Extract the main ideas and organize them {'in a top-down' if style == 'TD' else 
                     {"role": "user", "content": user_prompt}
                 ],
                 stream=False,
-                temperature=0.7,
+                temperature=1.0,
                 max_tokens=2000
             )
             
@@ -305,6 +309,56 @@ Extract the main ideas and organize them {'in a top-down' if style == 'TD' else 
     """
         
         return mermaid_code.strip()
+    
+    def chat(self, user_message, conversation_history=None):
+        """
+        处理聊天对话
+        user_message: 用户消息
+        conversation_history: 历史对话列表，格式 [{'role': 'user/assistant', 'content': '...'}]
+        
+        Temperature设置说明(官方推荐):
+        - General Conversation: 1.3 (通用对话,需要更自然和多样化的回复)
+        - Coding/Math: 0.0 (代码和数学需要精确性)
+        - Data Cleaning/Analysis: 1.0 (数据分析需要平衡准确性和灵活性)
+        """
+        if conversation_history is None:
+            conversation_history = []
+        
+        system_prompt = """You are a helpful AI study assistant. You help students with:
+- Answering questions about their studies
+- Explaining concepts clearly
+- Providing learning guidance
+- Helping with homework and assignments
+- Organizing study materials
+
+Be friendly, clear, and concise in your responses. Use LaTeX notation for mathematical formulas (e.g., $x^2$ for inline math, $$\\frac{a}{b}$$ for display math). Format your answers well for readability."""
+        
+        # 构建消息列表
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # 添加历史对话（最多保留最近10轮对话以控制token和速度）
+        if conversation_history:
+            recent_history = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
+            messages.extend(recent_history)
+        
+        # 添加当前用户消息
+        messages.append({"role": "user", "content": user_message})
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="deepseek-chat",
+                messages=messages,
+                stream=False,
+                temperature=1.3,  # 通用对话推荐值,提供更自然和多样化的回复
+                max_tokens=500
+            )
+            
+            ai_response = response.choices[0].message.content.strip()
+            return ai_response
+            
+        except Exception as e:
+            print(f"Error calling DeepSeek chat API: {e}")
+            raise Exception("Failed to get AI response")
 
 # 创建单例实例
 ai_service = AIService()

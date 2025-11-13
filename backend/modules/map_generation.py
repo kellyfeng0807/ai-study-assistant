@@ -164,7 +164,6 @@ def generate_mindmap():
         # 生成Mermaid代码
         mermaid_code = generate_mermaid_from_text(topic, depth, context, style)
         
-        # 创建思维导图记录
         mindmap_id = str(uuid.uuid4())
         mindmap = {
             'id': mindmap_id,
@@ -175,12 +174,12 @@ def generate_mindmap():
             'created_at': datetime.now().isoformat(),
             'updated_at': datetime.now().isoformat(),
             'source': 'text_input',
-            'context': context[:200] if context else ''
+            'context': context[:200] if context else '',
+            'node_positions': '{}'
         }
         
-        # 保存到数据库
         mindmaps = load_mindmaps()
-        mindmaps.insert(0, mindmap)  # 最新的在前面
+        mindmaps.insert(0, mindmap)
         save_mindmaps(mindmaps)
         
         return jsonify({
@@ -311,10 +310,10 @@ def upload_file_for_mindmap():
             'source': 'file_upload',
             'source_file': source_file,
             'file_type': file_type,
-            'context': (context or combined_file_content)[:200]
+            'context': (context or combined_file_content)[:200],
+            'node_positions': '{}'
         }
         
-        # 保存到数据库
         mindmaps = load_mindmaps()
         mindmaps.insert(0, mindmap)
         save_mindmaps(mindmaps)
@@ -405,10 +404,17 @@ def update_mindmap(map_id):
                 'error': 'Mind map not found'
             }), 404
         
-        # 更新思维导图
         mindmaps[mindmap_index]['mermaid_code'] = data.get('mermaid_code', mindmaps[mindmap_index]['mermaid_code'])
         mindmaps[mindmap_index]['title'] = data.get('title', mindmaps[mindmap_index]['title'])
         mindmaps[mindmap_index]['updated_at'] = datetime.now().isoformat()
+        
+        # 保存 SVG 内容（如果提供）
+        if 'svg_content' in data:
+            mindmaps[mindmap_index]['svg_content'] = data['svg_content']
+        
+        # 保留旧的 node_positions 字段以兼容
+        if 'node_positions' in data:
+            mindmaps[mindmap_index]['node_positions'] = data['node_positions']
         
         save_mindmaps(mindmaps)
         

@@ -22,11 +22,11 @@ class MapGenerationManager {
         this.currentMapId = null;
         this.currentMermaidCode = '';
         this.savedMermaidCode = '';  // Store last saved version
+        this.savedSvgContent = '';  // Store saved SVG content
         this.isEditMode = false;
         this.uploadedFiles = [];  // Changed to array for multiple files
         this.zoomLevel = 1.0;
         this.editZoomLevel = 1.0;  // Separate zoom for edit mode
-        this.nodePositions = new Map();  // Store custom node positions
         this.init();
     }
     
@@ -440,7 +440,8 @@ class MapGenerationManager {
     displayMindMap(mindmapData) {
         this.currentMapId = mindmapData.id;
         this.currentMermaidCode = mindmapData.mermaid_code;
-        this.savedMermaidCode = mindmapData.mermaid_code;  // Store as saved version
+        this.savedMermaidCode = mindmapData.mermaid_code;
+        this.savedSvgContent = mindmapData.svg_content || '';
 
         const previewSection = document.getElementById('previewSection');
         const mapTitle = document.getElementById('mapTitle');
@@ -454,18 +455,61 @@ class MapGenerationManager {
             mapTitle.textContent = mindmapData.title;
         }
 
-        this.renderMermaid(this.currentMermaidCode);
+        if (this.isEditMode) {
+            this.toggleEditMode();
+        }
+
+        // 如果有保存的 SVG，直接使用；否则重新渲染
+        if (this.savedSvgContent) {
+            this.renderSavedSvg(this.savedSvgContent);
+        } else {
+            this.renderMermaid(this.currentMermaidCode);
+        }
     }
 
     async renderMermaid(code) {
         const container = document.getElementById('mermaidContainer');
         if (!container) return;
 
+        if (!code || code.trim().length === 0) {
+            container.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>No diagram code available</p>
+                </div>
+            `;
+            return;
+        }
+
         try {
-            container.innerHTML = `<div class="mermaid">${code}</div>`;
-            await mermaid.run({
-                querySelector: '#mermaidContainer .mermaid'
+            container.innerHTML = '';
+            
+            mermaid.initialize({ 
+                startOnLoad: false,
+                theme: document.body.classList.contains('dark-theme') ? 'dark' : 'default',
+                securityLevel: 'loose',
+                flowchart: {
+                    useMaxWidth: true,
+                    htmlLabels: true
+                },
+                mindmap: {
+                    useMaxWidth: true
+                },
+                deterministicIds: true,
+                deterministicIDSeed: this.currentMapId || 'view'
             });
+            
+            const mermaidDiv = document.createElement('div');
+            mermaidDiv.className = 'mermaid';
+            mermaidDiv.id = `mermaid-view-${this.currentMapId || 'current'}`;
+            mermaidDiv.textContent = code;
+            container.appendChild(mermaidDiv);
+            
+            await mermaid.run({
+                querySelector: `#${mermaidDiv.id}`
+            });
+            
+            // 不再应用位置，因为我们直接保存整个 SVG
         } catch (error) {
             console.error('Mermaid render error:', error);
             container.innerHTML = `
@@ -476,6 +520,14 @@ class MapGenerationManager {
                 </div>
             `;
         }
+    }
+
+    renderSavedSvg(svgContent) {
+        const container = document.getElementById('mermaidContainer');
+        if (!container) return;
+        
+        console.log('Rendering saved SVG, length:', svgContent.length);
+        container.innerHTML = svgContent;
     }
 
     async renderMermaidDiagram(code) {
@@ -491,17 +543,12 @@ class MapGenerationManager {
         const codeEditor = document.getElementById('mermaidCodeEditor');
 
         if (this.isEditMode) {
-            // Exiting edit mode - check if there are unsaved changes
-            const currentCode = codeEditor ? codeEditor.value : this.currentMermaidCode;
-            if (currentCode !== this.savedMermaidCode) {
-                // Restore to last saved version
-                this.currentMermaidCode = this.savedMermaidCode;
-                
-                // Clear temporary node positions
-                this.nodePositions.clear();
-                
-                // Re-render view mode with saved version
-                this.renderMermaidDiagram(this.currentMermaidCode);
+            // 退出编辑模式，回到 view 模式
+            // 如果有保存的 SVG，显示保存的 SVG；否则重新渲染
+            if (this.savedSvgContent) {
+                this.renderSavedSvg(this.savedSvgContent);
+            } else {
+                this.renderMermaid(this.savedMermaidCode);
             }
         }
 
@@ -518,19 +565,37 @@ class MapGenerationManager {
         }
 
         if (this.isEditMode && codeEditor) {
-            // Entering edit mode - use current saved version
             codeEditor.value = this.savedMermaidCode;
             
-            // Check if it's a mindmap and set initial zoom to 2x
-            const isMindmap = this.savedMermaidCode && this.savedMermaidCode.trim().startsWith('mindmap');
-            if (isMindmap) {
-                this.editZoomLevel = 2.0;
-            } else {
-                this.editZoomLevel = 1.0;
-            }
+            // 编辑模式统一使用 1.0 缩放
+            this.editZoomLevel = 1.0;
             
-            this.refreshPreview();
+            this.copyViewToEditPreview();
         }
+    }
+
+    copyViewToEditPreview() {
+        const viewContainer = document.getElementById('mermaidContainer');
+        const previewContainer = document.getElementById('mermaidPreview');
+        
+        if (!viewContainer || !previewContainer) {
+            console.warn('Could not find view or preview container');
+            return;
+        }
+        
+        const viewSvg = viewContainer.querySelector('svg');
+        if (!viewSvg) {
+            console.warn('No SVG found in view mode, falling back to render');
+            this.refreshPreview();
+            return;
+        }
+        
+        const clonedSvg = viewSvg.cloneNode(true);
+        previewContainer.innerHTML = '';
+        previewContainer.appendChild(clonedSvg);
+        
+        this.updateEditZoom();
+        this.enableDragAndDrop(previewContainer);
     }
 
     async refreshPreview() {
@@ -541,20 +606,46 @@ class MapGenerationManager {
 
         const code = codeEditor.value;
 
+        if (!code || code.trim().length === 0) {
+            previewContainer.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>No diagram code available</p>
+                </div>
+            `;
+            return;
+        }
+
         try {
-            const tempId = 'mermaid-preview-' + Date.now();
-            previewContainer.innerHTML = `<div class="mermaid" id="${tempId}">${code}</div>`;
+            previewContainer.innerHTML = '';
+            
+            mermaid.initialize({ 
+                startOnLoad: false,
+                theme: document.body.classList.contains('dark-theme') ? 'dark' : 'default',
+                securityLevel: 'loose',
+                flowchart: {
+                    useMaxWidth: true,
+                    htmlLabels: true
+                },
+                mindmap: {
+                    useMaxWidth: true
+                },
+                deterministicIds: true,
+                deterministicIDSeed: this.currentMapId || 'preview'
+            });
+            
+            const tempId = `mermaid-edit-${this.currentMapId || 'new'}`;
+            const mermaidDiv = document.createElement('div');
+            mermaidDiv.className = 'mermaid';
+            mermaidDiv.id = tempId;
+            mermaidDiv.textContent = code;
+            previewContainer.appendChild(mermaidDiv);
+            
             await mermaid.run({
                 querySelector: `#${tempId}`
             });
             
-            // Apply stored node positions after rendering
-            this.applyStoredPositions(previewContainer);
-            
-            // Apply zoom level
             this.updateEditZoom();
-            
-            // Enable drag and drop on preview nodes after rendering
             this.enableDragAndDrop(previewContainer);
         } catch (error) {
             console.error('Preview render error:', error);
@@ -568,36 +659,6 @@ class MapGenerationManager {
         }
     }
 
-    applyStoredPositions(container) {
-        if (this.nodePositions.size === 0) return;
-        
-        const svg = container.querySelector('svg');
-        if (!svg) return;
-        
-        // Apply stored positions to nodes
-        this.nodePositions.forEach((position, nodeId) => {
-            const node = svg.querySelector(`#${nodeId}, [id="${nodeId}"]`);
-            if (node) {
-                const currentTransform = node.getAttribute('transform') || '';
-                let newTransform;
-                
-                if (currentTransform.includes('translate')) {
-                    newTransform = currentTransform.replace(
-                        /translate\([^)]+\)/,
-                        `translate(${position.x},${position.y})`
-                    );
-                } else {
-                    newTransform = `translate(${position.x},${position.y}) ${currentTransform}`;
-                }
-                
-                node.setAttribute('transform', newTransform);
-            }
-        });
-        
-        // After repositioning nodes, we need to update edges
-        // This is complex, so we'll rely on Mermaid's layout and just offset nodes
-    }
-
     applyCodeChanges() {
         // Same as refresh, but with explicit user action
         this.refreshPreview();
@@ -607,9 +668,7 @@ class MapGenerationManager {
         const svg = container.querySelector('svg');
         if (!svg) return;
 
-        // Detect if this is a mindmap
         const isMindmap = this.currentMermaidCode && this.currentMermaidCode.trim().startsWith('mindmap');
-        console.log('Is Mindmap:', isMindmap);
 
         let draggedElement = null;
         let draggedNodeId = null;
@@ -619,11 +678,9 @@ class MapGenerationManager {
         let initialY = 0;
         let connectedEdges = [];
 
-        // Find all node elements
         const nodes = svg.querySelectorAll('g.node, g[class*="node"], g[id*="flowchart"], g.nodeLabel');
         
-        nodes.forEach(node => {
-            // Make sure the node has visible content
+        nodes.forEach((node, index) => {
             const hasContent = node.querySelector('rect, circle, path, polygon, text');
             if (!hasContent) return;
             
@@ -636,22 +693,15 @@ class MapGenerationManager {
                 draggedElement = node;
                 draggedElement.classList.add('dragging');
                 
-                // Get node ID - extract the actual node identifier
+                // 获取节点 ID 用于查找连接的边
                 const rawId = node.id || node.getAttribute('id') || '';
-                draggedNodeId = this.extractNodeId(rawId);
+                draggedNodeId = rawId ? this.extractNodeId(rawId) : '';
                 
-                console.log('=== Drag Started ===');
-                console.log('Node element:', node);
-                console.log('Raw node ID:', rawId);
-                console.log('Extracted node ID:', draggedNodeId);
-                
-                // Get current transform
                 const transform = node.getAttribute('transform') || '';
                 const match = transform.match(/translate\(([^,]+),([^)]+)\)/);
                 initialX = match ? parseFloat(match[1]) : 0;
                 initialY = match ? parseFloat(match[2]) : 0;
                 
-                // Store starting mouse position in SVG coordinates
                 const pt = svg.createSVGPoint();
                 pt.x = e.clientX;
                 pt.y = e.clientY;
@@ -659,22 +709,12 @@ class MapGenerationManager {
                 startX = svgP.x;
                 startY = svgP.y;
                 
-                // For mindmap, find connected edges differently
                 if (isMindmap) {
                     connectedEdges = this.findMindmapConnectedEdges(svg, draggedElement);
                 } else {
-                    // For flowchart, use ID-based matching
                     connectedEdges = this.findConnectedEdgesByNodeId(svg, draggedNodeId);
                 }
                 
-                console.log('Found', connectedEdges.length, 'connected edges');
-                connectedEdges.forEach((e, i) => {
-                    console.log(`Edge ${i}:`, e.sourceNode, '->', e.targetNode, 
-                               'isSource:', e.isSource, 'isTarget:', e.isTarget);
-                });
-                console.log('===================');
-                
-                // Add document-level listeners
                 document.addEventListener('mousemove', mouseMoveHandler);
                 document.addEventListener('mouseup', mouseUpHandler);
             };
@@ -682,7 +722,6 @@ class MapGenerationManager {
             const mouseMoveHandler = (e) => {
                 if (!draggedElement) return;
                 
-                // Get current mouse position in SVG coordinates
                 const pt = svg.createSVGPoint();
                 pt.x = e.clientX;
                 pt.y = e.clientY;
@@ -694,7 +733,6 @@ class MapGenerationManager {
                 const newX = initialX + deltaX;
                 const newY = initialY + deltaY;
                 
-                // Update node transform
                 const currentTransform = draggedElement.getAttribute('transform') || '';
                 let newTransform;
                 
@@ -709,35 +747,16 @@ class MapGenerationManager {
                 
                 draggedElement.setAttribute('transform', newTransform);
                 
-                // Update all connected edges
-                connectedEdges.forEach((edgeInfo, index) => {
-                    const oldD = edgeInfo.path.getAttribute('d');
+                connectedEdges.forEach((edgeInfo) => {
                     this.updateEdgeConnectionById(edgeInfo, deltaX, deltaY);
-                    const newD = edgeInfo.path.getAttribute('d');
-                    if (index === 0) {  // Log first edge only to avoid spam
-                        console.log('Edge update - Old d:', oldD);
-                        console.log('Edge update - New d:', newD);
-                        console.log('Changed:', oldD !== newD);
-                    }
                 });
             };
             
             const mouseUpHandler = () => {
-                if (draggedElement && draggedNodeId) {
-                    // Store final position
-                    const transform = draggedElement.getAttribute('transform');
-                    const match = transform ? transform.match(/translate\(([^,]+),([^)]+)\)/) : null;
-                    if (match) {
-                        this.nodePositions.set(draggedNodeId, {
-                            x: parseFloat(match[1]),
-                            y: parseFloat(match[2])
-                        });
-                    }
-                    
+                if (draggedElement) {
                     draggedElement.classList.remove('dragging');
                     draggedElement = null;
                     draggedNodeId = null;
-                    connectedEdges = [];
                 }
                 document.removeEventListener('mousemove', mouseMoveHandler);
                 document.removeEventListener('mouseup', mouseUpHandler);
@@ -747,12 +766,10 @@ class MapGenerationManager {
         });
     }
 
-    // Find connected edges for mindmap by geometric proximity
     findMindmapConnectedEdges(svg, nodeElement) {
         const edges = [];
         
         try {
-            // Get node center position
             const nodeBBox = nodeElement.getBBox();
             const transform = nodeElement.getAttribute('transform') || '';
             const match = transform.match(/translate\(([^,]+),([^)]+)\)/);
@@ -762,26 +779,21 @@ class MapGenerationManager {
             const nodeCenterX = tx + nodeBBox.x + nodeBBox.width / 2;
             const nodeCenterY = ty + nodeBBox.y + nodeBBox.height / 2;
             
-            // Find all path elements (mindmap uses simple paths for connections)
             const allPaths = svg.querySelectorAll('path');
-            console.log('Checking', allPaths.length, 'paths for mindmap connections');
             
             allPaths.forEach(path => {
                 const d = path.getAttribute('d');
                 if (!d) return;
                 
-                // Parse path to get start and end points
                 const pathPoints = this.parsePathData(d);
                 if (!pathPoints || pathPoints.length < 2) return;
                 
                 const startPoint = pathPoints[0];
                 const endPoint = pathPoints[pathPoints.length - 1];
                 
-                // Get actual end coordinates (handle different point types)
                 const endX = endPoint.x3 || endPoint.x2 || endPoint.x;
                 const endY = endPoint.y3 || endPoint.y2 || endPoint.y;
                 
-                // Check if path starts or ends near this node (within 50px)
                 const threshold = 50;
                 const startDist = Math.sqrt(Math.pow(startPoint.x - nodeCenterX, 2) + Math.pow(startPoint.y - nodeCenterY, 2));
                 const endDist = Math.sqrt(Math.pow(endX - nodeCenterX, 2) + Math.pow(endY - nodeCenterY, 2));
@@ -790,7 +802,6 @@ class MapGenerationManager {
                 const isTarget = endDist < threshold;
                 
                 if (isSource || isTarget) {
-                    console.log('Found connected path, isSource:', isSource, 'isTarget:', isTarget);
                     edges.push({
                         path: path,
                         pathData: d,
@@ -817,54 +828,11 @@ class MapGenerationManager {
         return edges;
     }
 
-    // Extract clean node ID from Mermaid's generated ID
-    extractNodeId(rawId) {
-        // Mermaid generates IDs like "flowchart-A-123" or just "A"
-        // Mindmap uses IDs like "mindmap-section-0", "mindmap-section-0-0", etc.
-        // We need to extract the actual node identifier
-        if (!rawId) return '';
-        
-        // If it's a simple ID without prefixes, return as is
-        if (!rawId.includes('-')) {
-            return rawId;
-        }
-        
-        // For mindmap sections, keep the full ID as it's meaningful
-        if (rawId.startsWith('mindmap-')) {
-            return rawId;
-        }
-        
-        // Remove common prefixes and trailing numbers
-        let cleanId = rawId;
-        
-        // Pattern: flowchart-NodeName-123 -> NodeName
-        const flowchartMatch = cleanId.match(/^flowchart-([^-]+)-\d+$/);
-        if (flowchartMatch) {
-            return flowchartMatch[1];
-        }
-        
-        // Pattern: node-NodeName-123 -> NodeName
-        const nodeMatch = cleanId.match(/^node-([^-]+)-\d+$/);
-        if (nodeMatch) {
-            return nodeMatch[1];
-        }
-        
-        // Pattern: NodeName-123 -> NodeName (remove trailing numbers only)
-        cleanId = cleanId.replace(/-\d+$/, '');
-        
-        // Remove common prefixes as last resort (but not mindmap)
-        cleanId = cleanId.replace(/^(?:flowchart|node)-/i, '');
-        
-        return cleanId;
-    }
-
-    // Find edges by parsing their IDs which contain node references (for flowchart only)
     findConnectedEdgesByNodeId(svg, nodeId) {
         if (!nodeId) return [];
         
         const edges = [];
         
-        // Flowchart uses specific edge classes
         const allPaths = svg.querySelectorAll([
             'path.flowchart-link',
             'path[class*="edge"]',
@@ -881,20 +849,14 @@ class MapGenerationManager {
             const pathClass = path.getAttribute('class') || '';
             const d = path.getAttribute('d');
             
-            console.log('Checking path:', pathId, 'class:', pathClass);
-            
             if (!d) return;
             
-            // Parse edge ID to determine connection
             const edgeConnection = this.parseEdgeConnection(pathId, pathClass);
             
-            if (!edgeConnection) {
-                return;
-            }
+            if (!edgeConnection) return;
             
             const { sourceNode, targetNode } = edgeConnection;
             
-            // Check if this edge connects to our node
             const isSource = sourceNode === nodeId;
             const isTarget = targetNode === nodeId;
             
@@ -921,68 +883,50 @@ class MapGenerationManager {
                     isSource: isSource,
                     isTarget: isTarget
                 });
-                
-                console.log('Edge found:', sourceNode, '->', targetNode, 
-                           'Node is source:', isSource, 'Node is target:', isTarget);
             }
         });
         
         return edges;
     }
 
-    // Parse edge ID/class to extract source and target node IDs
     parseEdgeConnection(pathId, pathClass) {
-        console.log('Parsing edge connection from ID:', pathId, 'class:', pathClass);
-        
-        // Try to parse from ID first
-        // Common formats: "L-A-B", "flowchart-A-B-0", "edge-A-B"
         let match;
         
-        // Format: L-nodeA-nodeB or L-nodeA-nodeB-number
         match = pathId.match(/^L-([^-]+)-([^-]+?)(?:-\d+)?$/);
         if (match) {
-            console.log('Matched L- format:', match[1], '->', match[2]);
             return {
                 sourceNode: this.extractNodeId(match[1]),
                 targetNode: this.extractNodeId(match[2])
             };
         }
         
-        // Format: flowchart-nodeA-nodeB-number
         match = pathId.match(/^flowchart-([^-]+)-([^-]+)-\d+$/);
         if (match) {
-            console.log('Matched flowchart format:', match[1], '->', match[2]);
             return {
                 sourceNode: match[1],
                 targetNode: match[2]
             };
         }
         
-        // Format: edge-nodeA-nodeB
         match = pathId.match(/^(?:edge|link)-([^-]+)-([^-]+)/);
         if (match) {
-            console.log('Matched edge/link format:', match[1], '->', match[2]);
             return {
                 sourceNode: this.extractNodeId(match[1]),
                 targetNode: this.extractNodeId(match[2])
             };
         }
         
-        // Try class attribute
         match = pathClass.match(/(?:edge|link)-from-([^\s-]+)-to-([^\s-]+)/);
         if (match) {
-            console.log('Matched class format:', match[1], '->', match[2]);
             return {
                 sourceNode: this.extractNodeId(match[1]),
                 targetNode: this.extractNodeId(match[2])
             };
         }
         
-        console.log('No match found for edge connection');
         return null;
     }
 
-    // Parse SVG path data to extract all coordinate points
     parsePathData(d) {
         const points = [];
         const regex = /([MLHVCSQTAZ])\s*([\d.,\s-]*)/gi;
@@ -1039,7 +983,6 @@ class MapGenerationManager {
                     }
                     break;
                 case 'S':
-                    // Smooth cubic bezier
                     if (coords.length >= 4) {
                         points.push({
                             x: currentX,
@@ -1055,7 +998,6 @@ class MapGenerationManager {
                     }
                     break;
                 case 'Q':
-                    // Quadratic bezier
                     if (coords.length >= 4) {
                         points.push({
                             x: coords[0],
@@ -1074,24 +1016,19 @@ class MapGenerationManager {
         return points;
     }
 
-    // Update edge connection based on node role (source or target)
-    // Simplified: Use straight lines instead of curves
     updateEdgeConnectionById(edgeInfo, deltaX, deltaY) {
         const { path, initialPoints, isSource, isTarget } = edgeInfo;
         
         if (!initialPoints || initialPoints.length === 0) return;
         
-        // Get the first and last points (start and end of the edge)
         const firstPoint = initialPoints[0];
         const lastPoint = initialPoints[initialPoints.length - 1];
         
-        // Calculate new positions
         let startX = firstPoint.x;
         let startY = firstPoint.y;
-        let endX = lastPoint.x || lastPoint.x3 || lastPoint.x2;  // Handle different point types
+        let endX = lastPoint.x || lastPoint.x3 || lastPoint.x2;
         let endY = lastPoint.y || lastPoint.y3 || lastPoint.y2;
         
-        // Move the appropriate end based on node role
         if (isSource) {
             startX += deltaX;
             startY += deltaY;
@@ -1101,16 +1038,32 @@ class MapGenerationManager {
             endY += deltaY;
         }
         
-        // Create a simple straight line path
         const newPathData = `M${startX},${startY} L${endX},${endY}`;
         path.setAttribute('d', newPathData);
+    }
+
+    extractNodeId(rawId) {
+        if (!rawId) return '';
+        if (!rawId.includes('-')) return rawId;
+        if (rawId.startsWith('mindmap-')) return rawId;
+        
+        let cleanId = rawId;
+        const flowchartMatch = cleanId.match(/^flowchart-([^-]+)-\d+$/);
+        if (flowchartMatch) return flowchartMatch[1];
+        
+        const nodeMatch = cleanId.match(/^node-([^-]+)-\d+$/);
+        if (nodeMatch) return nodeMatch[1];
+        
+        cleanId = cleanId.replace(/-\d+$/, '');
+        cleanId = cleanId.replace(/^(?:flowchart|node)-/i, '');
+        
+        return cleanId;
     }
 
     formatCode() {
         const codeEditor = document.getElementById('mermaidCodeEditor');
         if (!codeEditor) return;
 
-        // Basic code formatting
         let code = codeEditor.value;
         code = code.split('\n').map(line => line.trim()).join('\n');
         codeEditor.value = code;
@@ -1119,7 +1072,7 @@ class MapGenerationManager {
 
     async saveChanges() {
         if (!this.currentMapId) {
-            Utils.showNotification('No mind map to save', 'error');
+            window.messageModal.toast('No mind map to save', 'error');
             return;
         }
 
@@ -1128,31 +1081,45 @@ class MapGenerationManager {
 
         if (!codeEditor) return;
 
+        const newCode = codeEditor.value.trim();
+        
+        // 获取编辑预览容器的 SVG
+        const previewContainer = document.getElementById('mermaidPreview');
+        const svg = previewContainer ? previewContainer.querySelector('svg') : null;
+        let svgContent = '';
+        
+        if (svg) {
+            // 克隆 SVG 并序列化
+            const clonedSvg = svg.cloneNode(true);
+            svgContent = new XMLSerializer().serializeToString(clonedSvg);
+            console.log('Saved SVG length:', svgContent.length);
+        }
+
         const data = {
-            mermaid_code: codeEditor.value,
-            title: mapTitle?.textContent || 'Untitled'
+            mermaid_code: newCode,
+            title: mapTitle?.textContent || 'Untitled',
+            svg_content: svgContent
         };
 
-        Utils.showNotification('Saving changes...', 'info');
+        window.messageModal.toast('Saving changes...', 'info', 2000);
 
         try {
             const result = await Utils.apiCall(`/map/${this.currentMapId}`, 'PUT', data);
 
             if (result && result.success) {
-                Utils.showNotification('Changes saved successfully!', 'success');
-                this.currentMermaidCode = codeEditor.value;
-                this.savedMermaidCode = codeEditor.value;  // Update saved version
-                this.renderMermaid(this.currentMermaidCode);
-                this.loadRecentMaps();
+                window.messageModal.toast('Changes saved successfully!', 'success', 2000);
                 
-                // Clear node positions after successful save
-                this.nodePositions.clear();
+                this.currentMermaidCode = newCode;
+                this.savedMermaidCode = newCode;
+                this.savedSvgContent = svgContent;  // 保存 SVG 内容
+                
+                this.loadRecentMaps();
             } else {
-                Utils.showNotification(result?.error || 'Failed to save changes', 'error');
+                window.messageModal.toast(result?.error || 'Failed to save changes', 'error', 3000);
             }
         } catch (error) {
             console.error('Error saving changes:', error);
-            Utils.showNotification('Error saving changes', 'error');
+            window.messageModal.toast('Error saving changes', 'error', 3000);
         }
     }
 
