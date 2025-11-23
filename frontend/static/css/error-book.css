@@ -215,3 +215,8 @@
     display: flex;
     gap: var(--spacing-xs);
 }
+
+#uploadArea {
+    position: relative;
+    z-index: 9999 !important;
+}

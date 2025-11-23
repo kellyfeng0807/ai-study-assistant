@@ -1,0 +1,134 @@
+/* static/css/error-review.css */
+
+
+/* 页面标题 */
+.page-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 1rem;
+  color: hsl(var(--muted-foreground));
+  margin-top: var(--spacing-xs);
+}
+
+/* 内容卡片 */
+#errorCard,
+#reviewCard {
+  background: hsl(var(--card));
+  border-radius: var(--radius);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 题目标题 */
+#qTitle {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: var(--spacing-xl);
+  color: hsl(var(--foreground));
+}
+
+/* 回顾区块通用样式 */
+.review-section {
+  margin-top: var(--spacing-lg);
+}
+
+.review-section h5 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  color: hsl(var(--foreground));
+}
+
+/* 答案内容区 */
+.answer-content,
+.analysis-content {
+  font-size: 15px;
+  line-height: 1.6;
+  background: hsl(var(--background));
+  padding: var(--spacing-md);
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  overflow-x: auto;
+  white-space: pre-wrap; /* 保留换行 */
+  word-break: break-word;
+}
+
+/* 分析步骤列表 */
+#analysisContent ol {
+  padding-left: var(--spacing-lg);
+  margin: var(--spacing-sm) 0;
+}
+
+#analysisContent li {
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.6;
+}
+
+/* 元信息 */
+#metaInfo {
+  display: block;
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid hsl(var(--border));
+  font-size: 0.9em;
+  color: hsl(var(--text-muted));
+}
+
+/* 按钮（如果有） */
+#practiceBtn,
+#backBtn {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: var(--transition);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+#practiceBtn:hover,
+#backBtn:hover {
+  background: hsl(var(--primary-foreground));
+  color: hsl(var(--primary));
+}
+
+/* MathJax 公式优化 */
+.MathJax {
+  font-size: 1.1em !important;
+  margin: var(--spacing-xs) 0 !important;
+  line-height: 1.4 !important;
+}
+
+/* 空状态提示 */
+.empty-state {
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+  padding: var(--spacing-xl);
+}
+
+/* 响应式：小屏优化 */
+@media (max-width: 768px) {
+  #reviewCard {
+    padding: var(--spacing-lg);
+  }
+
+  #qTitle {
+    font-size: 1.4rem;
+  }
+
+  .answer-content,
+  .analysis-content {
+    padding: var(--spacing-sm);
+    font-size: 14px;
+  }
+}

@@ -1,35 +1,36 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Error Book - AI Study Assistant</title>
-    
-    <!-- Preload critical CSS for faster page loads -->
+
+    <!-- Preload critical CSS -->
     <link rel="preload" href="static/css/main.css" as="style">
     <link rel="stylesheet" href="static/css/main.css">
     <link rel="stylesheet" href="static/css/error-book.css">
     <link rel="stylesheet" href="static/css/ai-chat.css">
-    <link rel="stylesheet" href="static/css/message-modal.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- MathJax for LaTeX formula rendering -->
-    <script>
-        MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']],
-                displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                processEscapes: true
-            },
-            options: {
-                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
-            }
-        };
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
-    
-    <!-- DNS prefetch for faster navigation -->
+
+    <!-- DNS prefetch -->
     <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+
+    <!-- MathJax 配置（必须在主脚本前） -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        ignoreHtmlClass: 'tex2jax_ignore',
+        processHtmlClass: 'tex2jax_process'
+      }
+    };
+    </script>
+
+    <!-- MathJax 主脚本 -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -222,7 +223,6 @@
     </div>
 
     <script src="static/js/main.js"></script>
-    <script src="static/js/message-modal.js"></script>
     <script src="static/js/ai-chat.js"></script>
     <script src="static/js/error-book.js"></script>
 </body>

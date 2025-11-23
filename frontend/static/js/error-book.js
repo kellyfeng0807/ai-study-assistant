@@ -12,6 +12,7 @@ class ErrorBookManager {
     init() {
         this.initUploadArea();
         this.bindEventListeners();
+        this.bindActionButtons(); 
     }
     
     initUploadArea() {
@@ -88,20 +89,131 @@ class ErrorBookManager {
     
     async processErrors() {
         if (this.selectedFiles.length === 0) return;
-        
+
         Utils.showNotification('Processing images...', 'info');
-        
+        const errorsList = document.querySelector('.errors-list');
+
         for (const file of this.selectedFiles) {
-            const result = await fileUploader.uploadFile(file, '/error/upload');
-            if (result && result.success) {
-                console.log('Image processed:', result);
+            try {
+                const uploadResult = await fileUploader.uploadFile(file, '/error/upload');
+
+                if (!uploadResult?.success || !uploadResult.question_text) {
+                    Utils.showNotification(`题目解析失败，跳过 ${file.name}`, 'warning');
+                    continue;
+                }
+
+                const cardData = {
+                    id: uploadResult.id || ("err_" + Date.now() + "_" + Math.floor(Math.random() * 999)),
+                    subject: uploadResult.subject || '未知科目',
+                    type: uploadResult.type || '',
+                    tags: Array.isArray(uploadResult.tags) ? uploadResult.tags : [],
+                    question_text: uploadResult.question_text,
+                    user_answer: uploadResult.user_answer || '',
+                    correct_answer: uploadResult.correct_answer || '',
+                    analysis_steps: Array.isArray(uploadResult.analysis_steps) ? uploadResult.analysis_steps : [],
+                    difficulty: 'Medium' // 可选：后续可从后端返回
+               };
+
+                try {
+                    const raw = JSON.parse(localStorage.getItem('errorbook_items') || '{}');
+                    raw[cardData.id] = cardData;
+                    localStorage.setItem('errorbook_items', JSON.stringify(raw));
+                } catch (e) {
+                    console.warn('localStorage 写入失败', e);
+                }
+
+                this.addErrorCard({
+                    id: cardData.id,
+                    subject: cardData.subject,
+                    difficulty: cardData.difficulty,
+                    text: `<p>${escapeHtml(cardData.question_text)}</p>`
+                });
+
+
+                if (typeof MathJax !== 'undefined') {
+                    MathJax.typesetPromise([errorsList]).catch(console.warn);
+                }
+
+                Utils.showNotification(`题目处理完成：${file.name}`, 'success');
+
+            } catch (err) {
+                console.error('处理图片出错:', file.name, err);
+                Utils.showNotification(`处理图片出错：${file.name}`, 'error');
             }
         }
-        
-        Utils.showNotification('All images processed successfully', 'success');
+
+        Utils.showNotification('所有图片处理完成 ', 'success');
         this.resetUploadArea();
+
+
+        function escapeHtml(s) {
+            if (!s) return '';
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/\n/g, '<br/>');
+        }
     }
     
+    addErrorCard(data) {
+        const errorsList = document.querySelector('.errors-list');
+        if (!errorsList) return;
+
+        const card = document.createElement('div');
+        card.className = 'error-card';
+
+        card.dataset.errorId = data.id;
+
+
+        let difficultyClass = '';
+        switch ((data.difficulty || '').toLowerCase()) {
+            case 'easy': difficultyClass = 'difficulty-easy'; break;
+            case 'medium': difficultyClass = 'difficulty-medium'; break;
+            case 'hard': difficultyClass = 'difficulty-hard'; break;
+        }
+
+        // 渲染卡片 DOM（列表页只显示题目）
+        card.innerHTML = `
+            <div class="error-header">
+                <span class="error-subject">${data.subject || '未知科目'}</span>
+                <span class="error-difficulty ${difficultyClass}">${data.difficulty || ''}</span>
+            </div>
+            <div class="error-content">
+                <p class="error-description">${data.text || ''}</p>
+            </div>
+            <div class="error-footer">
+                <span class="error-date">${new Date().toLocaleDateString()}</span>
+                <div class="error-actions">
+                    <button class="button-outline review-btn">Review</button>
+                    <button class="button-outline practice-btn">Practice</button>
+                </div>
+            </div>
+        `;
+
+        errorsList.prepend(card);
+
+        const reviewBtn = card.querySelector('.review-btn');
+        if (reviewBtn) {
+            reviewBtn.addEventListener('click', () => {
+                window.location.href = `/error-review.html?id=${encodeURIComponent(data.id)}`;
+            });
+        }
+
+
+        const practiceBtn = card.querySelector('.practice-btn');
+        if (practiceBtn) {
+            practiceBtn.addEventListener('click', () => {
+                const topic = data.subject || (data.tags && data.tags[0]) || '';
+                window.location.href = `/error/practice?id=${encodeURIComponent(data.id)}&topic=${encodeURIComponent(topic)}`;
+            });
+        }
+    }
+
+
+
     resetUploadArea() {
         this.selectedFiles = [];
         const uploadTitle = document.querySelector('.upload-title');
@@ -170,7 +282,48 @@ class ErrorBookManager {
         
         errorCards.forEach(card => errorsList.appendChild(card));
     }
+
+    bindActionButtons() {
+        const errorsList = document.querySelector('.errors-list');
+
+        // 事件委托，监听整个列表
+        errorsList.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+
+            const card = btn.closest('.error-card');
+            if (!card) return;
+
+            const id = card.dataset.errorId;  // 读取卡片 ID
+
+            if (btn.classList.contains('review-btn')) {
+                this.goToReview(id);
+            }
+            else if (btn.classList.contains('practice-btn')) {
+                this.goToPractice(id);
+            }
+        });
+    }
+
+    goToReview(id) {
+        if (!id) {
+            console.error("Error: missing question ID for review");
+            return;
+        }
+
+        window.location.href = `/error-review.html?id=${encodeURIComponent(id)}`;
+    }
+
+    goToPractice(id) {
+        if (!id) {
+            console.error("Error: missing question ID for practice");
+            return;
+        }
+        window.location.href = `/api/error/practice?id=${id}`;
+    }
+
 }
+
 
 document.addEventListener('DOMContentLoaded', () => {
     const errorBookManager = new ErrorBookManager();
