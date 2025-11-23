@@ -157,3 +157,185 @@
     font-size: 12px;
     color: hsl(var(--muted-foreground));
 }
+
+
+/* 笔记模态框 */
+.note-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 200ms ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.note-modal-content {
+    background: hsl(var(--card));
+    border-radius: var(--radius);
+    width: 90%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 300ms ease-out;
+}
+
+.note-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.note-modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.note-modal-header .close-button {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.note-modal-header .close-button:hover {
+    background: hsl(var(--muted));
+    transform: rotate(90deg);
+}
+
+.note-modal-body {
+    padding: var(--spacing-lg);
+    overflow-y: auto;
+    flex: 1;
+}
+
+.note-section {
+    margin-bottom: var(--spacing-lg);
+}
+
+.note-section h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: var(--spacing-sm);
+}
+
+.note-section p {
+    color: hsl(var(--muted-foreground));
+    line-height: 1.6;
+}
+
+.note-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.note-section ul li {
+    padding: var(--spacing-xs) 0;
+    padding-left: var(--spacing-lg);
+    color: hsl(var(--muted-foreground));
+    line-height: 1.6;
+    position: relative;
+}
+
+.note-section ul li:before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: hsl(var(--primary));
+    font-weight: bold;
+}
+
+.note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.note-tag {
+    padding: 4px 12px;
+    background: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.note-modal-footer {
+    display: flex;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg);
+    border-top: 1px solid hsl(var(--border));
+}
+
+.note-modal-footer button {
+    flex: 1;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .note-modal-content {
+        width: 95%;
+        max-height: 95vh;
+    }
+    
+    .note-modal-header,
+    .note-modal-body,
+    .note-modal-footer {
+        padding: var(--spacing-md);
+    }
+}
+
+/* 转录文本显示区域（可选） */
+.transcription-display {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: hsl(var(--muted));
+    border-radius: var(--radius);
+    min-height: 100px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.transcription-display .final-text {
+    color: hsl(var(--foreground));
+    line-height: 1.6;
+    margin-bottom: var(--spacing-xs);
+}
+
+.transcription-display .interim-text {
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+}
+
+.transcription-display:empty:before {
+    content: "Recognized contents will be displayed here...";
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+}
