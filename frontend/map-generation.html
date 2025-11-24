@@ -191,9 +191,63 @@
                             </div>
 
                             <div class="input-area">
-                                <label class="input-label">Available Notes</label>
+                                <label class="input-label">Select Notes (Maximum 10 displayed, scroll for more)</label>
                                 <div class="notes-select-list" id="notesSelectList">
                                     <!-- populated by JS -->
+                                </div>
+                            </div>
+
+                            <div class="input-area">
+                                <label class="input-label">Topic/Title (Optional)</label>
+                                <input 
+                                    type="text" 
+                                    class="topic-input" 
+                                    id="notesTopicInput"
+                                    placeholder="Custom map title (leave blank to use 'Selected Notes Map')..."
+                                >
+                            </div>
+
+                            <div class="input-area">
+                                <label class="input-label">Additional Context (Optional)</label>
+                                <textarea 
+                                    class="context-textarea" 
+                                    id="notesContextInput"
+                                    rows="3"
+                                    placeholder="Add any specific instructions or focus areas for the mind map..."
+                                ></textarea>
+                            </div>
+
+                            <div class="options-area">
+                                <div class="option-group">
+                                    <label class="input-label">Depth Level</label>
+                                    <select class="option-select" id="notesDepthSelect">
+                                        <option value="auto">AI Auto-decide</option>
+                                        <option value="2">2 levels (Basic)</option>
+                                        <option value="3" selected>3 levels (Standard)</option>
+                                        <option value="4">4 levels (Detailed)</option>
+                                        <option value="5">5 levels (Comprehensive)</option>
+                                        <option value="custom">Custom...</option>
+                                    </select>
+                                </div>
+                                <div class="option-group custom-depth-group" id="notesCustomDepthGroup" style="display: none;">
+                                    <label class="input-label">Custom Depth</label>
+                                    <input 
+                                        type="number" 
+                                        class="topic-input" 
+                                        id="notesCustomDepthInput"
+                                        placeholder="Enter depth (1-10)"
+                                        min="1"
+                                        max="10"
+                                        value="3"
+                                    >
+                                </div>
+                                <div class="option-group">
+                                    <label class="input-label">Style</label>
+                                    <select class="option-select" id="notesStyleSelect">
+                                        <option value="TD" selected>Hierarchical (Top-Down)</option>
+                                        <option value="LR">Hierarchical (Left-Right)</option>
+                                        <option value="radial">Radial (Divergent)</option>
+                                    </select>
                                 </div>
                             </div>
 

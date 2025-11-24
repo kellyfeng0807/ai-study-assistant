@@ -375,6 +375,24 @@ def generate_from_notes():
         if not note_ids:
             return jsonify({'success': False, 'error': 'note_ids required'}), 400
 
+        # Get optional parameters from request
+        topic = data.get('topic', '').strip() or 'Selected Notes'
+        context = data.get('context', '').strip()
+        depth_input = data.get('depth', '3')
+        style = data.get('style', 'TD')
+
+        # Parse depth
+        if isinstance(depth_input, str):
+            if depth_input.lower() == 'auto':
+                depth = 'auto'
+            else:
+                try:
+                    depth = int(depth_input)
+                except ValueError:
+                    depth = 3
+        else:
+            depth = depth_input if depth_input else 3
+
         # Load notes data from data/notes.json (existing note assistant persistence)
         notes_file = os.path.join(DATA_FOLDER, 'notes.json')
         notes = []
@@ -404,23 +422,27 @@ def generate_from_notes():
             return jsonify({'success': False, 'error': 'No note content found for provided ids'}), 400
 
         combined_content = '\n\n'.join(selected_texts)
+        
+        # Add user context if provided
+        if context:
+            combined_content = f"{context}\n\n{combined_content}"
 
         # Use AI service to generate mermaid from combined note content
         try:
             mermaid_code = ai_service.generate_mindmap_from_content(
-                'Selected Notes', combined_content, 3, 'TD'
+                topic, combined_content, depth, style
             )
         except Exception as e:
             print('AI service error while generating from notes:', e)
-            mermaid_code = generate_mermaid_from_text('Selected Notes', 3, combined_content, 'TD')
+            mermaid_code = generate_mermaid_from_text(topic, depth if depth != 'auto' else 3, combined_content, style)
 
         mindmap_id = str(uuid.uuid4())
         mindmap = {
             'id': mindmap_id,
-            'title': 'Selected Notes Map',
+            'title': topic,
             'mermaid_code': mermaid_code,
-            'depth': 3,
-            'style': 'TD',
+            'depth': depth,
+            'style': style,
             'created_at': datetime.now().isoformat(),
             'updated_at': datetime.now().isoformat(),
             'source': 'notes_selection',

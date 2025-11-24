@@ -45,8 +45,10 @@ class MapGenerationManager {
         // Depth selection change handlers
         const depthSelect = document.getElementById('depthSelect');
         const fileDepthSelect = document.getElementById('fileDepthSelect');
+        const notesDepthSelect = document.getElementById('notesDepthSelect');
         const customDepthGroup = document.getElementById('customDepthGroup');
         const fileCustomDepthGroup = document.getElementById('fileCustomDepthGroup');
+        const notesCustomDepthGroup = document.getElementById('notesCustomDepthGroup');
 
         if (depthSelect && customDepthGroup) {
             depthSelect.addEventListener('change', (e) => {
@@ -57,6 +59,12 @@ class MapGenerationManager {
         if (fileDepthSelect && fileCustomDepthGroup) {
             fileDepthSelect.addEventListener('change', (e) => {
                 fileCustomDepthGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
+            });
+        }
+
+        if (notesDepthSelect && notesCustomDepthGroup) {
+            notesDepthSelect.addEventListener('change', (e) => {
+                notesCustomDepthGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
             });
         }
 
@@ -558,6 +566,12 @@ class MapGenerationManager {
     async generateFromNotes() {
         const list = document.getElementById('notesSelectList');
         const btn = document.getElementById('generateFromNotesBtn');
+        const notesTopicInput = document.getElementById('notesTopicInput');
+        const notesContextInput = document.getElementById('notesContextInput');
+        const notesDepthSelect = document.getElementById('notesDepthSelect');
+        const notesCustomDepthInput = document.getElementById('notesCustomDepthInput');
+        const notesStyleSelect = document.getElementById('notesStyleSelect');
+
         if (!list) return;
         const checked = Array.from(list.querySelectorAll('input[type="checkbox"]')).filter(i => i.checked).map(i => i.value);
         if (checked.length === 0) {
@@ -565,12 +579,27 @@ class MapGenerationManager {
             return;
         }
 
+        // Get depth value
+        const depthValue = notesDepthSelect?.value;
+        let depth = depthValue === 'custom' 
+            ? (notesCustomDepthInput?.value || '3') 
+            : (depthValue === 'auto' ? 'auto' : depthValue);
+
+        // Build request body
+        const requestBody = {
+            note_ids: checked,
+            topic: notesTopicInput?.value?.trim() || '',
+            context: notesContextInput?.value?.trim() || '',
+            depth: depth,
+            style: notesStyleSelect?.value || 'TD'
+        };
+
         try {
             Utils.showLoadingState(btn, 'Generating map from notes...');
             const res = await fetch('/api/map/generate-from-notes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ note_ids: checked })
+                body: JSON.stringify(requestBody)
             });
             const data = await res.json();
             if (data.success) {
@@ -1346,7 +1375,13 @@ class MapGenerationManager {
     }
 
     async deleteMap(mapId) {
-        if (!confirm('Are you sure you want to delete this mind map?')) {
+        const confirmed = await window.messageModal.confirm(
+            'Are you sure you want to delete this mind map? This action cannot be undone.',
+            'Confirm Delete',
+            { danger: true, confirmText: 'Delete', cancelText: 'Cancel' }
+        );
+        
+        if (!confirmed) {
             return;
         }
 

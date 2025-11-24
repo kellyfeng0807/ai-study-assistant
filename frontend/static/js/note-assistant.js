@@ -515,13 +515,13 @@ class NoteAssistantManager {
         const text = textarea.value.trim();
         
         if (!text) {
-            alert('please enter some content');
+            window.messageModal.alert('Please enter some content', 'Input Required', 'warning');
             textarea.focus();
             return;
         }
         
         if (text.length < 10) {
-            alert('entered content is too short, please input at least 10 characters');
+            window.messageModal.alert('Entered content is too short, please input at least 10 characters', 'Input Too Short', 'warning');
             textarea.focus();
             return;
         }
