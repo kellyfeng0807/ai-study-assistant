@@ -365,6 +365,78 @@ def list_mindmaps():
             'error': str(e)
         }), 500
 
+
+@map_bp.route('/generate-from-notes', methods=['POST'])
+def generate_from_notes():
+    """Generate mind map from selected note IDs"""
+    try:
+        data = request.get_json() or {}
+        note_ids = data.get('note_ids', [])
+        if not note_ids:
+            return jsonify({'success': False, 'error': 'note_ids required'}), 400
+
+        # Load notes data from data/notes.json (existing note assistant persistence)
+        notes_file = os.path.join(DATA_FOLDER, 'notes.json')
+        notes = []
+        if os.path.exists(notes_file):
+            with open(notes_file, 'r', encoding='utf-8') as f:
+                try:
+                    notes = json.load(f)
+                except Exception:
+                    notes = []
+
+        # Collect contents of selected notes
+        selected_texts = []
+        for nid in note_ids:
+            note = next((n for n in notes if str(n.get('id')) == str(nid)), None)
+            if note:
+                # access 'content' dict: note['content']['summary'] & note['content']['key_points']
+                content = note.get('content', {})
+                content_parts = []
+                if content.get('summary'):
+                    content_parts.append(content.get('summary'))
+                if content.get('key_points'):
+                    content_parts.append('\n'.join(content.get('key_points')))
+                if content_parts:
+                    selected_texts.append('\n'.join(content_parts))
+
+        if not selected_texts:
+            return jsonify({'success': False, 'error': 'No note content found for provided ids'}), 400
+
+        combined_content = '\n\n'.join(selected_texts)
+
+        # Use AI service to generate mermaid from combined note content
+        try:
+            mermaid_code = ai_service.generate_mindmap_from_content(
+                'Selected Notes', combined_content, 3, 'TD'
+            )
+        except Exception as e:
+            print('AI service error while generating from notes:', e)
+            mermaid_code = generate_mermaid_from_text('Selected Notes', 3, combined_content, 'TD')
+
+        mindmap_id = str(uuid.uuid4())
+        mindmap = {
+            'id': mindmap_id,
+            'title': 'Selected Notes Map',
+            'mermaid_code': mermaid_code,
+            'depth': 3,
+            'style': 'TD',
+            'created_at': datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat(),
+            'source': 'notes_selection',
+            'context': combined_content[:200],
+            'node_positions': '{}'
+        }
+
+        mindmaps = load_mindmaps()
+        mindmaps.insert(0, mindmap)
+        save_mindmaps(mindmaps)
+
+        return jsonify({'success': True, 'mindmap': mindmap, 'mermaid_code': mermaid_code})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @map_bp.route('/<map_id>', methods=['GET'])
 def get_mindmap(map_id):
     """获取特定思维导图"""

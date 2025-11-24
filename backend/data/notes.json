@@ -1,0 +1,59 @@
+[
+  {
+    "id": 1,
+    "title": "复数的n次方根公式",
+    "subject": "General",
+    "date": "2025-11-24",
+    "content": {
+      "title": "复数的n次方根公式",
+      "subject": "General",
+      "key_points": [
+        "复数n次方根公式：$\\sqrt[n]{re^{i\\theta_0}} = \\sqrt[n]{r} \\exp\\left(i\\frac{\\theta_0 + 2k\\pi}{n}\\right), k = 0, 1, \\dots, n-1$",
+        "基于棣莫弗定理和复数指数形式推导",
+        "复数的一般形式：$z = re^{i(\\theta_0 + 2k\\pi)}$，其中$\\theta_0$是主幅角",
+        "利用指数律$(e^a)^b = e^{ab}$进行推导",
+        "n次方根有n个不同的值，对应k=0,1,...,n-1"
+      ],
+      "examples": [
+        "从$w^n = z$出发求解复数$w$",
+        "将复数$z$表示为指数形式$re^{i(\\theta_0 + 2k\\pi)}$",
+        "应用指数律推导n次方根表达式"
+      ],
+      "summary": "该笔记总结了复数的n次方根计算公式及其推导过程。基于棣莫弗定理和复数指数形式，通过设$w^n = z$并利用指数运算规则，推导出n次方根的通用公式，其中包含n个不同的根，分别对应不同的k值。",
+      "tags": [
+        "复数运算",
+        "n次方根",
+        "棣莫弗定理"
+      ]
+    },
+    "original_text": "公式 (使用 $\\theta_0$ 表示主幅角):$$\\sqrt[n]{re^{i\\theta_0}} = \\sqrt[n]{r} \\exp\\left(i\\frac{\\theta_0 + 2k\\pi}{n}\\right), \\quad k = 0, 1, \\dots, n-1$$ 证明/解释：这个公式是基于棣莫弗定理 (De Moivre's Theorem) 和复数的指数形式推导出来的。复数的 $n$ 次方根： 我们要找一个复数 $w$ 满足 $w^n = z$.复数的等价形式： 复数 $z$ 的一般形式是 $z = re^{i(\\theta_0 + 2k\\pi)}$，其中 $\\theta_0$ 是主幅角， $k$ 是任意整数。取 $n$ 次方根：$$w = z^{1/n} = \\left(r e^{i(\\theta_0 + 2k\\pi)}\\right)^{1/n}$$$$w = r^{1/n} \\cdot \\left(e^{i(\\theta_0 + 2k\\pi)}\\right)^{1/n}$$根据指数律： $(e^a)^b = e^{ab}$$$w = \\sqrt[n]{r} \\cdot e^{i(\\theta_0 + 2k\\pi) \\cdot \\frac{1}{n}}$$$$w = \\sqrt[n]{r} \\exp\\left(i\\frac{\\theta_0 + 2k\\pi}{n}\\right)$$"
+  },
+  {
+    "id": 2,
+    "title": "复数的n次方根公式",
+    "subject": "General",
+    "date": "2025-11-24",
+    "content": {
+      "title": "复数的n次方根公式",
+      "subject": "General",
+      "key_points": [
+        "复数n次方根公式：$\\sqrt[n]{re^{i\\theta_0}} = \\sqrt[n]{r} \\exp\\left(i\\frac{\\theta_0 + 2k\\pi}{n}\\right), k = 0, 1, \\dots, n-1$",
+        "基于棣莫弗定理和复数指数形式推导",
+        "复数的一般形式：$z = re^{i(\\theta_0 + 2k\\pi)}$，其中$\\theta_0$是主幅角",
+        "指数律的应用：$(e^a)^b = e^{ab}$",
+        "n次方根有n个不同的值，对应k=0,1,...,n-1"
+      ],
+      "examples": [
+        "求复数$z=8e^{i\\pi}$的立方根：$w = \\sqrt[3]{8} \\exp\\left(i\\frac{\\pi + 2k\\pi}{3}\\right) = 2e^{i(\\pi/3 + 2k\\pi/3)}$",
+        "当n=2时，平方根公式：$\\sqrt{re^{i\\theta_0}} = \\sqrt{r} \\exp\\left(i\\frac{\\theta_0 + 2k\\pi}{2}\\right)$"
+      ],
+      "summary": "复数的n次方根公式给出了计算复数n次方根的方法。基于棣莫弗定理和复数指数形式，通过将幅角加上2kπ的整数倍并除以n，得到n个不同的根。该公式在复变函数和工程数学中有广泛应用。",
+      "tags": [
+        "复数",
+        "棣莫弗定理",
+        "n次方根"
+      ]
+    },
+    "original_text": "公式 (使用 $\\theta_0$ 表示主幅角):$$\\sqrt[n]{re^{i\\theta_0}} = \\sqrt[n]{r} \\exp\\left(i\\frac{\\theta_0 + 2k\\pi}{n}\\right), \\quad k = 0, 1, \\dots, n-1$$ 证明/解释：这个公式是基于棣莫弗定理 (De Moivre's Theorem) 和复数的指数形式推导出来的。复数的 $n$ 次方根： 我们要找一个复数 $w$ 满足 $w^n = z$.复数的等价形式： 复数 $z$ 的一般形式是 $z = re^{i(\\theta_0 + 2k\\pi)}$，其中 $\\theta_0$ 是主幅角， $k$ 是任意整数。取 $n$ 次方根：$$w = z^{1/n} = \\left(r e^{i(\\theta_0 + 2k\\pi)}\\right)^{1/n}$$$$w = r^{1/n} \\cdot \\left(e^{i(\\theta_0 + 2k\\pi)}\\right)^{1/n}$$根据指数律： $(e^a)^b = e^{ab}$$$w = \\sqrt[n]{r} \\cdot e^{i(\\theta_0 + 2k\\pi) \\cdot \\frac{1}{n}}$$$$w = \\sqrt[n]{r} \\exp\\left(i\\frac{\\theta_0 + 2k\\pi}{n}\\right)$$"
+  }
+]

@@ -81,61 +81,106 @@
             </header>
 
             <div class="content-body">
-                <div class="recording-section">
-                    <div class="recording-card">
-                        <div style="background: linear-gradient(135deg, #000000 0%, #000000 100%); border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; color: white; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <i class="fas fa-lightbulb" style="font-size: 20px;"></i>
-                                <div>
-                                    <strong style="font-size: 14px;">Advice</strong>
-                                    <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">
-                                        Speech recognition may be unstable. It is recommended to use the <strong>"Text Input Box"</strong> below to generate notes.
-                                    </p>
+                <div class="generation-section">
+                    <div class="generation-card">
+                        <!-- Tab Navigation -->
+                        <div class="tab-navigation">
+                            <button class="tab-button active" data-tab="text-input">
+                                <i class="fas fa-keyboard"></i>
+                                Text Input
+                            </button>
+                            <button class="tab-button" data-tab="audio-upload">
+                                <i class="fas fa-microphone"></i>
+                                Audio Recording
+                            </button>
+                        </div>
+
+                        <!-- Text Input Tab -->
+                        <div class="tab-content active" id="text-input">
+                            <div class="advice-card">
+                                <div class="advice-row">
+                                    <i class="fas fa-lightbulb"></i>
+                                    <div>
+                                        <strong>Tip</strong>
+                                        <p>Enter or paste your learning content below, and AI will generate structured notes with key points, examples, and summaries.</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div class="recording-controls">
-                            <button class="record-button" id="recordBtn">
-                                <i class="fas fa-microphone"></i>
-                            </button>
-                            <div class="recording-info">
-                                <div class="recording-status">Ready to record</div>
-                                <div class="recording-time">00:00</div>
+                            
+                            <div class="input-area">
+                                <label class="input-label">Learning Content</label>
+                                <textarea 
+                                    id="manualTextInput" 
+                                    class="context-textarea"
+                                    placeholder="Input or paste your learning content here...&#10;&#10;Example: Today I learned the basic syntax of Python, including variable definition, data types (integers, floating-point numbers, strings, lists, dictionaries), conditional statements (if-elif-else), loops (for and while), and function definition and calling. Through practice exercises, I mastered basic programming logic."
+                                    rows="6"
+                                ></textarea>
+                                <div class="controls-row">
+                                    <span id="textCounter" class="counter">0 characters</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="recording-actions">
-                            <button class="button-outline" id="uploadBtn">
-                                <i class="fas fa-upload"></i>
-                                Upload Audio
-                            </button>
-                            <button class="button-primary" id="transcribeBtn" disabled>
-                                <i class="fas fa-file-alt"></i>
-                                Generate Note
+                            
+                            <button class="button-primary" id="manualGenerateBtn">
+                                <i class="fas fa-magic"></i>
+                                Generate Note with AI
                             </button>
                         </div>
-                        
-                        
-                        <div class="text-input-section" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid hsl(var(--border));">
-                            <label for="manualTextInput" style="display: block; margin-bottom: 10px; font-size: 14px; font-weight: 600; color: hsl(var(--foreground));">
-                                Or input/paste text
-                            </label>
-                            <textarea 
-                                id="manualTextInput" 
-                                placeholder="Input/ paste your content here...&#10;&#10;Example: Today I learned the basic syntax of Python, including variable definition, data types (integers, floating-point numbers, strings, lists, dictionaries), conditional statements (if-elif-else), loops (for and while), and function definition and calling. Through practice exercises, I mastered basic programming logic." 
-                                style="width: 100%; min-height: 140px; padding: 14px; border: 1px solid hsl(var(--border)); border-radius: 8px; font-size: 14px; font-family: inherit; line-height: 1.6; resize: vertical; background: hsl(var(--background)); color: hsl(var(--foreground)); transition: border-color 0.2s;"
-                                onfocus="this.style.borderColor='hsl(var(--primary))'"
-                                onblur="this.style.borderColor='hsl(var(--border))'"
-                            ></textarea>
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
-                                <span id="textCounter" style="font-size: 12px; color: hsl(var(--muted-foreground));">0 字</span>
-                                <button 
-                                    class="button-primary" 
-                                    id="manualGenerateBtn" 
-                                    style="padding: 10px 24px;"
-                                >
+
+                        <!-- Audio Upload Tab -->
+                        <div class="tab-content" id="audio-upload">
+                            <div class="advice-card">
+                                <div class="advice-row">
+                                    <i class="fas fa-info-circle"></i>
+                                    <div>
+                                        <strong>Note</strong>
+                                        <p>Record audio or upload an audio file. AI will transcribe it and generate structured notes automatically.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="audio-panel">
+                                <!-- Recording Component (separate) -->
+                                <div class="recording-card">
+                                    <div class="recording-card-header">
+                                        <h4>Record Audio</h4>
+                                    </div>
+                                    <div class="recording-controls" id="recordingControls">
+                                        <button class="record-button" id="recordBtn">
+                                            <i class="fas fa-microphone"></i>
+                                        </button>
+                                        <div class="recording-info">
+                                            <div class="recording-status">Ready to record</div>
+                                            <div class="recording-time">00:00</div>
+                                        </div>
+                                        <button class="button-outline" id="stopRecordBtn">
+                                            <i class="fas fa-stop"></i>
+                                            Stop
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Upload Component (separate) -->
+                                <div class="upload-area" id="audioUploadArea">
+                                    <input type="file" id="audioInput" accept="audio/*,.mp3,.wav,.m4a,.webm" hidden>
+                                    <div class="upload-placeholder">
+                                        <i class="fas fa-upload"></i>
+                                        <p class="upload-title">Upload Audio</p>
+                                        <p class="upload-subtitle">Drag & drop or click to choose an audio file</p>
+                                        <p class="upload-hint">Supports: MP3, WAV, M4A, WebM</p>
+                                    </div>
+                                    <div class="upload-preview" id="audioPreview" style="display: none;">
+                                        <div class="files-list" id="audioFilesList"></div>
+                                        <button class="remove-file-btn" id="removeAudioBtn" title="Remove audio">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="audio-actions" style="margin-top: var(--spacing-lg);">
+                                <button class="button-primary" id="audioGenerateBtn" disabled>
                                     <i class="fas fa-magic"></i>
-                                    generate from text
+                                    Generate Note with AI
                                 </button>
                             </div>
                         </div>

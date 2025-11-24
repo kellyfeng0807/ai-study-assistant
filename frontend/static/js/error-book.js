@@ -90,8 +90,9 @@ class ErrorBookManager {
     async processErrors() {
         if (this.selectedFiles.length === 0) return;
 
-        Utils.showNotification('Processing images...', 'info');
-        const errorsList = document.querySelector('.errors-list');
+    const processBtn = document.getElementById('processBtn');
+    Utils.showLoadingState(processBtn, 'Processing images...');
+    const errorsList = document.querySelector('.errors-list');
 
         for (const file of this.selectedFiles) {
             try {
@@ -142,8 +143,9 @@ class ErrorBookManager {
             }
         }
 
-        Utils.showNotification('所有图片处理完成 ', 'success');
-        this.resetUploadArea();
+    Utils.showNotification('所有图片处理完成 ', 'success');
+    this.resetUploadArea();
+    try { Utils.hideLoadingState(processBtn); } catch(e) { /* ignore */ }
 
 
         function escapeHtml(s) {

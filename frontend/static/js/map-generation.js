@@ -91,6 +91,12 @@ class MapGenerationManager {
             uploadGenerateBtn.addEventListener('click', () => this.generateFromFile());
         }
 
+        // Notes tab: bind generate button
+        const generateFromNotesBtn = document.getElementById('generateFromNotesBtn');
+        if (generateFromNotesBtn) {
+            generateFromNotesBtn.addEventListener('click', () => this.generateFromNotes());
+        }
+
         // Edit mode controls
         const editModeBtn = document.getElementById('editModeBtn');
         const saveBtn = document.getElementById('saveBtn');
@@ -211,6 +217,11 @@ class MapGenerationManager {
         document.querySelectorAll('.tab-content').forEach(content => {
             content.classList.toggle('active', content.id === tabId);
         });
+
+        // Load notes when switching to notes tab
+        if (tabId === 'notes-select') {
+            this.loadAvailableNotes();
+        }
     }
 
     setupDragAndDrop() {
@@ -464,6 +475,115 @@ class MapGenerationManager {
             this.renderSavedSvg(this.savedSvgContent);
         } else {
             this.renderMermaid(this.currentMermaidCode);
+        }
+    }
+
+    // Load notes for the Notes panel (multi-select)
+    async loadAvailableNotes() {
+        const list = document.getElementById('notesSelectList');
+        if (!list) {
+            console.warn('notesSelectList element not found');
+            return;
+        }
+
+        // Show loading state
+        list.innerHTML = '<div style="text-align: center; padding: 20px; color: hsl(var(--muted-foreground));">Loading notes...</div>';
+
+        try {
+            const res = await fetch('/api/note/list?limit=50');
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+            const data = await res.json();
+            
+            if (data.success && Array.isArray(data.notes) && data.notes.length > 0) {
+                this.renderNotesSelectList(data.notes);
+            } else {
+                // No notes available
+                list.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: hsl(var(--muted-foreground));">
+                        <i class="fas fa-sticky-note" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i>
+                        <p style="font-size: 16px; margin: 0;">No notes found</p>
+                        <p style="font-size: 14px; margin-top: 8px; opacity: 0.7;">Create notes in Note Assistant first</p>
+                    </div>
+                `;
+            }
+        } catch (err) {
+            console.error('Failed to load notes for selection:', err);
+            list.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: hsl(var(--destructive));">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px;"></i>
+                    <p style="font-size: 16px; margin: 0;">Failed to load notes</p>
+                    <p style="font-size: 14px; margin-top: 8px;">${err.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    renderNotesSelectList(notes) {
+        const list = document.getElementById('notesSelectList');
+        const btn = document.getElementById('generateFromNotesBtn');
+        if (!list) return;
+        list.innerHTML = '';
+
+        notes.forEach(note => {
+            const item = document.createElement('label');
+            item.className = 'note-select-item';
+            const preview = note.preview || note.summary || '';
+            item.innerHTML = `
+                <input type="checkbox" value="${note.id}">
+                <div class="note-summary">
+                    <div class="note-title">${this.escapeHtml(note.title || note.subject || 'Untitled')}</div>
+                    <div class="note-excerpt">${this.escapeHtml(preview.slice(0, 120))}</div>
+                </div>
+            `;
+            list.appendChild(item);
+        });
+
+        // Enable selection tracking
+        list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', () => {
+                const anyChecked = Array.from(list.querySelectorAll('input[type="checkbox"]')).some(i => i.checked);
+                if (btn) btn.disabled = !anyChecked;
+            });
+        });
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async generateFromNotes() {
+        const list = document.getElementById('notesSelectList');
+        const btn = document.getElementById('generateFromNotesBtn');
+        if (!list) return;
+        const checked = Array.from(list.querySelectorAll('input[type="checkbox"]')).filter(i => i.checked).map(i => i.value);
+        if (checked.length === 0) {
+            Utils.showNotification('Please select at least one note', 'error');
+            return;
+        }
+
+        try {
+            Utils.showLoadingState(btn, 'Generating map from notes...');
+            const res = await fetch('/api/map/generate-from-notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ note_ids: checked })
+            });
+            const data = await res.json();
+            if (data.success) {
+                Utils.showNotification('Mind map generated from notes!', 'success');
+                this.displayMindMap(data.mindmap);
+            } else {
+                Utils.showNotification(data.error || 'Failed to generate map from notes', 'error');
+            }
+        } catch (err) {
+            console.error('Error generating map from notes', err);
+            Utils.showNotification('Error generating map from notes', 'error');
+        } finally {
+            Utils.hideLoadingState(btn);
         }
     }
 

@@ -109,6 +109,10 @@
                                 <i class="fas fa-keyboard"></i>
                                 Text Input
                             </button>
+                            <button class="tab-button" data-tab="notes-select">
+                                <i class="fas fa-sticky-note"></i>
+                                Notes
+                            </button>
                             <button class="tab-button" data-tab="file-upload">
                                 <i class="fas fa-upload"></i>
                                 File Upload
@@ -171,6 +175,31 @@
                             <button class="button-primary" id="generateBtn">
                                 <i class="fas fa-magic"></i>
                                 Generate with AI
+                            </button>
+                        </div>
+
+                        <!-- Notes Selection Tab -->
+                        <div class="tab-content" id="notes-select">
+                            <div class="advice-card">
+                                <div class="advice-row">
+                                    <i class="fas fa-info-circle"></i>
+                                    <div>
+                                        <strong>Notes</strong>
+                                        <p>Select one or more notes from your Note Assistant to include when generating the mind map.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="input-area">
+                                <label class="input-label">Available Notes</label>
+                                <div class="notes-select-list" id="notesSelectList">
+                                    <!-- populated by JS -->
+                                </div>
+                            </div>
+
+                            <button class="button-primary" id="generateFromNotesBtn" disabled>
+                                <i class="fas fa-magic"></i>
+                                Generate Map from Notes
                             </button>
                         </div>
 

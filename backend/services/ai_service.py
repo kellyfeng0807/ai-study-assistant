@@ -42,6 +42,22 @@ MINDMAP SYNTAX RULES (from https://mermaid.js.org/syntax/mindmap.html):
 5. Icons: ::icon(fa fa-icon-name) on same line after text
 6. All siblings MUST be at exact same indentation
 
+LABEL TEXT SAFETY RULES (CRITICAL to prevent parse errors):
+- NO parentheses ( ) inside labels - they conflict with shape syntax
+- NO square brackets [ ] inside labels - they conflict with shape syntax
+- NO curly braces { } inside labels - they conflict with shape syntax
+- NO special math symbols: π, ², ³, α, β, γ, θ, ∑, ∫, ≈, ≠, ≤, ≥
+- NO punctuation that could be operators: <, >, ~, |, &, ^
+- Use simple alternatives:
+  * "power of 2" or "squared" instead of ²
+  * "pi" instead of π
+  * "theta" instead of θ
+  * "approximately" instead of ≈
+  * "not equal" instead of ≠
+- For equations: use plain text like "E equals mc squared" or "z equals r times e to the i theta"
+- Keep labels simple, descriptive, use common words
+- If technical terms needed, use plain English/Chinese descriptions
+
 STRUCTURE PRINCIPLES for balanced distribution:
 - Root level: root((Topic))
 - Level 1: 4-8 main branches using (Branch) or [Branch]
@@ -70,15 +86,93 @@ mindmap
 
 OUTPUT: Only mindmap code, no ```mermaid blocks, no explanations"""
         else:
-            # TD (top-down) or LR (left-right) hierarchical
             graph_direction = 'TD' if style == 'TD' else 'LR'
             system_prompt = f"""You are a mind map generation assistant. Generate Mermaid syntax for HIERARCHICAL mind maps.
-Rules for HIERARCHICAL style:
+
+CRITICAL SYNTAX RULES (must follow strictly to avoid parse errors):
 1. Use 'graph {graph_direction}' for {'top-down' if style == 'TD' else 'left-right'} layout
-2. Clear parent-child relationships
-3. Logical hierarchical structure
-4. Use proper Mermaid syntax: A[Label], A --> B
-5. Only output the Mermaid code, no explanations"""
+2. Node IDs: Use only [A-Z][A-Z0-9]* (e.g., A, B1, C2, ROOT)
+3. Node labels: Wrap in square brackets [Label Text]
+4. Connections: Use --> between nodes (e.g., A --> B1)
+
+LABEL TEXT SAFETY RULES (CRITICAL - most common source of parse errors):
+**FORBIDDEN CHARACTERS in labels:**
+- NO parentheses: ( )  - causes "Expecting 'SQE', got 'PS'" error
+- NO square brackets: [ ]  - conflicts with label delimiters
+- NO curly braces: {{ }}  - conflicts with special nodes
+- NO angle brackets: < >  - reserved syntax
+- NO pipes: |  - reserved for subgraphs
+- NO quotes: " '  - can break string parsing
+- NO backslashes: \  - escape character issues
+- NO special math symbols: π, ², ³, α, β, γ, θ, φ, ω, Δ, ∑, ∫, √, ∞
+- NO math operators in complex expressions: ^, ~, ≈, ≠, ≤, ≥, ±, ×, ÷
+- NO semicolons or colons in complex contexts: ; :
+
+**SAFE ALTERNATIVES:**
+- Mathematical expressions:
+  * "z = r e^(i theta)" → "z equals r times exponential of i theta"
+  * "f(x) = x²" → "f of x equals x squared"
+  * "∫ f(x) dx" → "integral of f x dx"
+  * "Σ(n=1 to ∞)" → "sum from n equals 1 to infinity"
+  * "θ₀ + 2kπ" → "theta-0 plus 2k pi"
+  
+- Use descriptive phrases:
+  * Instead of "f(x)", use "function f of x" or "f-x"
+  * Instead of "(a+b)²", use "a plus b squared"
+  * Instead of "cos(θ)", use "cosine theta" or "cos-theta"
+  
+- For technical terms, use hyphens or underscores:
+  * "euler_formula" instead of "Euler's formula (e^iθ)"
+  * "complex-form" instead of "(a + bi)"
+  * "nth-term" instead of "n-th term"
+
+**SAFE CHARACTERS:**
+- Letters: a-z, A-Z
+- Numbers: 0-9
+- Basic punctuation: . , ! ? (use sparingly)
+- Separators: space, hyphen -, underscore _
+- Safe operators in simple context: + - * / =
+
+6. Format rules:
+   - Each line: one node definition OR one connection
+   - Node definition: NodeID[Label]
+   - Connection: NodeID --> NodeID
+   - No inline comments or extra text
+
+7. Structure:
+   - Define ALL nodes first (one per line)
+   - Then define ALL connections (one per line)
+   - OR define node and its connections together
+
+EXAMPLE of CORRECT syntax:
+graph {graph_direction}
+    A[Central Topic]
+    B1[Branch One]
+    B2[Branch Two]
+    C1[Detail 1]
+    C2[Detail 2]
+    A --> B1
+    A --> B2
+    B1 --> C1
+    B1 --> C2
+
+EXAMPLE with math content (SAFE):
+graph {graph_direction}
+    A[Complex Numbers]
+    B1[Polar Form]
+    B2[Exponential Form]
+    C1[r times cosine theta plus i sine theta]
+    C2[r times e to the i theta]
+    A --> B1
+    A --> B2
+    B1 --> C1
+    B2 --> C2
+
+Rules for HIERARCHICAL style:
+- Clear parent-child relationships
+- Logical hierarchical structure
+- Keep labels simple and readable
+- Only output the Mermaid code, no explanations or markdown blocks"""
 
         # 处理depth参数
         if depth == 'auto' or depth == 'auto':
@@ -110,6 +204,12 @@ STRICT REQUIREMENTS:
 - Balance branch sizes (similar number of children)
 - Use concise labels (3-8 words max)
 
+LABEL SAFETY (MOST IMPORTANT):
+- NO parentheses ( ), brackets [ ], braces {{ }} in any label text
+- NO mathematical symbols: π, ², ³, α, β, γ, θ, etc.
+- For equations, use plain English: "x squared" not "x²", "theta" not "θ"
+- Simple, clear, descriptive text only
+
 EXAMPLE STRUCTURE:
 mindmap
   root(({topic}))
@@ -133,13 +233,56 @@ Style: {'Top-Down' if style == 'TD' else 'Left-Right'} hierarchy
 Depth: {depth_instruction}
 {f'Additional context: {context}' if context else ''}
 
-Requirements:
-- Start with 'graph {style}'
-- Clear hierarchical structure from general to specific
-- {depth_instruction}
-- Each branch should have 2-4 sub-nodes where appropriate
-- Use descriptive but concise labels
-- Output only valid Mermaid code"""
+CRITICAL REQUIREMENTS to avoid syntax errors:
+1. Start with 'graph {style}'
+2. Node IDs: Simple alphanumeric only (A, B1, C2, ROOT, NODE1, etc.)
+3. Labels in [square brackets]: Follow SAFETY RULES below
+
+**LABEL SAFETY RULES (CRITICAL):**
+- NEVER use parentheses ( ) - causes immediate parse error
+- NEVER use square brackets [ ] - conflicts with label syntax
+- NEVER use curly braces {{ }} - conflicts with special nodes
+- NO mathematical symbols at all: π ² ³ α β γ θ φ ω Δ ∑ ∫ √ ∞
+- NO complex punctuation: < > | & ~ ^ ` quotes
+
+**For mathematical/technical content:**
+- Use plain text descriptions
+- Example: "z = re^i(theta0 + 2kpi)" → "z equals r e to the i theta"
+- Example: "f(x) = x²" → "function f-x equals x squared"
+- Example: "cos(θ)" → "cosine of theta" or "cos-theta"
+- Use hyphens/underscores for compound terms: "euler-formula", "complex_number"
+
+4. Structure:
+   - Define nodes first: A[Label Text]
+   - Then connections: A --> B
+   - Clear hierarchy from general to specific
+   
+5. Keep labels concise (3-8 words) and readable
+6. Each branch: 2-4 sub-nodes where appropriate
+
+EXAMPLE FORMAT:
+graph {style}
+    ROOT[{topic}]
+    A[Main Concept 1]
+    B[Main Concept 2]
+    ROOT --> A
+    ROOT --> B
+    A1[Detail 1.1]
+    A2[Detail 1.2]
+    A --> A1
+    A --> A2
+
+EXAMPLE with technical content:
+graph {style}
+    A[Complex Numbers]
+    B[Polar Representation]
+    C[r times e to the i theta]
+    D[Euler Formula Connection]
+    A --> B
+    B --> C
+    B --> D
+
+OUTPUT: Only valid Mermaid code, no markdown blocks, no explanations"""
 
         try:
             response = self.client.chat.completions.create(
@@ -181,10 +324,41 @@ Follow official Mermaid mindmap specification:
 - Exactly 2 spaces per indentation level
 - Siblings at exact same indentation
 - Balance branches (similar number of children)
+
+LABEL SAFETY (CRITICAL):
+- NO parentheses ( ), brackets [ ], braces {{ }} in label text
+- NO mathematical symbols: π, ², ³, α, β, γ, θ, etc.
+- NO operators that could conflict: <, >, |, &, ^
+- Use plain English/Chinese descriptions for technical terms
+- For equations: "x squared" not "x²", "pi" not "π", "theta" not "θ"
+
 Focus on extracting key concepts and organizing them hierarchically."""
         else:
             graph_direction = 'TD' if style == 'TD' else 'LR'
             system_prompt = f"""You are a mind map generation assistant. Analyze the provided content and create a HIERARCHICAL mind map in Mermaid syntax using 'graph {graph_direction}'.
+
+CRITICAL SYNTAX RULES to prevent parse errors:
+1. Node IDs: Simple alphanumeric (A, B1, C2, ROOT)
+2. Labels: Plain text only in [brackets]
+3. Format: Define nodes, then connections
+4. One statement per line
+
+LABEL SAFETY RULES (MOST IMPORTANT):
+**NEVER use these characters in labels:**
+- Parentheses: ( )  - causes "Expecting 'SQE', got 'PS'" error
+- Brackets: [ ]  - conflicts with label delimiters
+- Braces: {{ }}  - conflicts with special syntax
+- Math symbols: π, ², ³, α, β, γ, θ, φ, ω, Δ, ∑, ∫, √, ∞
+- Operators: < > | & ~ ^ (except in simple contexts)
+- Quotes: " '
+
+**Use safe alternatives:**
+- "f(x) = x²" → "function f-x equals x squared"
+- "e^(iθ)" → "e to the i theta"
+- "∫ f(x) dx" → "integral of f-x dx"
+- "(a+b)²" → "a plus b squared"
+- "θ₀" → "theta-0"
+
 Focus on extracting key concepts, relationships, and hierarchies from the content."""
 
         # 处理depth参数
@@ -214,7 +388,14 @@ REQUIREMENTS:
 - Exactly 2 spaces per indentation
 - 5-8 main branches with 2-4 children each
 - Balance branch sizes
-- Output only mindmap code"""
+
+CRITICAL LABEL SAFETY:
+- NO parentheses, brackets, or braces in any label
+- NO mathematical symbols (π, ², ³, θ, α, etc.)
+- Use plain descriptive text only
+- For technical terms: use simple English/Chinese
+
+OUTPUT: Only mindmap code, no markdown blocks"""
         else:
             user_prompt = f"""Create a mind map in Mermaid syntax for: "{topic}"
 
@@ -224,7 +405,26 @@ Based on this content:
 Style: {'Top-Down' if style == 'TD' else 'Left-Right'} hierarchy
 Depth: {depth_instruction}
 
-Extract the main ideas and organize them {'in a top-down' if style == 'TD' else 'in a left-right'} hierarchy. Output only valid Mermaid code."""
+CRITICAL SYNTAX REQUIREMENTS:
+- Start with 'graph {style}'
+- Node IDs: Alphanumeric only (ROOT, A, B1, C2)
+- Labels in [brackets]: Follow SAFETY rules
+
+**LABEL SAFETY (MOST CRITICAL):**
+- NEVER use parentheses ( ) in labels - causes parse error
+- NEVER use brackets [ ] or braces {{ }} in labels
+- NO math symbols: π, ², ³, α, β, γ, θ, etc.
+- Use plain text alternatives:
+  * "e^(iθ)" → "e to the i theta"
+  * "f(x)" → "function f-x" or "f of x"
+  * "x²" → "x squared"
+  * Use hyphens for compound terms: "euler-formula"
+
+- Define nodes, then connections
+- Clear hierarchy structure
+- Extract main ideas and organize {'top-down' if style == 'TD' else 'left-right'}
+
+OUTPUT: Only valid Mermaid code, no markdown, no explanations"""
 
         try:
             response = self.client.chat.completions.create(
@@ -250,7 +450,7 @@ Extract the main ideas and organize them {'in a top-down' if style == 'TD' else 
             
         except Exception as e:
             print(f"Error calling DeepSeek API: {e}")
-            return self._generate_fallback_mindmap(topic, depth)
+            return self._generate_fallback_mindmap(topic, depth, style)
     
     def _generate_fallback_mindmap(self, topic, depth, style='TD'):
         """后备方案：生成基础思维导图"""
@@ -309,6 +509,15 @@ Extract the main ideas and organize them {'in a top-down' if style == 'TD' else 
     """
         
         return mermaid_code.strip()
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     def chat(self, user_message, conversation_history=None):
         """

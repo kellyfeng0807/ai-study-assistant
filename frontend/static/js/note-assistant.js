@@ -21,28 +21,115 @@ class NoteAssistantManager {
     
     init() {
         this.bindEventListeners();
+        this.bindTabSwitching();
         this.loadRecentNotes();
         console.log('Note Assistant initialized successfully');
     }
     
+    bindTabSwitching() {
+        // Tab switching logic (aligned with map-generation)
+        const tabButtons = document.querySelectorAll('.tab-button');
+        tabButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const targetTab = e.currentTarget.dataset.tab;
+                this.switchTab(targetTab);
+            });
+        });
+    }
+    
+    switchTab(tabId) {
+        // Update tab buttons
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tabId);
+        });
+
+        // Update tab content
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === tabId);
+        });
+    }
+    
     bindEventListeners() {
         const recordBtn = document.getElementById('recordBtn');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const transcribeBtn = document.getElementById('transcribeBtn');
+        const audioGenerateBtn = document.getElementById('audioGenerateBtn');
         const manualGenerateBtn = document.getElementById('manualGenerateBtn');
         
+        // Upload area interaction
+        const audioUploadArea = document.getElementById('audioUploadArea');
+        const audioInput = document.getElementById('audioInput');
+        const removeAudioBtn = document.getElementById('removeAudioBtn');
+        const recordingControls = document.getElementById('recordingControls');
+        const stopRecordBtn = document.getElementById('stopRecordBtn');
+        
+        // Upload area click to browse or record
+        if (audioUploadArea) {
+            // Upload area now only opens file browser (recording is handled by separate recording component)
+            audioUploadArea.addEventListener('click', (e) => {
+                if (e.target.closest('.remove-file-btn')) return;
+                audioInput?.click();
+            });
+            
+            // Drag and drop
+            audioUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                audioUploadArea.classList.add('drag-over');
+            });
+            
+            audioUploadArea.addEventListener('dragleave', () => {
+                audioUploadArea.classList.remove('drag-over');
+            });
+            
+            audioUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                audioUploadArea.classList.remove('drag-over');
+                
+                const files = Array.from(e.dataTransfer.files).filter(file => 
+                    file.type.startsWith('audio/')
+                );
+                
+                if (files.length > 0) {
+                    this.handleAudioFile(files[0]);
+                }
+            });
+        }
+        
+        // File input change
+        if (audioInput) {
+            audioInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    this.handleAudioFile(file);
+                }
+            });
+        }
+        
+        // Remove audio button
+        if (removeAudioBtn) {
+            removeAudioBtn.addEventListener('click', () => {
+                this.clearAudioFile();
+            });
+        }
+        
+        // Recording controls
         if (recordBtn) {
             recordBtn.addEventListener('click', () => this.toggleRecording());
         }
         
-        if (uploadBtn) {
-            uploadBtn.addEventListener('click', () => this.uploadAudio());
+        if (stopRecordBtn) {
+            stopRecordBtn.addEventListener('click', () => {
+                this.stopRecording();
+                // Hide recording controls, show upload area
+                if (recordingControls) recordingControls.style.display = 'none';
+                if (audioUploadArea) audioUploadArea.style.display = 'block';
+            });
         }
         
-        if (transcribeBtn) {
-            transcribeBtn.addEventListener('click', () => this.handleTranscribeOrGenerate());
+        // Generate button (unified for transcribe + generate)
+        if (audioGenerateBtn) {
+            audioGenerateBtn.addEventListener('click', () => this.handleAudioGenerate());
         }
         
+        // Text input generate button
         if (manualGenerateBtn) {
             manualGenerateBtn.addEventListener('click', () => this.generateNoteFromManualInput());
         }
@@ -53,6 +140,137 @@ class NoteAssistantManager {
                 e.preventDefault();
                 this.showAllNotesModal();
             });
+        }
+    }
+    
+    handleAudioFile(file) {
+        this.audioBlob = file;
+        this.audioFileName = file.name;
+        
+        // Show file preview
+        const audioPreview = document.getElementById('audioPreview');
+        const audioFilesList = document.getElementById('audioFilesList');
+        const audioUploadArea = document.getElementById('audioUploadArea');
+        const uploadPlaceholder = audioUploadArea?.querySelector('.upload-placeholder');
+        
+        if (audioFilesList) {
+            audioFilesList.innerHTML = `
+                <div class="file-item">
+                    <i class="fas fa-file-audio file-icon"></i>
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${this.formatFileSize(file.size)}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (uploadPlaceholder) uploadPlaceholder.style.display = 'none';
+        if (audioPreview) audioPreview.style.display = 'block';
+        
+        // Enable generate button
+        const audioGenerateBtn = document.getElementById('audioGenerateBtn');
+        if (audioGenerateBtn) {
+            audioGenerateBtn.disabled = false;
+            audioGenerateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Note with AI';
+        }
+    }
+    
+    clearAudioFile() {
+        this.audioBlob = null;
+        this.audioFileName = null;
+        
+        const audioPreview = document.getElementById('audioPreview');
+        const audioUploadArea = document.getElementById('audioUploadArea');
+        const uploadPlaceholder = audioUploadArea?.querySelector('.upload-placeholder');
+        
+        if (uploadPlaceholder) uploadPlaceholder.style.display = 'block';
+        if (audioPreview) audioPreview.style.display = 'none';
+        
+        // Reset file input
+        const audioInput = document.getElementById('audioInput');
+        if (audioInput) audioInput.value = '';
+        
+        // Disable generate button
+        const audioGenerateBtn = document.getElementById('audioGenerateBtn');
+        if (audioGenerateBtn) {
+            audioGenerateBtn.disabled = true;
+            audioGenerateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Note with AI';
+        }
+    }
+    
+    formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    async handleAudioGenerate() {
+        if (!this.audioBlob) return;
+        
+        const audioGenerateBtn = document.getElementById('audioGenerateBtn');
+        
+        try {
+            // Step 1: Transcribe audio
+            Utils.showLoadingState(audioGenerateBtn, 'Transcribing audio...');
+            
+            const formData = new FormData();
+            formData.append('audio', this.audioBlob, this.audioFileName || 'recording.webm');
+            
+            const transcribeResponse = await fetch('/api/note/transcribe', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!transcribeResponse.ok) {
+                throw new Error('Transcription failed');
+            }
+            
+            const transcribeResult = await transcribeResponse.json();
+            
+            if (!transcribeResult.success) {
+                throw new Error(transcribeResult.message || 'Transcription failed');
+            }
+            
+            const recognizedText = transcribeResult.text;
+            
+            // Step 2: Generate note
+            Utils.showLoadingState(audioGenerateBtn, 'Generating note...');
+            
+            const generateResponse = await fetch('/api/note/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    context: recognizedText
+                })
+            });
+            
+            if (!generateResponse.ok) {
+                throw new Error('Note generation failed');
+            }
+            
+            const generateResult = await generateResponse.json();
+            
+            if (!generateResult.success) {
+                throw new Error(generateResult.message || 'Note generation failed');
+            }
+            
+            Utils.showNotification('Note generated successfully!', 'success');
+            
+            // Display note (backend already persisted it)
+            this.displayGeneratedNote(generateResult.note.content);
+            this.loadRecentNotes();
+            
+            // Clear audio
+            this.clearAudioFile();
+            
+        } catch (error) {
+            console.error('Audio generation error:', error);
+            Utils.showNotification(error.message || 'Failed to generate note from audio', 'error');
+        } finally {
+            Utils.hideLoadingState(audioGenerateBtn);
         }
     }
     
@@ -85,13 +303,10 @@ class NoteAssistantManager {
                 this.audioFileName = 'recording.webm'; 
                 console.log('record complete, size:', this.audioBlob.size, 'bytes');
                 
-                const transcribeBtn = document.getElementById('transcribeBtn');
-                if (transcribeBtn) {
-                    transcribeBtn.disabled = false;
-                    transcribeBtn.innerHTML = '<i class="fas fa-file-alt"></i> transcribe to text';
-                }
+                // Show file preview using same logic as uploaded files
+                this.handleAudioFile(this.audioBlob);
                 
-                Utils.showNotification('Recording complete, click "transcribe to text" button', 'success');
+                Utils.showNotification('Recording complete!', 'success');
             };
             
             this.mediaRecorder.start();
@@ -151,9 +366,7 @@ class NoteAssistantManager {
             console.log('Uploading file:', fileName);
             
             const transcribeBtn = document.getElementById('transcribeBtn');
-            const originalText = transcribeBtn.innerHTML;
-            transcribeBtn.disabled = true;
-            transcribeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> recognizing...';
+            Utils.showLoadingState(transcribeBtn, 'recognizing...');
             
             const response = await fetch('http://localhost:5000/api/note/transcribe', {
                 method: 'POST',
@@ -172,8 +385,7 @@ class NoteAssistantManager {
                 this.audioBlob = null;
                 this.audioChunks = [];
 
-                transcribeBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Note';
-                transcribeBtn.disabled = false;
+                Utils.hideLoadingState(transcribeBtn);
                 
             } else {
                 throw new Error(data.error || 'Recognition failed');
@@ -184,8 +396,7 @@ class NoteAssistantManager {
             Utils.showNotification('Recognition failed: ' + error.message, 'error');
             
             const transcribeBtn = document.getElementById('transcribeBtn');
-            transcribeBtn.disabled = false;
-            transcribeBtn.innerHTML = '<i class="fas fa-file-alt"></i> Convert to Text';
+            Utils.hideLoadingState(transcribeBtn);
         }
     }
     
@@ -317,30 +528,35 @@ class NoteAssistantManager {
         
         try {
             console.log('Start generating note');
-            Utils.showNotification('AI is generating note...', 'info');
+            const manualGenerateBtn = document.getElementById('manualGenerateBtn');
+            Utils.showLoadingState(manualGenerateBtn, 'Generating...');
 
             const result = await this.callGenerateAPI(text);
-            
+
             if (result && result.success) {
                 console.log('Note generated successfully');
                 Utils.showNotification('Note generated successfully!', 'success');
-                
-                this.displayGeneratedNote(result.notes);
-                
+
+                // Backend returns 'note' (with 'content' field), displayGeneratedNote expects the content
+                this.displayGeneratedNote(result.note.content);
+
                 textarea.value = '';
                 const counter = document.getElementById('textCounter');
                 if (counter) {
                     counter.textContent = '0 character';
                     counter.style.color = 'hsl(var(--muted-foreground))';
                 }
-                
+
                 setTimeout(() => this.loadRecentNotes(), 500);
+                Utils.hideLoadingState(manualGenerateBtn);
             } else {
+                Utils.hideLoadingState(manualGenerateBtn);
                 throw new Error(result?.error || 'Note generation failed');
             }
-            
+
         } catch (error) {
             console.error('Note generation failed:', error);
+            Utils.hideLoadingState(document.getElementById('manualGenerateBtn'));
             Utils.showNotification('Note generation failed: ' + error.message, 'error');
         }
     }
@@ -419,6 +635,35 @@ class NoteAssistantManager {
         
         document.body.appendChild(modal);
         
+        // Render MathJax formulas: if MathJax not present, inject it then typeset
+        const typesetMathIn = async (el) => {
+            try {
+                if (window.MathJax && window.MathJax.typesetPromise) {
+                    await window.MathJax.typesetPromise([el]);
+                }
+            } catch (err) {
+                console.warn('MathJax rendering error:', err);
+            }
+        };
+
+        if (!window.MathJax) {
+            // Inject MathJax config + script then typeset
+            const scriptConfig = document.createElement('script');
+            scriptConfig.type = 'text/javascript';
+            scriptConfig.text = `MathJax = { tex: { inlineMath: [['$','$'], ['\\(','\\)']], displayMath: [['$$','$$'], ['\\[','\\]']], processEscapes: true }, options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] } };`;
+            document.head.appendChild(scriptConfig);
+
+            const mjScript = document.createElement('script');
+            mjScript.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+            mjScript.async = true;
+            mjScript.onload = () => typesetMathIn(modal);
+            mjScript.onerror = (e) => console.warn('Failed to load MathJax', e);
+            document.head.appendChild(mjScript);
+        } else {
+            // MathJax already present
+            typesetMathIn(modal);
+        }
+        
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.remove();
@@ -469,7 +714,7 @@ class NoteAssistantManager {
         const date = note.date || new Date().toISOString().split('T')[0];
         const formattedDate = this.formatDate(date);
         
-        const keyPointsCount = note.content?.key_points?.length || 0;
+        const keyPointsCount = note.key_points_count || 0;
         
         card.innerHTML = `
             <div class="note-header">

@@ -54,6 +54,27 @@ const Utils = {
         return icons[type] || 'info-circle';
     },
     
+    /**
+     * Shared loading helpers for buttons
+     */
+    showLoadingState(button, message = 'Loading...') {
+        if (!button) return;
+        button.disabled = true;
+        if (!button.dataset.originalHtml) button.dataset.originalHtml = button.innerHTML;
+        button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span>${message}</span>`;
+        button.classList.add('loading');
+    },
+
+    hideLoadingState(button) {
+        if (!button) return;
+        button.disabled = false;
+        if (button.dataset.originalHtml) {
+            button.innerHTML = button.dataset.originalHtml;
+            delete button.dataset.originalHtml;
+        }
+        button.classList.remove('loading');
+    },
+    
     async navigateTo(page, animation = 'fade') {
         // Direct navigation without API call for faster page switching
         window.location.href = page;
@@ -265,6 +286,24 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn('Backend connection failed');
         }
     });
+    
+    // Initialize global AI Chat float for all pages
+    try {
+        // Ensure CSS for ai-chat is loaded (if not present)
+        const aiChatCssHref = 'static/css/ai-chat.css';
+        if (![...document.styleSheets].some(s => s.href && s.href.endsWith('ai-chat.css'))) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = aiChatCssHref;
+            document.head.appendChild(link);
+        }
+
+        if (window.initGlobalAIChat) {
+            window.initGlobalAIChat();
+        }
+    } catch (e) {
+        console.warn('Failed to initialize global AI Chat:', e);
+    }
 });
 
 function initSidebarToggle() {

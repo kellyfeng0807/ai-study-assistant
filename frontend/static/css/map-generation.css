@@ -227,6 +227,57 @@
     align-self: flex-end;
 }
 
+/* Notes Selection (for multi-select notes panel) */
+.notes-select-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    max-height: 400px;
+    overflow-y: auto;
+    padding: var(--spacing-sm);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--card));
+}
+
+.note-select-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.note-select-item:hover {
+    background: hsl(var(--accent));
+}
+
+.note-select-item input[type="checkbox"] {
+    margin-top: 2px;
+    cursor: pointer;
+}
+
+.note-summary {
+    flex: 1;
+}
+
+.note-summary .note-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 4px;
+}
+
+.note-summary .note-excerpt {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.4;
+}
+
 .options-area {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

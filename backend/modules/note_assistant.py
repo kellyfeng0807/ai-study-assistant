@@ -51,7 +51,32 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 ALLOWED_AUDIO_EXTENSIONS = {'mp3', 'wav', 'pcm', 'webm', 'm4a', 'ogg'}
 
 # 笔记存储（实际项目应该用数据库）
+DATA_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'data')
+os.makedirs(DATA_FOLDER, exist_ok=True)
+
+NOTES_FILE = os.path.join(DATA_FOLDER, 'notes.json')
+
+def load_notes_storage():
+    global notes_storage
+    if os.path.exists(NOTES_FILE):
+        try:
+            with open(NOTES_FILE, 'r', encoding='utf-8') as f:
+                notes_storage = json.load(f)
+        except Exception:
+            notes_storage = []
+    else:
+        notes_storage = []
+
+def save_notes_storage():
+    try:
+        with open(NOTES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(notes_storage, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print('Failed to save notes to file:', e)
+
+# initialize
 notes_storage = []
+load_notes_storage()
 
 
 def allowed_audio_file(filename):
@@ -385,8 +410,8 @@ def generate_notes():
             print("未配置 DeepSeek API Key，使用备用方案")
             notes_data = create_fallback_notes(text, subject)
         
-        # 保存笔记
-        note_id = len(notes_storage) + 1
+        # 保存笔记（持久化到文件）
+        note_id = (max([n.get('id', 0) for n in notes_storage]) + 1) if notes_storage else 1
         note_record = {
             'id': note_id,
             'title': notes_data.get('title', '未命名笔记'),
@@ -396,14 +421,14 @@ def generate_notes():
             'original_text': text
         }
         notes_storage.append(note_record)
-        
+        save_notes_storage()
         print(f"笔记已保存 (ID: {note_id})")
         print("=" * 60)
-        
+
         return jsonify({
             'success': True,
             'note_id': note_id,
-            'notes': notes_data  # 字段名是 'notes'
+            'note': note_record
         })
     
     except Exception as e:
@@ -430,7 +455,8 @@ def list_notes():
                 'title': note['title'],
                 'subject': note['subject'],
                 'date': note['date'],
-                'preview': note['content'].get('summary', '')[:100]
+                'preview': note['content'].get('summary', '')[:100],
+                'key_points_count': len(note['content'].get('key_points', []))
             }
             for note in filtered_notes[-limit:]
         ]

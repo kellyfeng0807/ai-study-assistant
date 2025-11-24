@@ -1,5 +1,17 @@
 [
   {
+    "id": "af86b055-8244-409d-9693-344e5ff5de29",
+    "title": "Selected Notes Map",
+    "mermaid_code": "graph TD\nROOT[Complex Number nth Roots]\nA1[Formula Definition]\nA2[Mathematical Basis]\nA3[Applications]\nB1[Root Formula]\nB2[Key Parameters]\nB3[De Moivre Theorem]\nB4[Exponential Form]\nB5[Engineering Mathematics]\nB6[Complex Analysis]\nC1[General Expression]\nC2[Root Count]\nC3[Angle Periodicity]\nC4[Exponent Rules]\nC5[Signal Processing]\nC6[Electrical Engineering]\n\nROOT --> A1\nROOT --> A2\nROOT --> A3\nA1 --> B1\nA1 --> B2\nA2 --> B3\nA2 --> B4\nA3 --> B5\nA3 --> B6\nB1 --> C1\nB2 --> C2\nB2 --> C3\nB4 --> C4\nB5 --> C5\nB6 --> C6",
+    "depth": 3,
+    "style": "TD",
+    "created_at": "2025-11-24T19:46:10.231617",
+    "updated_at": "2025-11-24T19:46:10.231617",
+    "source": "notes_selection",
+    "context": "复数的n次方根公式给出了计算复数n次方根的方法。基于棣莫弗定理和复数指数形式，通过将幅角加上2kπ的整数倍并除以n，得到n个不同的根。该公式在复变函数和工程数学中有广泛应用。\n复数n次方根公式：$\\sqrt[n]{re^{i\\theta_0}} = \\sqrt[n]{r} \\exp\\left(i\\frac{\\theta_0 + 2k\\pi}{n}\\right), k = 0, 1, \\dots, ",
+    "node_positions": "{}"
+  },
+  {
     "id": "6c572d80-9950-4051-a8e1-45dc4f895cbf",
     "title": "machine learning",
     "mermaid_code": "graph LR\n    A[Machine Learning] --> B1[Supervised Learning]\n    A --> B2[Unsupervised Learning]\n    A --> B3[Reinforcement Learning]\n    A --> B4[Semi-supervised Learning]\n    \n    B1 --> C1[Classification]\n    B1 --> C2[Regression]\n    \n    B2 --> C3[Clustering]\n    B2 --> C4[Dimensionality Reduction]\n    B2 --> C5[Association]\n    \n    B3 --> C6[Value-based]\n    B3 --> C7[Policy-based]\n    B3 --> C8[Model-based]\n    \n    C1 --> D1[Logistic Regression]\n    C1 --> D2[Decision Trees]\n    C1 --> D3[SVMs]\n    C1 --> D4[Neural Networks]\n    \n    C2 --> D5[Linear Regression]\n    C2 --> D6[Polynomial Regression]\n    C2 --> D7[Random Forest]\n    \n    C3 --> D8[K-means]\n    C3 --> D9[Hierarchical]\n    C3 --> D10[DBSCAN]\n    \n    C4 --> D11[PCA]\n    C4 --> D12[t-SNE]\n    C4 --> D13[Autoencoders]\n    \n    C6 --> D14[Q-learning]\n    C6 --> D15[Deep Q Network]\n    \n    C7 --> D16[REINFORCE]\n    C7 --> D17[Actor-Critic]",
