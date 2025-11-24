@@ -143,40 +143,9 @@ class NavigationManager {
 
 class NotificationPanel {
     constructor() {
-        this.panel = document.getElementById('notificationPanel');
-        this.button = document.getElementById('notificationBtn');
-        this.closeBtn = this.panel?.querySelector('.close-button');
-        this.init();
-    }
-    
-    init() {
-        if (!this.panel || !this.button) return;
-        
-        this.button.addEventListener('click', () => {
-            this.toggle();
-        });
-        
-        this.closeBtn?.addEventListener('click', () => {
-            this.close();
-        });
-        
-        document.addEventListener('click', (e) => {
-            if (!this.panel.contains(e.target) && !this.button.contains(e.target)) {
-                this.close();
-            }
-        });
-    }
-    
-    toggle() {
-        this.panel.classList.toggle('hidden');
-    }
-    
-    close() {
-        this.panel.classList.add('hidden');
-    }
-    
-    open() {
-        this.panel.classList.remove('hidden');
+        // 通知管理已移至 notifications.js
+        // 保留此类以兼容旧代码
+        console.log('NotificationPanel: Using new notifications.js system');
     }
 }
 

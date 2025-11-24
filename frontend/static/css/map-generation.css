@@ -337,10 +337,34 @@
     gap: var(--spacing-md);
 }
 
+.title-edit-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex: 1;
+}
+
 .preview-title {
     font-size: 18px;
     font-weight: 600;
     color: hsl(var(--foreground));
+}
+
+.title-input {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    flex: 1;
+    max-width: 400px;
+}
+
+.title-input:focus {
+    outline: none;
+    border-color: hsl(var(--primary));
 }
 
 .preview-actions {

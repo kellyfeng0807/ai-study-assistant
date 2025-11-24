@@ -105,6 +105,23 @@ class MapGenerationManager {
             generateFromNotesBtn.addEventListener('click', () => this.generateFromNotes());
         }
 
+        // Title edit controls
+        const editTitleBtn = document.getElementById('editTitleBtn');
+        const saveTitleBtn = document.getElementById('saveTitleBtn');
+        const cancelTitleBtn = document.getElementById('cancelTitleBtn');
+
+        if (editTitleBtn) {
+            editTitleBtn.addEventListener('click', () => this.startEditTitle());
+        }
+
+        if (saveTitleBtn) {
+            saveTitleBtn.addEventListener('click', () => this.saveTitle());
+        }
+
+        if (cancelTitleBtn) {
+            cancelTitleBtn.addEventListener('click', () => this.cancelEditTitle());
+        }
+
         // Edit mode controls
         const editModeBtn = document.getElementById('editModeBtn');
         const saveBtn = document.getElementById('saveBtn');
@@ -483,6 +500,77 @@ class MapGenerationManager {
             this.renderSavedSvg(this.savedSvgContent);
         } else {
             this.renderMermaid(this.currentMermaidCode);
+        }
+    }
+
+    startEditTitle() {
+        const mapTitle = document.getElementById('mapTitle');
+        const mapTitleInput = document.getElementById('mapTitleInput');
+        const editTitleBtn = document.getElementById('editTitleBtn');
+        const saveTitleBtn = document.getElementById('saveTitleBtn');
+        const cancelTitleBtn = document.getElementById('cancelTitleBtn');
+
+        if (mapTitle && mapTitleInput) {
+            mapTitleInput.value = mapTitle.textContent;
+            mapTitle.style.display = 'none';
+            mapTitleInput.style.display = 'block';
+            mapTitleInput.focus();
+            mapTitleInput.select();
+
+            editTitleBtn.style.display = 'none';
+            saveTitleBtn.style.display = 'inline-flex';
+            cancelTitleBtn.style.display = 'inline-flex';
+        }
+    }
+
+    cancelEditTitle() {
+        const mapTitle = document.getElementById('mapTitle');
+        const mapTitleInput = document.getElementById('mapTitleInput');
+        const editTitleBtn = document.getElementById('editTitleBtn');
+        const saveTitleBtn = document.getElementById('saveTitleBtn');
+        const cancelTitleBtn = document.getElementById('cancelTitleBtn');
+
+        mapTitle.style.display = 'block';
+        mapTitleInput.style.display = 'none';
+
+        editTitleBtn.style.display = 'inline-flex';
+        saveTitleBtn.style.display = 'none';
+        cancelTitleBtn.style.display = 'none';
+    }
+
+    async saveTitle() {
+        const mapTitle = document.getElementById('mapTitle');
+        const mapTitleInput = document.getElementById('mapTitleInput');
+        const newTitle = mapTitleInput.value.trim();
+
+        if (!newTitle) {
+            window.messageModal.alert('Title cannot be empty', 'Invalid Title', 'warning');
+            mapTitleInput.focus();
+            return;
+        }
+
+        if (!this.currentMapId) {
+            window.messageModal.alert('No mind map selected', 'Error', 'error');
+            this.cancelEditTitle();
+            return;
+        }
+
+        try {
+            const result = await Utils.apiCall(`/map/${this.currentMapId}`, 'PUT', {
+                title: newTitle
+            });
+
+            if (result && result.success) {
+                mapTitle.textContent = newTitle;
+                this.cancelEditTitle();
+                Utils.showNotification('Title updated successfully', 'success');
+                this.loadRecentMaps(); // Refresh the list
+            } else {
+                window.messageModal.alert(result.error || 'Failed to update title', 'Error', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating title:', error);
+            window.messageModal.alert('Error updating title', 'Error', 'error');
         }
     }
 
