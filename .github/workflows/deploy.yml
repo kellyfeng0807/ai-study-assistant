@@ -32,17 +32,6 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Optional: Build frontend (if you have a build step)
-        run: |
-          if [ -f frontend/package.json ]; then
-            echo "Found frontend/package.json — running npm build"
-            cd frontend
-            npm ci
-            npm run build || npm run build --if-present || true
-            cd ..
-          else
-            echo "No frontend/package.json — skipping frontend build"
-          fi
 
       - name: Debug - show frontend contents
         run: |
