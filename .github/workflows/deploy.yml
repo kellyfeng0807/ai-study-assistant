@@ -41,7 +41,7 @@ jobs:
             echo "No backend/requirements.txt found, skipping."
           fi
 
-      - name: Setup Node (for frontend build)
+      - name: Setup Node (for frontend build, if any)
         uses: actions/setup-node@v4
         with:
           node-version: '18'
@@ -62,34 +62,42 @@ jobs:
         run: |
           echo "frontend top-level:"
           ls -la frontend || true
-          echo "frontend/build:"
-          ls -la frontend/build || true
-          echo "frontend/dist:"
-          ls -la frontend/dist || true
+          echo "frontend/static:"
+          ls -la frontend/static || true
+          echo "frontend/*.html:"
+          ls -la frontend/*.html || true
 
-      - name: Prepare artifact directory for Pages
+      - name: Prepare artifact directory for Pages (copy static site to out root)
         run: |
           rm -rf out
-          # Prefer common build outputs; fallback to frontend root
+          mkdir -p out
+          # 优先使用 build/dist，如果没有则把 frontend 下的文件直接拷贝到 out 根（排除 node_modules）
           if [ -d frontend/build ]; then
-            cp -r frontend/build out
+            echo "Using frontend/build/*"
+            cp -r frontend/build/* out/ || true
           elif [ -d frontend/dist ]; then
-            cp -r frontend/dist out
-          elif [ -f frontend/index.html ] || [ -d frontend ]; then
-            # If frontend is already static, copy it
-            cp -r frontend out
+            echo "Using frontend/dist/*"
+            cp -r frontend/dist/* out/ || true
+          elif ls frontend/*.html >/dev/null 2>&1 || [ -d frontend/static ]; then
+            echo "Copying frontend/* -> out/ (excluding node_modules)"
+            # 使用 rsync 更可靠，保留目录结构并排除 node_modules
+            if command -v rsync >/dev/null 2>&1; then
+              rsync -av --delete --exclude 'node_modules' frontend/ out/
+            else
+              # 回退到 cp
+              cp -r frontend/* out/ || true
+            fi
           else
-            echo "ERROR: No build output found in frontend. Ensure your build step produces static files (e.g. index.html)." >&2
+            echo "ERROR: 没有找到可部署的静态文件（build/dist 或 frontend/*.html）。" >&2
             ls -la frontend || true
             exit 1
           fi
-          echo "out prepared:"
+          echo "out prepared (root):"
           ls -la out
 
       - name: Setup Pages (create site if needed)
         uses: actions/configure-pages@v4
         with:
-          # Try to enable Pages using GitHub Actions (if permitted)
           enablement: 'github-actions'
 
       - name: Upload artifact for GitHub Pages
