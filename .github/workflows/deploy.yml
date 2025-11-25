@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy frontend to GitHub Pages and trigger backend deploy
 
 on:
   push:
@@ -27,21 +27,7 @@ jobs:
           echo "Workspace: $GITHUB_WORKSPACE"
           ls -la
 
-      - name: Setup Python (backend deps)
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install backend dependencies (if any)
-        run: |
-          if [ -f backend/requirements.txt ]; then
-            python -m pip install --upgrade pip
-            pip install -r backend/requirements.txt
-          else
-            echo "No backend/requirements.txt found, skipping."
-          fi
-
-      - name: Setup Node (for frontend build, if any)
+      - name: Setup Node (for optional frontend build)
         uses: actions/setup-node@v4
         with:
           node-version: '18'
@@ -66,12 +52,16 @@ jobs:
           ls -la frontend/static || true
           echo "frontend/*.html:"
           ls -la frontend/*.html || true
+          echo "frontend/build:"
+          ls -la frontend/build || true
+          echo "frontend/dist:"
+          ls -la frontend/dist || true
 
       - name: Prepare artifact directory for Pages (copy static site to out root)
         run: |
           rm -rf out
           mkdir -p out
-          # 优先使用 build/dist，如果没有则把 frontend 下的文件直接拷贝到 out 根（排除 node_modules）
+          # 优先使用 build/dist，如果没有则把 frontend 下的所有文件直接拷贝到 out 根（排除 node_modules）
           if [ -d frontend/build ]; then
             echo "Using frontend/build/*"
             cp -r frontend/build/* out/ || true
@@ -80,11 +70,9 @@ jobs:
             cp -r frontend/dist/* out/ || true
           elif ls frontend/*.html >/dev/null 2>&1 || [ -d frontend/static ]; then
             echo "Copying frontend/* -> out/ (excluding node_modules)"
-            # 使用 rsync 更可靠，保留目录结构并排除 node_modules
             if command -v rsync >/dev/null 2>&1; then
               rsync -av --delete --exclude 'node_modules' frontend/ out/
             else
-              # 回退到 cp
               cp -r frontend/* out/ || true
             fi
           else
@@ -92,8 +80,23 @@ jobs:
             ls -la frontend || true
             exit 1
           fi
+          # 如果没有 index.html，尝试把第一个 html 重命名为 index.html（可选，谨慎）
+          if [ ! -f out/index.html ]; then
+            first_html=$(ls out/*.html 2>/dev/null | head -n 1 || true)
+            if [ -n "$first_html" ]; then
+              echo "No index.html found — using ${first_html##*/} as index.html"
+              cp "$first_html" out/index.html
+            fi
+          fi
+          # 自动生成 404.html 以支持 SPA 回退（如果需要）
+          cat > out/404.html <<'EOF'
+<!doctype html><html><head><meta charset="utf-8"/><meta name="robots" content="noindex"><title>Redirecting…</title></head><body>
+<script>fetch('/index.html').then(r=>r.text()).then(html=>{document.open();document.write(html);document.close();}).catch(()=>{location.replace('/');});</script>
+<noscript><meta http-equiv="refresh" content="0; url=/"></noscript>
+</body></html>
+EOF
           echo "out prepared (root):"
-          ls -la out
+          ls -la out || true
 
       - name: Setup Pages (create site if needed)
         uses: actions/configure-pages@v4
@@ -118,3 +121,22 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  trigger-backend:
+    name: Trigger backend deploy (Render)
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy via webhook
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "No RENDER_DEPLOY_HOOK secret set, skipping backend deploy."
+            exit 0
+          fi
+          echo "Triggering Render deploy..."
+          # 带 -sS 输出 body 和错误细节，--fail 让步骤失败时可见
+          curl -sS -X POST "$RENDER_DEPLOY_HOOK" -o /tmp/render_resp.txt || true
+          echo "Render response:"
+          cat /tmp/render_resp.txt || true
