@@ -80,21 +80,7 @@ jobs:
             ls -la frontend || true
             exit 1
           fi
-          # 如果没有 index.html，尝试把第一个 html 重命名为 index.html（可选，谨慎）
-          if [ ! -f out/index.html ]; then
-            first_html=$(ls out/*.html 2>/dev/null | head -n 1 || true)
-            if [ -n "$first_html" ]; then
-              echo "No index.html found — using ${first_html##*/} as index.html"
-              cp "$first_html" out/index.html
-            fi
-          fi
-          # 自动生成 404.html 以支持 SPA 回退（如果需要）
-          cat > out/404.html <<'EOF'
-<!doctype html><html><head><meta charset="utf-8"/><meta name="robots" content="noindex"><title>Redirecting…</title></head><body>
-<script>fetch('/index.html').then(r=>r.text()).then(html=>{document.open();document.write(html);document.close();}).catch(()=>{location.replace('/');});</script>
-<noscript><meta http-equiv="refresh" content="0; url=/"></noscript>
-</body></html>
-EOF
+          
           echo "out prepared (root):"
           ls -la out || true
 
