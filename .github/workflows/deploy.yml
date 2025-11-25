@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Build frontend if package.json exists
+      - name: Optional: Build frontend (if you have a build step)
         run: |
           if [ -f frontend/package.json ]; then
             echo "Found frontend/package.json — running npm build"
@@ -48,41 +48,52 @@ jobs:
         run: |
           echo "frontend top-level:"
           ls -la frontend || true
-          echo "frontend/static:"
-          ls -la frontend/static || true
           echo "frontend/*.html:"
           ls -la frontend/*.html || true
-          echo "frontend/build:"
+          echo "frontend/static/js:"
+          ls -la frontend/static/js || true
+          echo "frontend/static/css:"
+          ls -la frontend/static/css || true
+          echo "frontend/build (if any):"
           ls -la frontend/build || true
-          echo "frontend/dist:"
+          echo "frontend/dist (if any):"
           ls -la frontend/dist || true
 
-      - name: Prepare artifact directory for Pages (copy static site to out root)
+      - name: Inject backend URL for frontend JS (create api_config.js)
+        # 需要在仓库 Secrets 添加 BACKEND_URL（例如: https://your-backend.onrender.com）
         run: |
-          rm -rf out
-          mkdir -p out
-          # 优先使用 build/dist，如果没有则把 frontend 下的所有文件直接拷贝到 out 根（排除 node_modules）
-          if [ -d frontend/build ]; then
-            echo "Using frontend/build/*"
-            cp -r frontend/build/* out/ || true
-          elif [ -d frontend/dist ]; then
-            echo "Using frontend/dist/*"
-            cp -r frontend/dist/* out/ || true
-          elif ls frontend/*.html >/dev/null 2>&1 || [ -d frontend/static ]; then
-            echo "Copying frontend/* -> out/ (excluding node_modules)"
-            if command -v rsync >/dev/null 2>&1; then
-              rsync -av --delete --exclude 'node_modules' frontend/ out/
-            else
-              cp -r frontend/* out/ || true
-            fi
+          if [ -z "${{ secrets.BACKEND_URL }}" ]; then
+            echo "WARNING: BACKEND_URL secret is empty. Frontend won't have backend URL injected."
           else
-            echo "ERROR: 没有找到可部署的静态文件（build/dist 或 frontend/*.html）。" >&2
-            ls -la frontend || true
-            exit 1
+            mkdir -p frontend/static/js
+            cat > frontend/static/js/api_config.js <<'JS'
+
+          window.BACKEND_URL = "${{ secrets.BACKEND_URL }}";
+          JS
+            echo "Created frontend/static/js/api_config.js"
           fi
-          
-          echo "out prepared (root):"
-          ls -la out || true
+
+      
+
+      - name: Determine publish directory (frontend or frontend/build)
+        id: determine
+        run: |
+          PUBLISH=""
+          if [ -d frontend/build ] && [ "$(ls -A frontend/build 2>/dev/null)" ]; then
+            PUBLISH="frontend/build"
+          elif [ -d frontend/dist ] && [ "$(ls -A frontend/dist 2>/dev/null)" ]; then
+            PUBLISH="frontend/dist"
+          else
+            # default to frontend (no copy)
+            PUBLISH="frontend"
+          fi
+          echo "PUBLISH_PATH=$PUBLISH" >> $GITHUB_ENV
+          echo "Will publish: $PUBLISH"
+
+      - name: Show publish path
+        run: |
+          echo "PUBLISH_PATH=${{ env.PUBLISH_PATH }}"
+          ls -la "${{ env.PUBLISH_PATH }}" || true
 
       - name: Setup Pages (create site if needed)
         uses: actions/configure-pages@v4
@@ -92,7 +103,7 @@ jobs:
       - name: Upload artifact for GitHub Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: out
+          path: ${{ env.PUBLISH_PATH }}
 
   deploy:
     needs: build
@@ -102,18 +113,18 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
 
+  # 可选：保留触发 Render 的步骤（如果你仍想在前端部署后触发后端）
   trigger-backend:
-    name: Trigger backend deploy (Render)
+    name: Trigger backend deploy (Render) (optional)
     needs: deploy
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render deploy via webhook
+      - name: Trigger Render deploy via webhook (if secret exists)
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
@@ -122,7 +133,6 @@ jobs:
             exit 0
           fi
           echo "Triggering Render deploy..."
-          # 带 -sS 输出 body 和错误细节，--fail 让步骤失败时可见
           curl -sS -X POST "$RENDER_DEPLOY_HOOK" -o /tmp/render_resp.txt || true
           echo "Render response:"
           cat /tmp/render_resp.txt || true
