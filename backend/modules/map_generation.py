@@ -42,6 +42,30 @@ def save_mindmaps(mindmaps):
     with open(mindmaps_file, 'w', encoding='utf-8') as f:
         json.dump(mindmaps, f, ensure_ascii=False, indent=2)
 
+def ensure_unique_title(title, existing_mindmaps):
+    """
+    确保标题唯一性
+    如果标题已存在，添加时间戳或编号
+    """
+    # 检查标题是否已存在
+    existing_titles = [m['title'] for m in existing_mindmaps]
+    
+    if title not in existing_titles:
+        return title
+    
+    # 标题已存在，添加时间戳
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    new_title = f"{title} ({timestamp})"
+    
+    # 如果带时间戳的标题仍然存在（极少情况），添加编号
+    if new_title in existing_titles:
+        counter = 1
+        while f"{title} ({timestamp}_{counter})" in existing_titles:
+            counter += 1
+        new_title = f"{title} ({timestamp}_{counter})"
+    
+    return new_title
+
 def generate_mermaid_from_text(topic, depth=3, context='', style='TD'):
     """
     根据主题和深度生成Mermaid思维导图代码
@@ -164,10 +188,14 @@ def generate_mindmap():
         # 生成Mermaid代码
         mermaid_code = generate_mermaid_from_text(topic, depth, context, style)
         
+        # 确保标题唯一
+        mindmaps = load_mindmaps()
+        unique_title = ensure_unique_title(topic, mindmaps)
+        
         mindmap_id = str(uuid.uuid4())
         mindmap = {
             'id': mindmap_id,
-            'title': topic,
+            'title': unique_title,
             'mermaid_code': mermaid_code,
             'depth': depth,
             'style': style,
@@ -178,7 +206,6 @@ def generate_mindmap():
             'node_positions': '{}'
         }
         
-        mindmaps = load_mindmaps()
         mindmaps.insert(0, mindmap)
         save_mindmaps(mindmaps)
         
@@ -299,9 +326,16 @@ def upload_file_for_mindmap():
         else:
             source_file = saved_files[0][0].split(os.sep)[-1] if saved_files else 'unknown'
         
+        # Determine title
+        base_title = topic or (first_filename.rsplit('.', 1)[0] if len(saved_files) == 1 else f"{len(saved_files)} Files Analysis")
+        
+        # 确保标题唯一
+        mindmaps = load_mindmaps()
+        unique_title = ensure_unique_title(base_title, mindmaps)
+        
         mindmap = {
             'id': mindmap_id,
-            'title': topic or (first_filename.rsplit('.', 1)[0] if len(saved_files) == 1 else f"{len(saved_files)} Files Analysis"),
+            'title': unique_title,
             'mermaid_code': mermaid_code,
             'depth': depth,
             'style': style,
@@ -314,7 +348,6 @@ def upload_file_for_mindmap():
             'node_positions': '{}'
         }
         
-        mindmaps = load_mindmaps()
         mindmaps.insert(0, mindmap)
         save_mindmaps(mindmaps)
         
@@ -436,10 +469,14 @@ def generate_from_notes():
             print('AI service error while generating from notes:', e)
             mermaid_code = generate_mermaid_from_text(topic, depth if depth != 'auto' else 3, combined_content, style)
 
+        # 确保标题唯一
+        mindmaps = load_mindmaps()
+        unique_title = ensure_unique_title(topic, mindmaps)
+        
         mindmap_id = str(uuid.uuid4())
         mindmap = {
             'id': mindmap_id,
-            'title': topic,
+            'title': unique_title,
             'mermaid_code': mermaid_code,
             'depth': depth,
             'style': style,
@@ -450,7 +487,6 @@ def generate_from_notes():
             'node_positions': '{}'
         }
 
-        mindmaps = load_mindmaps()
         mindmaps.insert(0, mindmap)
         save_mindmaps(mindmaps)
 

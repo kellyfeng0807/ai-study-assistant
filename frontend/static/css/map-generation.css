@@ -1,5 +1,39 @@
 /* Mind Map Generation Styles - Enhanced */
 
+/* Advice Card Styles */
+.advice-card {
+    background: hsl(var(--accent));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: var(--spacing-lg);
+}
+
+.advice-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.advice-row i {
+    font-size: 18px;
+    color: hsl(var(--muted-foreground));
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.advice-row .advice-text {
+    flex: 1;
+    color: hsl(var(--muted-foreground));
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.advice-row .advice-text strong {
+    color: hsl(var(--foreground));
+    font-weight: 600;
+}
+
 .generation-section {
     margin-bottom: var(--spacing-xl);
 }
@@ -511,25 +545,57 @@
 }
 
 .edit-preview-container .mermaid-preview {
-    width: max-content;
+    width: 100%;
     min-width: 100%;
-    min-height: 400px;
+    min-height: 100%;
     border: none;
     border-radius: 0;
     transition: transform 0.3s ease;
-    transform-origin: top left;
+    transform-origin: center center;
     padding: var(--spacing-xl);
     overflow: visible;
-    display: inline-block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* 确保内容居中显示 */
+    position: relative;
 }
 
 .edit-preview-container .mermaid-preview .mermaid {
-    display: inline-block;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    /* 允许内容自适应 */
+    width: auto;
+    height: auto;
+}
+
+.edit-preview-container .mermaid-preview .mermaid[data-processed="true"] {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.edit-preview-container .mermaid-preview .mermaid svg {
+    display: block !important;
+    max-width: none !important;
+    /* SVG 不受限制，可以任意大小 */
+    width: auto !important;
+    height: auto !important;
+    /* 确保可见 */
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .edit-preview-container .mermaid-preview svg {
     max-width: none !important;
     display: block;
+    /* SVG 不受限制，可以任意大小 */
+    width: auto !important;
+    height: auto !important;
+    /* 确保可见 */
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 /* Edit Zoom Controls */
@@ -568,6 +634,14 @@
 .editable-canvas {
     position: relative;
     cursor: default;
+    overflow: auto;
+    width: 100%;
+    height: 100%;
+    background: 
+        /* Grid pattern for infinite canvas feel */
+        repeating-linear-gradient(0deg, transparent, transparent 19px, hsl(var(--border) / 0.1) 19px, hsl(var(--border) / 0.1) 20px),
+        repeating-linear-gradient(90deg, transparent, transparent 19px, hsl(var(--border) / 0.1) 19px, hsl(var(--border) / 0.1) 20px);
+    background-size: 20px 20px;
 }
 
 .editable-canvas .node {
@@ -606,6 +680,24 @@
 .error-message small {
     font-size: 12px;
     opacity: 0.7;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    text-align: center;
+    padding: var(--spacing-xl);
+    color: hsl(var(--muted-foreground));
+}
+
+.loading-spinner i {
+    font-size: 48px;
+    margin-bottom: var(--spacing-md);
+    color: hsl(var(--primary));
+}
+
+.loading-spinner p {
+    font-size: 14px;
+    font-weight: 500;
 }
 
 /* Recent Maps Grid */
