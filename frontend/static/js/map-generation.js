@@ -761,7 +761,6 @@ class MapGenerationManager {
         const container = document.getElementById('mermaidContainer');
         if (!container) return;
         
-        console.log('Rendering saved SVG, length:', svgContent.length);
         container.innerHTML = svgContent;
     }
 
@@ -853,12 +852,7 @@ class MapGenerationManager {
             `;
             return;
         }
-        
-        console.log('=== Rendering Preview ===');
-        console.log('Code to render:', code);
-        console.log('Code length:', code.length);
 
-        // 使用 mermaid.render() 而不是 mermaid.run()
         try {
             // 完全清空容器
             previewContainer.innerHTML = '';
@@ -880,23 +874,16 @@ class MapGenerationManager {
             
             // 使用 mermaid.render() API 直接获取 SVG 字符串
             const uniqueId = `mermaid-edit-${Date.now()}`;
-            console.log('Calling mermaid.render() with id:', uniqueId);
-            
             const { svg } = await mermaid.render(uniqueId, code);
-            
-            console.log('mermaid.render() returned SVG, length:', svg.length);
-            console.log('SVG first 500 chars:', svg.substring(0, 500));
             
             // 直接插入 SVG
             previewContainer.innerHTML = svg;
             
-            console.log('SVG inserted into container');
-            
             // 更新当前代码
             this.currentMermaidCode = code;
             
-            // Mermaid 渲染后 SVG 已经在 mermaidDiv 内，保持原样即可（和 renderMermaid 一样）
-            // 不需要任何额外处理
+            // 扩展 SVG 的 viewBox 以支持更大的移动范围
+            this.expandSVGViewBox(previewContainer.querySelector('svg'));
             
             // 应用缩放和启用拖拽
             this.updateEditZoom();
@@ -916,223 +903,7 @@ class MapGenerationManager {
         }
     }
 
-    /**
-     * 让 SVG 支持无限画布（异步版本）
-     * 移除固定尺寸限制，允许元素移动到任意位置
-     */
-    async makeSVGInfiniteAsync(svg) {
-        if (!svg) return;
-        
-        try {
-            console.log('Making SVG infinite (async)...');
-            
-            // 检查是否已经处理过
-            if (svg.hasAttribute('data-infinite-canvas')) {
-                console.log('SVG already has infinite canvas');
-                return;
-            }
-            
-            // 等待 SVG 完全渲染
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // 获取原始 viewBox 或计算内容边界
-            let originalViewBox = svg.getAttribute('viewBox');
-            if (!originalViewBox) {
-                // 如果没有 viewBox，尝试从内容计算
-                try {
-                    const children = svg.querySelectorAll(':scope > g, :scope > rect, :scope > circle, :scope > path, :scope > text');
-                    if (children.length > 0) {
-                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                        children.forEach(child => {
-                            try {
-                                const bbox = child.getBBox();
-                                if (bbox.width > 0 || bbox.height > 0) {
-                                    minX = Math.min(minX, bbox.x);
-                                    minY = Math.min(minY, bbox.y);
-                                    maxX = Math.max(maxX, bbox.x + bbox.width);
-                                    maxY = Math.max(maxY, bbox.y + bbox.height);
-                                }
-                            } catch (e) {}
-                        });
-                        if (minX !== Infinity) {
-                            originalViewBox = `${minX} ${minY} ${maxX - minX} ${maxY - minY}`;
-                            svg.setAttribute('viewBox', originalViewBox);
-                        }
-                    }
-                } catch (e) {
-                    console.warn('Failed to calculate viewBox:', e);
-                }
-            }
-            
-            console.log('Original viewBox:', originalViewBox);
-            
-            // 简化策略：不创建巨大画布，只是移除尺寸限制
-            svg.setAttribute('data-infinite-canvas', 'true');
-            
-            // 移除固定尺寸限制
-            svg.removeAttribute('width');
-            svg.removeAttribute('height');
-            
-            // 设置 SVG 样式
-            svg.style.maxWidth = 'none';
-            svg.style.maxHeight = 'none';
-            svg.style.width = 'auto';
-            svg.style.height = 'auto';
-            svg.style.display = 'block';
-            
-            // 获取 mermaidDiv 并设置其样式
-            const mermaidDiv = svg.parentElement;
-            if (mermaidDiv && mermaidDiv.classList.contains('mermaid')) {
-                mermaidDiv.style.display = 'inline-block';
-                mermaidDiv.style.minWidth = 'auto';
-                mermaidDiv.style.minHeight = 'auto';
-            }
-            
-            console.log('SVG infinite canvas applied (simplified):', {
-                originalViewBox,
-                svgVisible: svg.offsetWidth > 0 && svg.offsetHeight > 0,
-                svgDimensions: { width: svg.offsetWidth, height: svg.offsetHeight },
-                parentDimensions: mermaidDiv ? { width: mermaidDiv.offsetWidth, height: mermaidDiv.offsetHeight } : null
-            });
-            
-        } catch (error) {
-            console.error('Error making SVG infinite:', error);
-        }
-    }
-
-    /**
-     * 让 SVG 支持无限画布
-     * 移除固定尺寸限制，允许元素移动到任意位置
-     */
-    makeSVGInfinite(svg) {
-        if (!svg) return;
-        
-        try {
-            console.log('Making SVG infinite...');
-            
-            // 检查是否已经处理过
-            if (svg.hasAttribute('data-infinite-canvas')) {
-                console.log('SVG already has infinite canvas');
-                return;
-            }
-            
-            // 等待 SVG 完全渲染
-            setTimeout(() => {
-                try {
-                    // 在创建 wrapper 之前先获取原始内容边界
-                    let originalBBox = { x: 0, y: 0, width: 800, height: 600 };
-                    
-                    // 尝试多种方法获取内容边界
-                    try {
-                        // 方法1: 从 viewBox 读取
-                        const viewBox = svg.getAttribute('viewBox');
-                        if (viewBox) {
-                            const parts = viewBox.split(/\s+/).map(parseFloat);
-                            if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-                                originalBBox = { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
-                                console.log('Got bbox from viewBox:', originalBBox);
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('Failed to read viewBox:', e);
-                    }
-                    
-                    // 方法2: 遍历所有顶层元素获取边界
-                    if (originalBBox.width === 800 && originalBBox.height === 600) {
-                        try {
-                            const children = svg.querySelectorAll(':scope > g, :scope > rect, :scope > circle, :scope > path, :scope > text');
-                            if (children.length > 0) {
-                                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                                let found = false;
-                                
-                                children.forEach(child => {
-                                    try {
-                                        const bbox = child.getBBox();
-                                        if (bbox.width > 0 || bbox.height > 0) {
-                                            minX = Math.min(minX, bbox.x);
-                                            minY = Math.min(minY, bbox.y);
-                                            maxX = Math.max(maxX, bbox.x + bbox.width);
-                                            maxY = Math.max(maxY, bbox.y + bbox.height);
-                                            found = true;
-                                        }
-                                    } catch (e) {}
-                                });
-                                
-                                if (found && minX !== Infinity) {
-                                    originalBBox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-                                    console.log('Got bbox from children:', originalBBox);
-                                }
-                            }
-                        } catch (e) {
-                            console.warn('Failed to get bbox from children:', e);
-                        }
-                    }
-                    
-                    // 创建一个非常大的画布空间
-                    const canvasSize = 20000;
-                    const centerOffset = canvasSize / 2;
-                    
-                    // 计算内容应该的中心位置
-                    const contentCenterX = originalBBox.x + originalBBox.width / 2;
-                    const contentCenterY = originalBBox.y + originalBBox.height / 2;
-                    
-                    // 计算需要的偏移量，让内容显示在大画布的中心
-                    const translateX = centerOffset - contentCenterX;
-                    const translateY = centerOffset - contentCenterY;
-                    
-                    // 检查是否已有 wrapper
-                    let wrapper = svg.querySelector('.infinite-canvas-content');
-                    
-                    if (!wrapper) {
-                        // 创建新的 wrapper
-                        wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                        wrapper.classList.add('infinite-canvas-content');
-                        
-                        // 将所有现有子元素移动到 wrapper
-                        const children = Array.from(svg.children);
-                        children.forEach(child => {
-                            wrapper.appendChild(child);
-                        });
-                        
-                        svg.appendChild(wrapper);
-                        console.log('Created new wrapper with', children.length, 'children');
-                    }
-                    
-                    // 应用居中偏移
-                    wrapper.setAttribute('transform', `translate(${translateX}, ${translateY})`);
-                    
-                    // 设置 SVG 为大画布
-                    svg.setAttribute('viewBox', `0 0 ${canvasSize} ${canvasSize}`);
-                    svg.setAttribute('data-infinite-canvas', 'true');
-                    
-                    // 移除固定尺寸，使用容器尺寸
-                    svg.removeAttribute('width');
-                    svg.removeAttribute('height');
-                    svg.style.width = '100%';
-                    svg.style.height = '100%';
-                    svg.style.minWidth = '100%';
-                    svg.style.minHeight = '100%';
-                    
-                    console.log('SVG infinite canvas applied:', {
-                        canvasSize,
-                        centerOffset,
-                        translateX,
-                        translateY,
-                        originalBBox,
-                        viewBox: svg.getAttribute('viewBox')
-                    });
-                } catch (error) {
-                    console.error('Error in setTimeout makeSVGInfinite:', error);
-                }
-            }, 100); // 增加到 100ms 确保渲染完成
-            
-        } catch (error) {
-            console.error('Error making SVG infinite:', error);
-        }
-    }
-
     async applyCodeChanges() {
-        // 添加视觉反馈
         const applyBtn = document.getElementById('applyCodeBtn');
         if (applyBtn) {
             applyBtn.disabled = true;
@@ -1589,7 +1360,6 @@ class MapGenerationManager {
             clonedSvg.setAttribute('height', height);
             
             svgContent = new XMLSerializer().serializeToString(clonedSvg);
-            console.log('Saved optimized SVG - bbox:', bbox, 'size:', svgContent.length);
         }
 
         const data = {
@@ -1826,35 +1596,13 @@ class MapGenerationManager {
                 return;
             }
 
-            console.log('Exporting SVG:', svg);
-            console.log('SVG attributes:', {
-                viewBox: svg.getAttribute('viewBox'),
-                width: svg.getAttribute('width'),
-                height: svg.getAttribute('height'),
-                hasInfiniteCanvas: svg.hasAttribute('data-infinite-canvas')
-            });
-
             // Clone the SVG to avoid modifying the original
             const svgClone = svg.cloneNode(true);
             
             // 如果有 infinite canvas wrapper，临时移除 transform 以获取真实内容
             const wrapper = svgClone.querySelector('.infinite-canvas-content');
             if (wrapper) {
-                const originalTransform = wrapper.getAttribute('transform');
                 wrapper.removeAttribute('transform');
-                console.log('Removed wrapper transform for export:', originalTransform);
-            }
-            
-            // 重新设置 viewBox 为实际内容区域
-            // 先尝试直接使用原始的 max-width style
-            const maxWidthStyle = svg.style.maxWidth;
-            if (maxWidthStyle) {
-                const match = maxWidthStyle.match(/([\d.]+)px/);
-                if (match) {
-                    const width = parseFloat(match[1]);
-                    // 假设高度比例类似
-                    console.log('Found max-width:', width);
-                }
             }
             
             // 计算所有内容的实际边界框
@@ -1863,8 +1611,6 @@ class MapGenerationManager {
             
             const width = Math.max(bbox.width, 100) + padding * 2;
             const height = Math.max(bbox.height, 100) + padding * 2;
-            
-            console.log('Export dimensions:', { width, height, bbox, padding });
             
             // Set viewBox and dimensions based on actual content
             svgClone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
@@ -1877,7 +1623,6 @@ class MapGenerationManager {
             
             // Serialize SVG to string
             const svgData = new XMLSerializer().serializeToString(svgClone);
-            console.log('SVG data length:', svgData.length);
             
             // 使用 data URI 而不是 blob URL 避免 CORS 问题
             const svgDataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
@@ -1888,7 +1633,6 @@ class MapGenerationManager {
                 
                 img.onload = () => {
                     try {
-                        console.log('Image loaded, creating canvas...');
                         // Create canvas
                         const canvas = document.createElement('canvas');
                         canvas.width = width * 2; // 2x for better quality
@@ -1903,8 +1647,6 @@ class MapGenerationManager {
                         ctx.scale(2, 2);
                         ctx.drawImage(img, 0, 0, width, height);
                         
-                        console.log('Canvas rendered, converting to blob...');
-                        
                         // Convert to PNG and download
                         canvas.toBlob((blob) => {
                             if (!blob) {
@@ -1913,12 +1655,11 @@ class MapGenerationManager {
                                 return;
                             }
                             
-                            console.log('Blob created, triggering download...');
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
                             a.download = `mindmap-${this.currentMapId}.png`;
-                            document.body.appendChild(a); // 确保在 DOM 中
+                            document.body.appendChild(a);
                             a.click();
                             document.body.removeChild(a);
                             
@@ -1926,7 +1667,6 @@ class MapGenerationManager {
                                 URL.revokeObjectURL(url);
                             }, 100);
                             
-                            console.log('Download triggered');
                             resolve();
                         }, 'image/png');
                     } catch (err) {
@@ -1951,68 +1691,30 @@ class MapGenerationManager {
     }
     
     /**
-     * 准备 SVG 用于编辑（简化版本）
+     * 扩展 SVG 的 viewBox 以支持更大的移动范围
      */
-    prepareSVGForEditing(svg) {
+    expandSVGViewBox(svg) {
         if (!svg) return;
         
-        console.log('Preparing SVG for editing...');
-        
-        // 确保 SVG 有基本样式
-        svg.style.display = 'block';
-        svg.style.visibility = 'visible';
-        svg.style.opacity = '1';
-        svg.style.maxWidth = '100%';
-        svg.style.maxHeight = '100%';
-        svg.style.margin = 'auto';
-        
-        // 检查并修复 viewBox
         const viewBox = svg.getAttribute('viewBox');
-        console.log('Original viewBox:', viewBox);
+        if (!viewBox) return;
         
-        // 如果 viewBox 包含百分比或无效值，需要重新计算
-        if (!viewBox || viewBox.includes('%')) {
-            console.log('Invalid viewBox detected, calculating from content...');
-            
-            // 尝试从 SVG 的 width 和 height 属性获取
-            const width = svg.getAttribute('width');
-            const height = svg.getAttribute('height');
-            
-            if (width && height && !width.includes('%') && !height.includes('%')) {
-                const w = parseFloat(width);
-                const h = parseFloat(height);
-                svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-                console.log('Set viewBox from width/height:', svg.getAttribute('viewBox'));
-            } else {
-                // 尝试从内容计算 bbox
-                try {
-                    const bbox = svg.getBBox();
-                    if (bbox.width > 0 && bbox.height > 0) {
-                        svg.setAttribute('viewBox', `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
-                        console.log('Set viewBox from bbox:', svg.getAttribute('viewBox'));
-                    } else {
-                        // 使用默认值
-                        svg.setAttribute('viewBox', '0 0 800 600');
-                        console.log('Using default viewBox: 0 0 800 600');
-                    }
-                } catch (e) {
-                    console.error('Error calculating bbox:', e);
-                    svg.setAttribute('viewBox', '0 0 800 600');
-                    console.log('Using default viewBox due to error');
-                }
-            }
-        }
+        const parts = viewBox.split(/\s+/).map(parseFloat);
+        if (parts.length !== 4) return;
         
-        // 移除固定的宽高，让 SVG 自适应
-        svg.removeAttribute('width');
-        svg.removeAttribute('height');
+        const [x, y, width, height] = parts;
         
-        console.log('SVG prepared for editing, final viewBox:', svg.getAttribute('viewBox'));
+        // 将 viewBox 扩大 3 倍，以 (x + width/2, y + height/2) 为中心
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+        const newWidth = width * 3;
+        const newHeight = height * 3;
+        const newX = centerX - newWidth / 2;
+        const newY = centerY - newHeight / 2;
+        
+        svg.setAttribute('viewBox', `${newX} ${newY} ${newWidth} ${newHeight}`);
     }
-    
-    /**
-     * 计算 SVG 中所有实际内容的边界框
-     */
+
     /**
      * 计算 SVG 中所有实际内容的边界框
      * 如果 SVG 使用了 infinite canvas wrapper，会自动处理
@@ -2027,7 +1729,6 @@ class MapGenerationManager {
                 try {
                     const wrapperBBox = wrapper.getBBox();
                     if (wrapperBBox.width > 0 && wrapperBBox.height > 0) {
-                        console.log('Using wrapper bbox:', wrapperBBox);
                         return wrapperBBox;
                     }
                 } catch (e) {
@@ -2041,9 +1742,7 @@ class MapGenerationManager {
                 const parts = viewBox.split(/\s+/).map(parseFloat);
                 // 如果不是我们的大画布 viewBox，使用它
                 if (parts.length === 4 && parts[2] < 10000 && parts[2] > 0 && parts[3] > 0) {
-                    const result = { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
-                    console.log('Using viewBox:', result);
-                    return result;
+                    return { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
                 }
             }
             
@@ -2052,8 +1751,6 @@ class MapGenerationManager {
             const elements = targetElement.querySelectorAll('g, rect, circle, path, text, polygon, line, polyline');
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             let foundAny = false;
-            
-            console.log(`Checking ${elements.length} elements for bbox...`);
             
             elements.forEach(el => {
                 try {
@@ -2087,15 +1784,12 @@ class MapGenerationManager {
                 return { x: 0, y: 0, width: 800, height: 600 };
             }
             
-            const result = {
+            return {
                 x: minX,
                 y: minY,
                 width: maxX - minX,
                 height: maxY - minY
             };
-            
-            console.log('Calculated bbox from', elements.length, 'elements:', result);
-            return result;
         } catch (error) {
             console.error('Error calculating bbox:', error);
             // Fallback
@@ -2210,5 +1904,4 @@ class MapGenerationManager {
 
 document.addEventListener('DOMContentLoaded', () => {
     const mapManager = new MapGenerationManager();
-    console.log('Mind Map Generator initialized with Mermaid support');
 });
