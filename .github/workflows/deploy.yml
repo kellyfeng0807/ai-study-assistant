@@ -53,13 +53,12 @@ jobs:
           echo "Publish dir: ${{ steps.determine.outputs.publish }}"
           ls -la "${{ steps.determine.outputs.publish }}" || true
 
-      - name: Inject backend URL (optional)
-        if: ${{ secrets.BACKEND_URL != '' }}
+      - name: Inject backend URL (inline)
         run: |
-          mkdir -p "${{ steps.determine.outputs.publish }}/static/js"
-          cat > "${{ steps.determine.outputs.publish }}/static/js/api_config.js" <<'JS'
-          window.BACKEND_URL = "${{ secrets.BACKEND_URL }}";
-          JS
+          PUBLISH_DIR="${{ steps.determine.outputs.publish }}"
+          mkdir -p "$PUBLISH_DIR/static/js"
+          printf 'window.BACKEND_URL = "%s";\n' "https://ai-study-assistant-2ozw.onrender.com" > "$PUBLISH_DIR/static/js/api_config.js"
+          echo "Wrote api_config.js with hardcoded BACKEND_URL"
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v3
