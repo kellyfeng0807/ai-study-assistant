@@ -1,4 +1,4 @@
-name: Deploy frontend to GitHub Pages and trigger backend deploy
+name: Deploy frontend to GitHub Pages and trigger backend deploy (via gh-pages branch)
 
 on:
   push:
@@ -9,7 +9,6 @@ on:
 permissions:
   contents: read
   pages: write
-  id-token: write
 
 concurrency:
   group: "pages"
@@ -22,98 +21,62 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug - list repo root
-        run: |
-          echo "Workspace: $GITHUB_WORKSPACE"
-          ls -la
-
       - name: Setup Node (for optional frontend build)
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-
-      - name: Debug - show frontend contents
+      - name: Optional: Build frontend
         run: |
-          echo "frontend top-level:"
-          ls -la frontend || true
-          echo "frontend/*.html:"
-          ls -la frontend/*.html || true
-          echo "frontend/static/js:"
-          ls -la frontend/static/js || true
-          echo "frontend/static/css:"
-          ls -la frontend/static/css || true
-          echo "frontend/build (if any):"
-          ls -la frontend/build || true
-          echo "frontend/dist (if any):"
-          ls -la frontend/dist || true
-
-      - name: Inject backend URL for frontend JS (create api_config.js)
-        # 需要在仓库 Secrets 添加 BACKEND_URL（例如: https://your-backend.onrender.com）
-        run: |
-          if [ -z "${{ secrets.BACKEND_URL }}" ]; then
-            echo "WARNING: BACKEND_URL secret is empty. Frontend won't have backend URL injected."
+          if [ -f frontend/package.json ]; then
+            cd frontend
+            npm ci
+            npm run build || npm run build --if-present || true
+            cd ..
           else
-            mkdir -p frontend/static/js
-            cat > frontend/static/js/api_config.js <<'JS'
-
-          window.BACKEND_URL = "${{ secrets.BACKEND_URL }}";
-          JS
-            echo "Created frontend/static/js/api_config.js"
+            echo "No frontend/package.json — skipping build"
           fi
 
-      
-
-      - name: Determine publish directory (frontend or frontend/build)
+      - name: Determine publish dir
         id: determine
         run: |
-          PUBLISH=""
           if [ -d frontend/build ] && [ "$(ls -A frontend/build 2>/dev/null)" ]; then
-            PUBLISH="frontend/build"
+            echo "publish=frontend/build" >> $GITHUB_OUTPUT
           elif [ -d frontend/dist ] && [ "$(ls -A frontend/dist 2>/dev/null)" ]; then
-            PUBLISH="frontend/dist"
+            echo "publish=frontend/dist" >> $GITHUB_OUTPUT
           else
-            # default to frontend (no copy)
-            PUBLISH="frontend"
+            echo "publish=frontend" >> $GITHUB_OUTPUT
           fi
-          echo "PUBLISH_PATH=$PUBLISH" >> $GITHUB_ENV
-          echo "Will publish: $PUBLISH"
 
-      - name: Show publish path
+      - name: Show publish dir
         run: |
-          echo "PUBLISH_PATH=${{ env.PUBLISH_PATH }}"
-          ls -la "${{ env.PUBLISH_PATH }}" || true
+          echo "Publish dir: ${{ steps.determine.outputs.publish }}"
+          ls -la "${{ steps.determine.outputs.publish }}" || true
 
-      - name: Setup Pages (create site if needed)
-        uses: actions/configure-pages@v4
+      - name: Inject backend URL (optional)
+        if: ${{ secrets.BACKEND_URL != '' }}
+        run: |
+          mkdir -p "${{ steps.determine.outputs.publish }}/static/js"
+          cat > "${{ steps.determine.outputs.publish }}/static/js/api_config.js" <<'JS'
+          window.BACKEND_URL = "${{ secrets.BACKEND_URL }}";
+          JS
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          enablement: 'github-actions'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ steps.determine.outputs.publish }}
+          publish_branch: gh-pages
+          # optional: set user info for commit
+          user_name: github-actions
+          user_email: github-actions@github.com
 
-      - name: Upload artifact for GitHub Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ${{ env.PUBLISH_PATH }}
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-  # 可选：保留触发 Render 的步骤（如果你仍想在前端部署后触发后端）
   trigger-backend:
     name: Trigger backend deploy (Render) (optional)
-    needs: deploy
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render deploy via webhook (if secret exists)
+      - name: Trigger Render deploy via webhook
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
@@ -121,7 +84,6 @@ jobs:
             echo "No RENDER_DEPLOY_HOOK secret set, skipping backend deploy."
             exit 0
           fi
-          echo "Triggering Render deploy..."
           curl -sS -X POST "$RENDER_DEPLOY_HOOK" -o /tmp/render_resp.txt || true
           echo "Render response:"
           cat /tmp/render_resp.txt || true
