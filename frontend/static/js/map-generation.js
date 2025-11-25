@@ -27,6 +27,11 @@ class MapGenerationManager {
         this.uploadedFiles = [];  // Changed to array for multiple files
         this.zoomLevel = 1.0;
         this.editZoomLevel = 1.0;  // Separate zoom for edit mode
+        
+        // ViewBox 管理
+        this.originalViewBox = null;  // 原始 viewBox（最小尺寸参考）
+        this.containerSize = null;    // 容器尺寸
+        
         this.init();
     }
     
@@ -828,6 +833,9 @@ class MapGenerationManager {
         previewContainer.innerHTML = '';
         previewContainer.appendChild(clonedSvg);
         
+        // 初始化 viewBox 管理
+        this.initializeViewBox(clonedSvg);
+        
         this.updateEditZoom();
         this.enableDragAndDrop(previewContainer);
     }
@@ -882,8 +890,11 @@ class MapGenerationManager {
             // 更新当前代码
             this.currentMermaidCode = code;
             
-            // 扩展 SVG 的 viewBox 以支持更大的移动范围
-            this.expandSVGViewBox(previewContainer.querySelector('svg'));
+            // 初始化 viewBox 管理
+            const svgElement = previewContainer.querySelector('svg');
+            if (svgElement) {
+                this.initializeViewBox(svgElement);
+            }
             
             // 应用缩放和启用拖拽
             this.updateEditZoom();
@@ -1002,6 +1013,20 @@ class MapGenerationManager {
                 }
                 
                 draggedElement.setAttribute('transform', newTransform);
+                
+                // 获取元素的边界框并检查是否需要扩展 viewBox
+                try {
+                    const bbox = draggedElement.getBBox();
+                    const transformedBBox = {
+                        x: bbox.x + newX,
+                        y: bbox.y + newY,
+                        width: bbox.width,
+                        height: bbox.height
+                    };
+                    this.expandViewBoxIfNeeded(svg, transformedBBox);
+                } catch (e) {
+                    // getBBox 可能在某些情况下失败，忽略错误
+                }
                 
                 connectedEdges.forEach((edgeInfo) => {
                     this.updateEdgeConnectionById(edgeInfo, deltaX, deltaY);
@@ -1691,28 +1716,274 @@ class MapGenerationManager {
     }
     
     /**
-     * 扩展 SVG 的 viewBox 以支持更大的移动范围
+     * 初始化 ViewBox 管理
+     * 保存原始 viewBox 作为最小尺寸参考
      */
-    expandSVGViewBox(svg) {
+    initializeViewBox(svg) {
         if (!svg) return;
         
+        const previewContainer = svg.closest('.mermaid-preview');
+        if (!previewContainer) return;
+        
         const viewBox = svg.getAttribute('viewBox');
-        if (!viewBox) return;
+        if (viewBox) {
+            // 保存原始 viewBox
+            const [x, y, width, height] = viewBox.split(/\s+/).map(parseFloat);
+            this.originalViewBox = { x, y, width, height };
+            svg.dataset.originalViewBox = viewBox;
+        }
         
-        const parts = viewBox.split(/\s+/).map(parseFloat);
-        if (parts.length !== 4) return;
+        // 获取容器尺寸
+        const containerRect = previewContainer.getBoundingClientRect();
+        this.containerSize = {
+            width: containerRect.width,
+            height: containerRect.height
+        };
+    }
+
+    /**
+     * 根据当前缩放级别更新 viewBox
+     * zoom = 1.0 时，viewBox 应该匹配容器可见区域
+     * zoom < 1.0 (zoom out) 时，viewBox 更大（看到更多内容）
+     * zoom > 1.0 (zoom in) 时，viewBox 更小（看到更少内容）
+     */
+    updateViewBoxForZoom(svg) {
+        if (!svg || !this.originalViewBox || !this.containerSize) return;
         
-        const [x, y, width, height] = parts;
+        const currentViewBox = svg.getAttribute('viewBox');
+        if (!currentViewBox) return;
         
-        // 将 viewBox 扩大 3 倍，以 (x + width/2, y + height/2) 为中心
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
-        const newWidth = width * 3;
-        const newHeight = height * 3;
-        const newX = centerX - newWidth / 2;
-        const newY = centerY - newHeight / 2;
+        const [currentX, currentY, currentWidth, currentHeight] = currentViewBox.split(/\s+/).map(parseFloat);
         
-        svg.setAttribute('viewBox', `${newX} ${newY} ${newWidth} ${newHeight}`);
+        // 计算容器的宽高比
+        const containerAspect = this.containerSize.width / this.containerSize.height;
+        const originalAspect = this.originalViewBox.width / this.originalViewBox.height;
+        
+        
+        let baseWidth, baseHeight;
+        if (containerAspect > originalAspect) {
+            // 容器更宽，高度对齐
+            baseHeight = this.originalViewBox.height / 4;
+            baseWidth = baseHeight * containerAspect;
+        } else {
+            // 容器更高，宽度对齐
+            baseWidth = this.originalViewBox.width / 4;
+            baseHeight = baseWidth / containerAspect;
+        }
+        
+        // 根据缩放级别调整 viewBox
+        // zoom = 1.0: viewBox = base size
+        // zoom = 0.5: viewBox = base size * 2 (看到更多)
+        // zoom = 2.0: viewBox = base size / 2 (看到更少)
+        const newWidth = baseWidth / this.editZoomLevel;
+        const newHeight = baseHeight / this.editZoomLevel;
+        
+        // 确保不小于原始尺寸
+        const finalWidth = Math.max(newWidth, this.originalViewBox.width);
+        const finalHeight = Math.max(newHeight, this.originalViewBox.height);
+        
+        // 保持中心点不变
+        const centerX = currentX + currentWidth / 2;
+        const centerY = currentY + currentHeight / 2;
+        const newX = centerX - finalWidth / 2;
+        const newY = centerY - finalHeight / 2;
+        
+        svg.setAttribute('viewBox', `${newX} ${newY} ${finalWidth} ${finalHeight}`);
+    }
+
+    /**
+     * 根据元素位置扩展 viewBox（拖拽时调用）
+     * 只在元素超出当前 viewBox 时扩展，不收缩
+     */
+    expandViewBoxIfNeeded(svg, elementBBox) {
+        if (!svg || !elementBBox) return;
+        
+        const viewBoxAttr = svg.getAttribute('viewBox');
+        if (!viewBoxAttr) return;
+        
+        let [vbX, vbY, vbWidth, vbHeight] = viewBoxAttr.split(/\s+/).map(parseFloat);
+        if (!vbWidth || !vbHeight) return;
+        
+        // 容器可见区域的尺寸（在100%缩放时）
+        const containerAspect = this.containerSize ? this.containerSize.width / this.containerSize.height : 1;
+        const baseViewBoxSize = this.originalViewBox ? 
+            (containerAspect > this.originalViewBox.width / this.originalViewBox.height ?
+                this.originalViewBox.height * containerAspect :
+                this.originalViewBox.width / containerAspect) 
+            : Math.max(vbWidth, vbHeight);
+        
+        // padding 为容器尺寸的一部分
+        const padding = baseViewBoxSize * 0.1;
+        
+        // 计算元素的边界
+        const elemLeft = elementBBox.x;
+        const elemRight = elementBBox.x + elementBBox.width;
+        const elemTop = elementBBox.y;
+        const elemBottom = elementBBox.y + elementBBox.height;
+        
+        // 当前 viewBox 的边界
+        let vbRight = vbX + vbWidth;
+        let vbBottom = vbY + vbHeight;
+        
+        let needsUpdate = false;
+        
+        // 只扩展，不收缩
+        // 检测并扩展左边界
+        if (elemLeft < vbX) {
+            vbX = elemLeft - padding;
+            vbWidth = vbRight - vbX;
+            needsUpdate = true;
+        }
+        
+        // 检测并扩展右边界
+        if (elemRight > vbRight) {
+            vbWidth = elemRight + padding - vbX;
+            needsUpdate = true;
+        }
+        
+        // 检测并扩展上边界
+        if (elemTop < vbY) {
+            vbY = elemTop - padding;
+            vbHeight = vbBottom - vbY;
+            needsUpdate = true;
+        }
+        
+        // 检测并扩展下边界
+        if (elemBottom > vbBottom) {
+            vbHeight = elemBottom + padding - vbY;
+            needsUpdate = true;
+        }
+        
+        // 如果需要更新，应用新的 viewBox
+        if (needsUpdate) {
+            svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbWidth} ${vbHeight}`);
+        }
+    }
+    
+    /**
+     * 重置视图：计算所有内容的实际边界，居中显示
+     * 用于"回到100%中心"操作
+     */
+    resetViewToContent(svg) {
+        if (!svg) return;
+        
+        // 计算所有内容的实际边界（忽略当前 viewBox，强制从元素计算）
+        const contentBBox = this.calculateContentBBox(svg);
+        if (!contentBBox) return;
+        
+        const padding = Math.max(contentBBox.width, contentBBox.height) * 0.1;
+        
+        // 计算新的内容边界（四周都加 padding）
+        const newX = contentBBox.x - padding;
+        const newY = contentBBox.y - padding;
+        const newWidth = contentBBox.width + padding * 2;
+        const newHeight = contentBBox.height + padding * 2;
+        
+        // 更新原始 viewBox 参考为新的内容边界
+        this.originalViewBox = { x: newX, y: newY, width: newWidth, height: newHeight };
+        svg.dataset.originalViewBox = `${newX} ${newY} ${newWidth} ${newHeight}`;
+        
+        // 重置缩放级别为 1.0
+        this.editZoomLevel = 1.0;
+        
+        // 重新初始化容器尺寸（可能窗口大小已改变）
+        const previewContainer = svg.closest('.mermaid-preview');
+        if (previewContainer) {
+            const containerRect = previewContainer.getBoundingClientRect();
+            this.containerSize = {
+                width: containerRect.width,
+                height: containerRect.height
+            };
+        }
+        
+        // 使用和初始化相同的逻辑来设置 viewBox
+        // 让 viewBox 匹配容器可见区域（100% 视图）
+        const containerAspect = this.containerSize.width / this.containerSize.height;
+        const contentAspect = newWidth / newHeight;
+        
+        let finalViewBoxWidth, finalViewBoxHeight;
+        if (containerAspect > contentAspect) {
+            // 容器更宽，内容高度对齐
+            finalViewBoxHeight = newHeight/4;
+            finalViewBoxWidth = finalViewBoxHeight * containerAspect;
+        } else {
+            // 容器更高，内容宽度对齐
+            finalViewBoxWidth = newWidth/4;
+            finalViewBoxHeight = finalViewBoxWidth / containerAspect;
+        }
+        
+        // 居中内容
+        const finalX = newX + (newWidth - finalViewBoxWidth) / 2;
+        const finalY = newY + (newHeight - finalViewBoxHeight) / 2;
+        
+        svg.setAttribute('viewBox', `${finalX} ${finalY} ${finalViewBoxWidth} ${finalViewBoxHeight}`);
+        
+        // 手动更新显示
+        const mermaidPreview = document.getElementById('mermaidPreview');
+        const zoomLevelDisplay = document.getElementById('editZoomLevel');
+        
+        if (mermaidPreview) {
+            mermaidPreview.style.transform = `scale(${this.editZoomLevel})`;
+        }
+        
+        if (zoomLevelDisplay) {
+            zoomLevelDisplay.textContent = `${Math.round(this.editZoomLevel * 100)}%`;
+        }
+    }
+    
+    /**
+     * 计算实际内容边界（强制从元素计算，不使用 viewBox）
+     */
+    calculateContentBBox(svg) {
+        if (!svg) return null;
+        
+        try {
+            // 遍历所有可见元素的边界框
+            const elements = svg.querySelectorAll('g.node, g[class*="node"], g[id*="flowchart"], g.nodeLabel, g.edgePath, g.edgeLabel');
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            let foundAny = false;
+            
+            elements.forEach(el => {
+                try {
+                    const bbox = el.getBBox();
+                    if (bbox.width > 0 || bbox.height > 0) {
+                        // 如果元素有 transform，需要考虑 transform
+                        const transform = el.getAttribute('transform');
+                        let tx = 0, ty = 0;
+                        if (transform) {
+                            const match = transform.match(/translate\(([^,]+),([^)]+)\)/);
+                            if (match) {
+                                tx = parseFloat(match[1]) || 0;
+                                ty = parseFloat(match[2]) || 0;
+                            }
+                        }
+                        
+                        minX = Math.min(minX, bbox.x + tx);
+                        minY = Math.min(minY, bbox.y + ty);
+                        maxX = Math.max(maxX, bbox.x + bbox.width + tx);
+                        maxY = Math.max(maxY, bbox.y + bbox.height + ty);
+                        foundAny = true;
+                    }
+                } catch (e) {
+                    // 某些元素可能没有 getBBox 方法
+                }
+            });
+            
+            if (!foundAny) {
+                console.warn('No elements with valid bbox found');
+                return null;
+            }
+            
+            return {
+                x: minX,
+                y: minY,
+                width: maxX - minX,
+                height: maxY - minY
+            };
+        } catch (error) {
+            console.error('Error calculating content bbox:', error);
+            return null;
+        }
     }
 
     /**
@@ -1859,8 +2130,14 @@ class MapGenerationManager {
     }
 
     editZoomReset() {
-        this.editZoomLevel = 1.0;
-        this.updateEditZoom();
+        // 重置视图到内容边界并居中
+        const previewContainer = document.getElementById('mermaidPreview');
+        if (previewContainer) {
+            const svg = previewContainer.querySelector('svg');
+            if (svg) {
+                this.resetViewToContent(svg);
+            }
+        }
     }
 
     updateEditZoom() {
@@ -1869,6 +2146,12 @@ class MapGenerationManager {
         
         if (previewContainer) {
             previewContainer.style.transform = `scale(${this.editZoomLevel})`;
+            
+            // 更新 SVG 的 viewBox 以匹配当前缩放级别
+            const svg = previewContainer.querySelector('svg');
+            if (svg) {
+                this.updateViewBoxForZoom(svg);
+            }
         }
         
         if (zoomLevelDisplay) {
