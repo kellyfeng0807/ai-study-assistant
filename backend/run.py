@@ -13,7 +13,7 @@ load_dotenv()
 
 from config import config
 from ui_controller import ui_bp
-from modules.note_assistant import note_bp
+from modules.note_assistant_db import bp as note_bp
 from modules.map_generation import map_bp
 from modules.error_book import error_bp
 from modules.learning_dashboard import dashboard_bp
@@ -58,6 +58,12 @@ def create_app(config_name='development'):
     return app
 
 if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--init-db', action='store_true', help='Initialize sqlite DB tables and migrate JSON notes')
+    args = parser.parse_args()
+
     app = create_app('development')
     print("=" * 50)
     print("AI Study Assistant Backend Starting...")
@@ -66,6 +72,22 @@ if __name__ == '__main__':
     print(f"Mind Map: http://localhost:5000/map-generation")
     print(f"Health Check: http://localhost:5000/api/health")
     
+    # 如果请求，初始化 DB 并迁移 JSON notes
+    if args.init_db:
+        try:
+            import db_sqlite
+            print('Initializing sqlite DB...')
+            db_sqlite.init_db()
+            # run migration script if available
+            try:
+                from scripts.migrate_notes_to_db import migrate_notes
+                migrate_notes()
+            except Exception:
+                print('Note migration script not present or migration failed.')
+            print('sqlite DB initialized')
+        except Exception as e:
+            print('DB init failed:', e)
+
     # 检查DeepSeek API Key
     if not os.environ.get('DEEPSEEK_API_KEY'):
         print("\nWARNING: DEEPSEEK_API_KEY not set!")

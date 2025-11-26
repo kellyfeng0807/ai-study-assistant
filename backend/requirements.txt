@@ -8,6 +8,7 @@ requests==2.31.0
 openai>=1.0.0
 baidu-aip==2.2.13
 pydub==0.25.1
+dashscope==1.25.2
 
 # 数据处理
 numpy==1.26.2

@@ -13,6 +13,11 @@ import sys
 # 添加services路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from services.ai_service import ai_service
+try:
+    import db_sqlite
+    HAS_DB = True
+except Exception:
+    HAS_DB = False
 
 map_bp = Blueprint('map_generation', __name__, url_prefix='/api/map')
 
@@ -426,15 +431,21 @@ def generate_from_notes():
         else:
             depth = depth_input if depth_input else 3
 
-        # Load notes data from data/notes.json (existing note assistant persistence)
-        notes_file = os.path.join(DATA_FOLDER, 'notes.json')
+        # Load notes data from DB if available, else from data/notes.json file
         notes = []
-        if os.path.exists(notes_file):
-            with open(notes_file, 'r', encoding='utf-8') as f:
-                try:
-                    notes = json.load(f)
-                except Exception:
-                    notes = []
+        if HAS_DB:
+            for nid in note_ids:
+                n = db_sqlite.get_note_by_id(nid)
+                if n:
+                    notes.append(n)
+        else:
+            notes_file = os.path.join(DATA_FOLDER, 'notes.json')
+            if os.path.exists(notes_file):
+                with open(notes_file, 'r', encoding='utf-8') as f:
+                    try:
+                        notes = json.load(f)
+                    except Exception:
+                        notes = []
 
         # Collect contents of selected notes
         selected_texts = []
