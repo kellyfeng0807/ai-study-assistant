@@ -7,9 +7,9 @@ Pillow==10.1.0
 requests==2.31.0
 openai>=1.0.0
 baidu-aip==2.2.13
-pydub==0.25.1
 dashscope==1.25.2
-
+audio==3.1.0
+pydub==0.25.1
 # 数据处理
 numpy==1.26.2
 pandas==2.1.4

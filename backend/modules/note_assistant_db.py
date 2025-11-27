@@ -11,9 +11,10 @@ from datetime import datetime
 import requests
 import db_sqlite
 from werkzeug.utils import secure_filename
-import shutil
-import subprocess
-from pydub import AudioSegment
+
+import logging
+
+
 
 bp = Blueprint('note_assistant', __name__, url_prefix='/api/note')
 
@@ -28,6 +29,8 @@ ALLOWED_AUDIO_EXTENSIONS = {'mp3', 'wav', 'pcm', 'webm', 'm4a', 'ogg'}
 
 db_sqlite.init_db()
 
+# Added debug logging to trace execution flow
+logging.basicConfig(level=logging.DEBUG)
 
 def allowed_audio_file(filename):
     """Check if the audio file format is allowed."""
@@ -37,7 +40,7 @@ def allowed_audio_file(filename):
 def _fallback_notes(text, subject):
     sentences = [s.strip() for s in text.split('。') if s.strip()]
     key_points = sentences[:min(3, len(sentences))]
-    title = sentences[0][:15] + "..." if sentences else "笔记"
+    title = sentences[0][:15] + "..." if sentences else "note"
     summary = text[:100] + "..." if len(text) > 100 else text
 
     fallback_notes = {
@@ -46,7 +49,7 @@ def _fallback_notes(text, subject):
         'key_points': key_points,
         'examples': [],
         'summary': summary,
-        'tags': [subject, '学习笔记']
+        'tags': [subject, 'study note']
     }
     return fallback_notes
 
@@ -69,62 +72,88 @@ def get_baidu_client():
 
 @bp.route('/transcribe', methods=['POST'])
 def transcribe_audio():
-    """Transcribe audio to text using Baidu Speech API."""
+    
     try:
+        logging.debug("start transcribing audio")
+        
+        # 获取百度客户端
+        client = get_baidu_client()
+        if not client:
+            return jsonify({
+                'success': False,
+                'error': 'baidu SDK uninstall, run: pip install baidu-aip chardet'
+            }), 503
+        
+        # 检查文件
         if 'audio' not in request.files:
-            return jsonify({'success': False, 'error': 'no audio file uploaded'}), 400
-
+            logging.error("no audio file uploaded")
+            return jsonify({
+                'success': False,
+                'error': 'no audio file uploaded'
+            }), 400
+        
         audio_file = request.files['audio']
+        
         if audio_file.filename == '':
-            return jsonify({'success': False, 'error': 'no filename provided'}), 400
-
+            logging.error("file name is empty")
+            return jsonify({
+                'success': False,
+                'error': 'file name is empty'
+            }), 400
+        
+        # 保存临时文件
         filename = secure_filename(audio_file.filename)
         temp_dir = tempfile.gettempdir()
         temp_path = os.path.join(temp_dir, filename)
         audio_file.save(temp_path)
-
+        
         file_size = os.path.getsize(temp_path)
+        logging.debug(f'audio file saved: {temp_path}, file size: {file_size} bytes')
 
+        # 确定音频格式
         file_format = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'webm'
+        logging.debug(f'detected file format: {file_format}')
 
+        # 转换为 PCM 格式
         if file_format in ['webm', 'm4a']:
             try:
-                if file_format == 'webm':
-                    audio = AudioSegment.from_file(temp_path, format="webm")
-                elif file_format == 'm4a':
-                    audio = AudioSegment.from_file(temp_path, format="m4a")
-
+                from pydub import AudioSegment
+                audio = AudioSegment.from_file(temp_path, format=file_format)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
                 audio_data = audio.raw_data
                 format_param = 'pcm'
                 os.remove(temp_path)
                 temp_path = None
-            except Exception as e:
-                return jsonify({'success': False, 'error': f'fail to convert audio format: {str(e)}'}), 500
+            except ImportError:
+                logging.error('pydub not installed, unable to convert audio format')
+                return jsonify({
+                    'success': False,
+                    'error': 'audio format conversion failed, please install pydub'
+                }), 500
         else:
             with open(temp_path, 'rb') as f:
                 audio_data = f.read()
-            format_map = {'wav': 'wav', 'pcm': 'pcm', 'amr': 'amr', 'm4a': 'm4a'}
-            format_param = format_map.get(file_format, 'wav')
+            format_param = 'wav' if file_format == 'wav' else 'pcm'
 
-        client = get_baidu_client()
-        if not client:
-            return jsonify({'success': False, 'error': 'Baidu SDK is not installed. Please run: pip install baidu-aip chardet'}), 503
+        logging.debug(f'audio data size: {len(audio_data)} bytes, using format param: {format_param}')
 
+        # 调用百度语音识别 API
         result = client.asr(audio_data, format_param, 16000, {'dev_pid': 1537})
-
+        logging.debug(f'baidu api return results: {json.dumps(result, ensure_ascii=False)}')
+        
         if result.get('err_no') == 0:
             transcribed_text = ''.join(result.get('result', []))
+            logging.info(f'recognition success: {transcribed_text}')
             return jsonify({'success': True, 'text': transcribed_text, 'length': len(transcribed_text)})
         else:
             error_code = result.get('err_no')
             error_msg = result.get('err_msg', 'unknown error')
-            return jsonify({'success': False, 'error': f'fail to recognize speech (error code: {error_code}): {error_msg}', 'error_code': error_code, 'error_msg': error_msg}), 500
+            logging.error(f'recognition failed: error code {error_code}, error message {error_msg}')
+            return jsonify({'success': False, 'error': f'recognition failed: {error_msg}', 'error_code': error_code}), 500
+
     except Exception as e:
-        return jsonify({'success': False, 'error': f'fail to transcribe audio: {str(e)}'}), 500
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
+        logging.exception("failed to recognize")
+        return jsonify({'success': False, 'error': f'recognition failed: {str(e)}'}), 500
 
 
 @bp.route('/generate', methods=['POST'])
