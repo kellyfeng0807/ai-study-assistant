@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Similar Practice - AI Study Assistant</title>
+
+  <!-- Preload & CSS -->
+  <link rel="preload" href="/static/css/main.css" as="style">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/error-book.css">
+  <link rel="stylesheet" href="/static/css/error-practice.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- MathJax 配置：启用 $...$ -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        ignoreHtmlClass: 'tex2jax_ignore',
+        processHtmlClass: 'tex2jax_process'
+      }
+    };
+  </script>
+  <script id="MathJax-script" async
+    src="https://cdn.bootcdn.net/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js">
+  </script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- 侧边栏（复用 error-book 的） -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1 class="app-title">AI Study Assistant</h1>
+        <button class="sidebar-toggle" id="sidebarToggle">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+
+      <nav class="nav-menu">
+        <a href="/dashboard" class="nav-item">
+          <i class="fas fa-th-large"></i>
+          <span>Overview</span>
+        </a>
+        <a href="/note-assistant" class="nav-item">
+          <i class="fas fa-file-text"></i>
+          <span>Note Assistant</span>
+        </a>
+        <a href="/error-book" class="nav-item">
+          <i class="fas fa-book-open"></i>
+          <span>Error Book</span>
+        </a>
+        <a href="/map-generation" class="nav-item">
+          <i class="fas fa-sitemap"></i>
+          <span>Mind Map</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="/settings" class="nav-item">
+          <i class="fas fa-cog"></i>
+          <span>Settings</span>
+        </a>
+        <div class="user-profile">
+          <div class="avatar">S</div>
+          <div class="user-info">
+            <div class="user-name">Student</div>
+            <div class="user-email">student@example.com</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <header class="content-header">
+        <div class="header-left">
+          <h2 class="page-title">Similar Practice Questions</h2>
+          <p class="page-subtitle">Generated based on your error</p>
+        </div>
+        <div class="header-right">
+          <button class="icon-button" id="backBtn">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <button class="icon-button theme-toggle">
+            <i class="fas fa-moon"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="content-body">
+        <section class="section">
+          <div class="section-header">
+            <h3 class="section-title">Practice Problems</h3>
+          </div>
+          <div class="errors-list" id="problemsContainer">
+            <!-- 动态内容由 JS 插入 -->
+            <p>Loading similar questions...</p>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- 全局 JS（确保 sidebar toggle 等功能正常） -->
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/message-modal.js"></script>
+  <script src="/static/js/notifications.js"></script>
+  <script src="/static/js/error-practice.js"></script>
+
+
+</body>
+</html>
