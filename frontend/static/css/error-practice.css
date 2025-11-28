@@ -1,0 +1,144 @@
+/* error-practice.css */
+
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  background: #f9f9f9;
+  margin: 0;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+#problemsContainer .loading {
+  text-align: center;
+  color: #666;
+}
+
+.problem {
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.answer {
+  margin-top: 8px;
+  padding: 10px;
+  background-color: #f0f8ff;
+  border-left: 3px solid #1e90ff;
+}
+
+.back-btn {
+  display: block;
+  margin: 20px auto 0;
+  padding: 8px 16px;
+  background: #eee;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.back-btn:hover {
+  background: #ddd;
+}
+
+/* 容器 */
+#problemsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* 替代 margin-bottom，更可靠 */
+}
+
+/* 每个题目卡片 */
+.problem {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #eee;
+
+  /* 防止内部元素溢出导致布局错乱 */
+  overflow: hidden; /* 关键！防止子元素撑破或塌陷 */
+  position: relative; /* 确保 stacking context 正常 */
+}
+
+/* 题干样式 */
+.problem .question {
+  font-size: 16px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+/* 答案区域 */
+.answer {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #f0f8ff;
+  border-left: 3px solid #1e90ff;
+  border-radius: 0 4px 4px 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/*  全局样式优化 */
+body {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  background: #f9f9f9;
+  margin: 0;
+  padding: 20px 0;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 24px;
+  font-size: 24px;
+  color: #333;
+}
+
+#problemsContainer .loading {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+}
+
+.back-btn {
+  display: block;
+  margin: 24px auto 0;
+  padding: 10px 20px;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  transition: background 0.2s;
+}
+
+.back-btn:hover {
+  background: #e0e0e0;
+}
+
+/* ✅ 覆盖 error-book.css 的横向布局 */
+.error-footer {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+}

@@ -1,0 +1,220 @@
+/* static/css/error-review.css */
+
+
+/* 页面标题 */
+.page-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 1rem;
+  color: hsl(var(--muted-foreground));
+  margin-top: var(--spacing-xs);
+}
+
+/* 内容卡片 */
+#errorCard,
+#reviewCard {
+  background: hsl(var(--card));
+  border-radius: var(--radius);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 题目标题 */
+#qTitle {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: var(--spacing-xl);
+  color: hsl(var(--foreground));
+}
+
+/* 回顾区块通用样式 */
+.review-section {
+  margin-top: var(--spacing-lg);
+}
+
+.review-section h5 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  color: hsl(var(--foreground));
+}
+
+/* 答案内容区 */
+.answer-content,
+.analysis-content {
+  font-size: 15px;
+  line-height: 1.6;
+  background: hsl(var(--background));
+  padding: var(--spacing-md);
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  overflow-x: auto;
+  white-space: pre-wrap; /* 保留换行 */
+  word-break: break-word;
+}
+
+/* 分析步骤列表 */
+#analysisContent ol {
+  padding-left: var(--spacing-lg);
+  margin: var(--spacing-sm) 0;
+}
+
+#analysisContent li {
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.6;
+}
+
+/* 元信息 */
+#metaInfo {
+  display: block;
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid hsl(var(--border));
+  font-size: 0.9em;
+  color: hsl(var(--text-muted));
+}
+
+/* 按钮（如果有） */
+#practiceBtn,
+#backBtn {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: var(--transition);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+#practiceBtn:hover,
+#backBtn:hover {
+  background: hsl(var(--primary-foreground));
+  color: hsl(var(--primary));
+}
+
+/* MathJax 公式优化 */
+.MathJax {
+  font-size: 1.1em !important;
+  margin: var(--spacing-xs) 0 !important;
+  line-height: 1.4 !important;
+}
+
+/* 空状态提示 */
+.empty-state {
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+  padding: var(--spacing-xl);
+}
+
+/* 响应式：小屏优化 */
+@media (max-width: 768px) {
+  #reviewCard {
+    padding: var(--spacing-lg);
+  }
+
+  #qTitle {
+    font-size: 1.4rem;
+  }
+
+  .answer-content,
+  .analysis-content {
+    padding: var(--spacing-sm);
+    font-size: 14px;
+  }
+}
+
+
+/* ===== redo card styles ===== */
+.redo-section-card .section-header { margin-bottom: 12px; }
+.redo-card { border-radius: 14px; padding: 18px; background: var(--card-bg, #fff); box-shadow: 0 6px 20px rgba(16,24,40,0.04); }
+
+/* Dropzone */
+.dropzone {
+    border: 2px dashed rgba(99,102,241,0.18);
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: background .18s, border-color .18s, transform .08s;
+    background: var(--drop-bg, #fbfbff);
+}
+.dropzone:hover { transform: translateY(-2px); }
+.dropzone.dragover { border-color: #4f46e5; background: #f3f4ff; }
+
+/* icon + text */
+.upload-icon { font-size: 36px; color: #6366f1; margin-bottom: 8px; }
+.upload-text { font-size: 1rem; font-weight: 600; margin: 0; }
+.upload-subtext { font-size: 0.9rem; color: #6b7280; margin-top: 6px; }
+
+/* hide native input */
+.upload-input { display: none; }
+
+/* preview */
+#redoPreview { display: none; }
+
+/* redo button (shadcn-like primary) */
+.redo-btn {
+    background: linear-gradient(180deg,#4f46e5,#4338ca);
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(79,70,229,0.12);
+    transition: transform .12s, box-shadow .12s, opacity .12s;
+}
+.redo-btn:hover { transform: translateY(-2px); }
+.redo-btn:active { transform: translateY(0); }
+.redo-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+/* clear button (secondary) */
+.redo-clear-btn {
+    background: transparent;
+    color: var(--text-muted,#444);
+    border: 1px solid rgba(15,23,42,0.06);
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.redo-clear-btn:hover { background: rgba(0,0,0,0.02); }
+
+/* result */
+.redo-result { margin-top: 12px; font-weight: 600; color: #0f172a; }
+.redo-result.ok { color: #047857; }    /* green */
+.redo-result.err { color: #dc2626; }   /* red */
+
+
+.upload-input {
+    display: none;
+}
+
+/* 折叠/展开按钮样式 */
+.toggle-details {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 6px 12px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    margin-bottom: var(--spacing-sm);
+}
+
+.toggle-details:hover {
+    background: hsl(var(--foreground) / 0.05);
+}
