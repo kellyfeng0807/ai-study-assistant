@@ -214,3 +214,92 @@ def count_notes(subject=None):
     count = cur.fetchone()[0]
     conn.close()
     return count
+
+def _row_to_mindmap_dict(row):
+    if not row:
+        return None
+    return {
+        'id': row['id'],
+        'user_id': row['user_id'],
+        'title': row['title'],
+        'mermaid_code': row['mermaid_code'],
+        'depth': row['depth'],
+        'style': row['style'],
+        'source': row['source'],
+        'source_file': row['source_file'],
+        'context': row['context'],
+        'node_positions': row['node_positions'],
+        'created_at': row['created_at'],
+        'updated_at': row['updated_at']
+    }
+
+def insert_mindmap(mindmap):
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    cur.execute('''
+        INSERT INTO mindmap (user_id, title, mermaid_code, depth, style, source, source_file, context, node_positions, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        mindmap.get('user_id', 1),
+        mindmap.get('title'),
+        mindmap.get('mermaid_code'),
+        mindmap.get('depth', 3),
+        mindmap.get('style', 'TD'),
+        mindmap.get('source', 'manual'),
+        mindmap.get('source_file', 'none'),
+        mindmap.get('context', ''),
+        mindmap.get('node_positions', '{}'),
+        now,
+        now
+    ))
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return new_id
+
+def update_mindmap(mindmap):
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    cur.execute('''
+        UPDATE mindmap SET title=?, mermaid_code=?, depth=?, style=?, source=?, source_file=?, context=?, node_positions=?, updated_at=? WHERE id=?
+    ''', (
+        mindmap.get('title'),
+        mindmap.get('mermaid_code'),
+        mindmap.get('depth', 3),
+        mindmap.get('style', 'TD'),
+        mindmap.get('source', 'manual'),
+        mindmap.get('source_file', 'none'),
+        mindmap.get('context', ''),
+        mindmap.get('node_positions', '{}'),
+        now,
+        mindmap['id']
+    ))
+    conn.commit()
+    conn.close()
+
+def delete_mindmap(map_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM mindmap WHERE id=?', (map_id,))
+    conn.commit()
+    changes = cur.rowcount
+    conn.close()
+    return changes > 0
+
+def get_mindmap_by_id(map_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM mindmap WHERE id=?', (map_id,))
+    row = cur.fetchone()
+    conn.close()
+    return _row_to_mindmap_dict(row)
+
+def get_all_mindmaps():
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM mindmap ORDER BY created_at DESC')
+    rows = cur.fetchall()
+    conn.close()
+    return [_row_to_mindmap_dict(row) for row in rows]

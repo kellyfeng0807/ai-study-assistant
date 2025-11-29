@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 import uuid
 import sys
+import db_sqlite
 
 # 添加services路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -35,17 +36,12 @@ def allowed_file(filename):
 
 def load_mindmaps():
     """加载所有思维导图数据"""
-    mindmaps_file = os.path.join(DATA_FOLDER, 'mindmaps.json')
-    if os.path.exists(mindmaps_file):
-        with open(mindmaps_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
+    return db_sqlite.get_all_mindmaps()
 
 def save_mindmaps(mindmaps):
     """保存思维导图数据"""
-    mindmaps_file = os.path.join(DATA_FOLDER, 'mindmaps.json')
-    with open(mindmaps_file, 'w', encoding='utf-8') as f:
-        json.dump(mindmaps, f, ensure_ascii=False, indent=2)
+    for mindmap in mindmaps:
+        db_sqlite.update_mindmap(mindmap)
 
 def ensure_unique_title(title, existing_mindmaps):
     """
@@ -390,13 +386,12 @@ def upload_file_for_mindmap():
 def list_mindmaps():
     """获取所有思维导图列表"""
     try:
-        mindmaps = load_mindmaps()
+        mindmaps = db_sqlite.get_all_mindmaps()
         return jsonify({
             'success': True,
             'mindmaps': mindmaps,
             'total': len(mindmaps)
         })
-    
     except Exception as e:
         return jsonify({
             'success': False,
@@ -431,21 +426,12 @@ def generate_from_notes():
         else:
             depth = depth_input if depth_input else 3
 
-        # Load notes data from DB if available, else from data/notes.json file
+        # Load notes data from DB
         notes = []
-        if HAS_DB:
-            for nid in note_ids:
-                n = db_sqlite.get_note_by_id(nid)
-                if n:
-                    notes.append(n)
-        else:
-            notes_file = os.path.join(DATA_FOLDER, 'notes.json')
-            if os.path.exists(notes_file):
-                with open(notes_file, 'r', encoding='utf-8') as f:
-                    try:
-                        notes = json.load(f)
-                    except Exception:
-                        notes = []
+        for nid in note_ids:
+            n = db_sqlite.get_note_by_id(nid)
+            if n:
+                notes.append(n)
 
         # Collect contents of selected notes
         selected_texts = []
@@ -498,8 +484,7 @@ def generate_from_notes():
             'node_positions': '{}'
         }
 
-        mindmaps.insert(0, mindmap)
-        save_mindmaps(mindmaps)
+        db_sqlite.insert_mindmap(mindmap)
 
         return jsonify({'success': True, 'mindmap': mindmap, 'mermaid_code': mermaid_code})
 
@@ -510,20 +495,16 @@ def generate_from_notes():
 def get_mindmap(map_id):
     """获取特定思维导图"""
     try:
-        mindmaps = load_mindmaps()
-        mindmap = next((m for m in mindmaps if m['id'] == map_id), None)
-        
+        mindmap = db_sqlite.get_mindmap_by_id(map_id)
         if not mindmap:
             return jsonify({
                 'success': False,
                 'error': 'Mind map not found'
             }), 404
-        
         return jsonify({
             'success': True,
             'mindmap': mindmap
         })
-    
     except Exception as e:
         return jsonify({
             'success': False,
@@ -535,35 +516,18 @@ def update_mindmap(map_id):
     """更新思维导图（用户手动编辑）"""
     try:
         data = request.json
-        mindmaps = load_mindmaps()
-        
-        mindmap_index = next((i for i, m in enumerate(mindmaps) if m['id'] == map_id), None)
-        
-        if mindmap_index is None:
-            return jsonify({
-                'success': False,
-                'error': 'Mind map not found'
-            }), 404
-        
-        mindmaps[mindmap_index]['mermaid_code'] = data.get('mermaid_code', mindmaps[mindmap_index]['mermaid_code'])
-        mindmaps[mindmap_index]['title'] = data.get('title', mindmaps[mindmap_index]['title'])
-        mindmaps[mindmap_index]['updated_at'] = datetime.now().isoformat()
-        
-        # 保存 SVG 内容（如果提供）
-        if 'svg_content' in data:
-            mindmaps[mindmap_index]['svg_content'] = data['svg_content']
-        
-        # 保留旧的 node_positions 字段以兼容
-        if 'node_positions' in data:
-            mindmaps[mindmap_index]['node_positions'] = data['node_positions']
-        
-        save_mindmaps(mindmaps)
-        
+        updated_mindmap = {
+            'id': map_id,
+            'title': data.get('title'),
+            'mermaid_code': data.get('mermaid_code'),
+            'updated_at': datetime.now().isoformat(),
+            'node_positions': data.get('node_positions', '{}')
+        }
+        db_sqlite.update_mindmap(updated_mindmap)
         return jsonify({
             'success': True,
-            'mindmap': mindmaps[mindmap_index]
+            'mindmap': updated_mindmap
         })
-    
     except Exception as e:
         return jsonify({
             'success': False,
@@ -574,15 +538,11 @@ def update_mindmap(map_id):
 def delete_mindmap(map_id):
     """删除思维导图"""
     try:
-        mindmaps = load_mindmaps()
-        mindmaps = [m for m in mindmaps if m['id'] != map_id]
-        save_mindmaps(mindmaps)
-        
+        db_sqlite.delete_mindmap(map_id)
         return jsonify({
             'success': True,
             'message': 'Mind map deleted'
         })
-    
     except Exception as e:
         return jsonify({
             'success': False,
