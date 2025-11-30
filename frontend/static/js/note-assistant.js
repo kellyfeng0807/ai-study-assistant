@@ -143,9 +143,14 @@ class NoteAssistantManager {
         }
     }
     
-    handleAudioFile(file) {
-        this.audioBlob = file;
-        this.audioFileName = file.name;
+    handleAudioFile(file = null) {
+        if (file) {
+            this.audioBlob = file;
+            this.audioFileName = file.name;
+        } else {
+            this.audioBlob = null;
+            this.audioFileName = null;
+        }
         
         // Show file preview
         const audioPreview = document.getElementById('audioPreview');
@@ -158,8 +163,8 @@ class NoteAssistantManager {
                 <div class="file-item">
                     <i class="fas fa-file-audio file-icon"></i>
                     <div class="file-info">
-                        <div class="file-name">${file.name}</div>
-                        <div class="file-size">${this.formatFileSize(file.size)}</div>
+                        <div class="file-name">${this.audioFileName || '录音文件'}</div>
+                        <div class="file-size">${this.formatFileSize(this.audioBlob?.size || 0)}</div>
                     </div>
                 </div>
             `;
@@ -177,15 +182,7 @@ class NoteAssistantManager {
     }
     
     clearAudioFile() {
-        this.audioBlob = null;
-        this.audioFileName = null;
-        
-        const audioPreview = document.getElementById('audioPreview');
-        const audioUploadArea = document.getElementById('audioUploadArea');
-        const uploadPlaceholder = audioUploadArea?.querySelector('.upload-placeholder');
-        
-        if (uploadPlaceholder) uploadPlaceholder.style.display = 'block';
-        if (audioPreview) audioPreview.style.display = 'none';
+        this.handleAudioFile();
         
         // Reset file input
         const audioInput = document.getElementById('audioInput');
@@ -690,32 +687,29 @@ class NoteAssistantManager {
     
     renderNoteCards(notes) {
         const notesGrid = document.querySelector('.notes-grid');
-        if (!notesGrid) {
-            console.warn('Unable to find .notes-grid container');
-            return;
-        }
-        
+        if (!notesGrid) return;
+
         notesGrid.innerHTML = '';
-        
+
         const displayNotes = notes.slice(0, 3);
-        
+
         displayNotes.forEach(note => {
-            const noteCard = this.createNoteCard(note);
-            notesGrid.appendChild(noteCard);
+            const card = this.createNoteCard(note);
+            notesGrid.appendChild(card);
         });
-        
+
         console.log(`Already rendered ${displayNotes.length} note cards`);
     }
     
     createNoteCard(note) {
         const card = document.createElement('div');
         card.className = 'note-card';
-        
+
         const date = note.date || new Date().toISOString().split('T')[0];
         const formattedDate = this.formatDate(date);
-        
+
         const keyPointsCount = note.key_points_count || 0;
-        
+
         card.innerHTML = `
             <div class="note-header">
                 <span class="note-subject">${note.subject || 'General'}</span>
@@ -725,11 +719,48 @@ class NoteAssistantManager {
             <p class="note-excerpt">${note.preview || 'No preview available'}</p>
             <div class="note-footer">
                 <span class="note-meta">${keyPointsCount} Key Points</span>
-                <button class="button-outline" onclick="noteManager.viewNoteDetail(${note.id})">View</button>
+                <div class="note-actions">
+                    <button class="button-outline" onclick="noteManager.viewNoteDetail(${note.id})">View</button>
+                    <button class="button-outline delete-button" onclick="noteManager.deleteNote(${note.id})">Delete</button>
+                </div>
             </div>
         `;
-        
+
         return card;
+    }
+    
+    async deleteNote(noteId) {
+        const confirmed = await window.messageModal.confirm(
+            'Are you sure you want to delete this note?',
+            'Delete Confirmation',
+            { confirmText: 'Delete', cancelText: 'Cancel', danger: true }
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/note/${noteId}`, {
+                method: 'DELETE',
+            });
+
+            if (response.ok) {
+                Utils.showNotification('Note deleted successfully', 'success');
+                this.loadRecentNotes(); // Refresh notes
+            } else {
+                const error = await response.json();
+                Utils.showNotification(`Failed to delete note: ${error.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting note:', error);
+            Utils.showNotification('Error deleting note', 'error');
+        }
+    }
+    
+    // Ensure notifications use the same logic as map-generation.js
+    showNotification(message, type) {
+        Utils.showNotification(message, type);
     }
     
     formatDate(dateString) {
@@ -739,19 +770,6 @@ class NoteAssistantManager {
         const day = date.getDate();
         const year = date.getFullYear();
         return `${month} ${day}, ${year}`;
-    }
-    
-    showEmptyState() {
-        const notesGrid = document.querySelector('.notes-grid');
-        if (!notesGrid) return;
-        
-        notesGrid.innerHTML = `
-            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: hsl(var(--muted-foreground));">
-                <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i>
-                <p style="font-size: 16px; margin: 0;">No notes found</p>
-                <p style="font-size: 14px; margin-top: 8px; opacity: 0.7;">Start recording or typing to generate your first note!</p>
-            </div>
-        `;
     }
     
     async viewNoteDetail(noteId) {

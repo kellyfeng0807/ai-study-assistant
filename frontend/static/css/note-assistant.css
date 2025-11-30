@@ -599,3 +599,62 @@
     color: hsl(var(--muted-foreground));
     font-style: italic;
 }
+
+/* Add styles for delete button to match view button */
+.note-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.delete-button {
+    background: hsl(var(--foreground));
+    color: hsl(var(--background));
+    border: 1px solid hsl(var(--foreground));
+    transition: var(--transition);
+}
+
+.delete-button:hover {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--foreground));
+    transform: scale(1.05);
+}
+
+/* Notification styles */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    z-index: 10000;
+    box-shadow: var(--shadow-md);
+    animation: slideIn 300ms ease-out;
+}
+
+.notification.success {
+    background: hsl(var(--success));
+}
+
+.notification.error {
+    background: hsl(var(--destructive));
+}
+
+.notification.fade-out {
+    opacity: 0;
+    transition: opacity 300ms ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
