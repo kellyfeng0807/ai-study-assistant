@@ -2,7 +2,7 @@
  * Note Assistant - 基于原版修改，添加百度语音识别
  * 保留原有的文字生成笔记功能
  * 修改：录音后上传到后端使用百度API进行语音识别
- * ✨ 新增：View All 显示所有笔记
+ * 新增：View All 显示所有笔记
  */
 
 class NoteAssistantManager {
@@ -15,7 +15,8 @@ class NoteAssistantManager {
         this.audioChunks = [];
         this.audioBlob = null;
         this.audioFileName = null;  
-        
+        this.currentEditingNoteId = null;
+
         this.init();
     }
     
@@ -118,9 +119,7 @@ class NoteAssistantManager {
         if (stopRecordBtn) {
             stopRecordBtn.addEventListener('click', () => {
                 this.stopRecording();
-                // Hide recording controls, show upload area
-                if (recordingControls) recordingControls.style.display = 'none';
-                if (audioUploadArea) audioUploadArea.style.display = 'block';
+                // Recording component stays visible - no hiding
             });
         }
         
@@ -138,7 +137,7 @@ class NoteAssistantManager {
         if (viewAllBtn) {
             viewAllBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                this.showAllNotesModal();
+                this.loadAllNotes();
             });
         }
     }
@@ -721,6 +720,7 @@ class NoteAssistantManager {
                 <span class="note-meta">${keyPointsCount} Key Points</span>
                 <div class="note-actions">
                     <button class="button-outline" onclick="noteManager.viewNoteDetail(${note.id})">View</button>
+                    <button class="button-outline edit-button" onclick="noteManager.editNote(${note.id})">Edit</button>
                     <button class="button-outline delete-button" onclick="noteManager.deleteNote(${note.id})">Delete</button>
                 </div>
             </div>
@@ -791,110 +791,189 @@ class NoteAssistantManager {
     }
     
 
-    showAllNotesModal() {
-        fetch('http://localhost:5000/api/note/list?limit=100')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.notes && data.notes.length > 0) {
-                    this.renderAllNotesModal(data.notes);
-                } else {
-                    Utils.showNotification('No notes found', 'info');
+    // Load all notes without limit (replaces the modal approach)
+    async loadAllNotes() {
+        try {
+            const response = await fetch('http://localhost:5000/api/note/list?limit=1000');
+            const data = await response.json();
+            
+            if (data.success && data.notes && data.notes.length > 0) {
+                this.renderAllNoteCards(data.notes);
+                
+                // Update the view all button to show "Show Less"
+                const viewAllBtn = document.querySelector('.section-header .link-button');
+                if (viewAllBtn) {
+                    viewAllBtn.textContent = 'Show Less';
+                    viewAllBtn.onclick = (e) => {
+                        e.preventDefault();
+                        this.loadRecentNotes();
+                        viewAllBtn.textContent = 'View All';
+                        viewAllBtn.onclick = (e) => {
+                            e.preventDefault();
+                            this.loadAllNotes();
+                        };
+                    };
                 }
-            })
-            .catch(error => {
-                console.error('Failed to load all notes:', error);
-                Utils.showNotification('Load failed', 'error');
-            });
+            } else {
+                Utils.showNotification('No notes found', 'info');
+            }
+        } catch (error) {
+            console.error('Failed to load all notes:', error);
+            Utils.showNotification('Load failed', 'error');
+        }
     }
     
+    // Render all notes in the grid (without limit)
+    renderAllNoteCards(notes) {
+        const notesGrid = document.querySelector('.notes-grid');
+        if (!notesGrid) return;
 
-    renderAllNotesModal(notes) {
-        const modal = document.createElement('div');
-        modal.className = 'note-modal all-notes-modal';
-        modal.style.zIndex = '10000';
+        notesGrid.innerHTML = '';
+
+        notes.forEach(note => {
+            const card = this.createNoteCard(note);
+            notesGrid.appendChild(card);
+        });
+
+        console.log(`Rendered all ${notes.length} note cards`);
+    }
+    
+    // Open note in edit mode
+    async editNote(noteId) {
+        try {
+            const response = await fetch(`http://localhost:5000/api/note/${noteId}`);
+            const data = await response.json();
+            
+            if (data.success && data.note) {
+                this.showEditNoteModal(data.note);
+            } else {
+                Utils.showNotification('Failed to load note for editing', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to load note for editing:', error);
+            Utils.showNotification('Load failed: ' + error.message, 'error');
+        }
+    }
+    
+    // Show edit modal for a note
+    showEditNoteModal(note) {
+        this.currentEditingNoteId = note.id;
+        const noteData = note.content || {};
         
+        const modal = document.createElement('div');
+        modal.className = 'note-modal edit-note-modal';
         modal.innerHTML = `
-            <div class="note-modal-content" style="max-width: 900px; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column;">
-                <div class="note-modal-header" style="flex-shrink: 0;">
-                    <h3>All Notes (${notes.length})</h3>
+            <div class="note-modal-content" style="max-width: 700px;">
+                <div class="note-modal-header">
+                    <h3>Edit Note</h3>
                     <button class="close-button" onclick="this.closest('.note-modal').remove()">×</button>
                 </div>
-                <div class="note-modal-body" style="flex: 1; overflow-y: auto; padding: 20px;">
-                    <div class="all-notes-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
-                        ${notes.map(note => this.createCompactNoteCardHTML(note)).join('')}
+                <div class="note-modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <div class="edit-field">
+                        <label>Title</label>
+                        <input type="text" id="editNoteTitle" value="${noteData.title || ''}" class="edit-input">
                     </div>
+                    
+                    <div class="edit-field">
+                        <label>Subject</label>
+                        <input type="text" id="editNoteSubject" value="${noteData.subject || ''}" class="edit-input">
+                    </div>
+                    
+                    <div class="edit-field">
+                        <label>Key Points (one per line)</label>
+                        <textarea id="editNoteKeyPoints" class="edit-textarea" rows="5">${(noteData.key_points || []).join('\n')}</textarea>
+                    </div>
+                    
+                    <div class="edit-field">
+                        <label>Examples (one per line)</label>
+                        <textarea id="editNoteExamples" class="edit-textarea" rows="3">${(noteData.examples || []).join('\n')}</textarea>
+                    </div>
+                    
+                    <div class="edit-field">
+                        <label>Summary</label>
+                        <textarea id="editNoteSummary" class="edit-textarea" rows="3">${noteData.summary || ''}</textarea>
+                    </div>
+                    
+                    <div class="edit-field">
+                        <label>Tags (comma separated)</label>
+                        <input type="text" id="editNoteTags" value="${(noteData.tags || []).join(', ')}" class="edit-input">
+                    </div>
+                </div>
+                <div class="note-modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid hsl(var(--border));">
+                    <button class="button-outline" onclick="this.closest('.note-modal').remove()">Cancel</button>
+                    <button class="button-primary" id="saveNoteBtn">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
                 </div>
             </div>
         `;
         
         document.body.appendChild(modal);
         
+        // Add save button event listener
+        modal.querySelector('#saveNoteBtn').addEventListener('click', () => {
+            this.saveNoteChanges(note.id, modal);
+        });
+        
+        // Close on backdrop click
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.remove();
             }
         });
-        
-        modal.querySelectorAll('.view-note-btn').forEach((btn, index) => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.viewNoteDetail(notes[index].id);
-            });
-        });
     }
     
-
-    createCompactNoteCardHTML(note) {
-        const date = note.date || new Date().toISOString().split('T')[0];
-        const formattedDate = this.formatDate(date);
-        const keyPointsCount = note.content?.key_points?.length || 0;
+    // Save note changes to backend
+    async saveNoteChanges(noteId, modal) {
+        const title = modal.querySelector('#editNoteTitle').value.trim();
+        const subject = modal.querySelector('#editNoteSubject').value.trim();
+        const keyPoints = modal.querySelector('#editNoteKeyPoints').value.split('\n').filter(line => line.trim());
+        const examples = modal.querySelector('#editNoteExamples').value.split('\n').filter(line => line.trim());
+        const summary = modal.querySelector('#editNoteSummary').value.trim();
+        const tags = modal.querySelector('#editNoteTags').value.split(',').map(tag => tag.trim()).filter(tag => tag);
         
-        return `
-            <div class="compact-note-card" style="
-                background: hsl(var(--card));
-                border: 1px solid hsl(var(--border));
-                border-radius: 8px;
-                padding: 16px;
-                cursor: pointer;
-                transition: all 0.2s;
-            "
-            onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'; this.style.borderColor='hsl(var(--primary))'"
-            onmouseout="this.style.boxShadow=''; this.style.borderColor='hsl(var(--border))'">
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-                    <span style="background: hsl(var(--primary)); color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">
-                        ${note.subject || 'General'}
-                    </span>
-                    <span style="font-size: 12px; color: hsl(var(--muted-foreground));">
-                        ${formattedDate}
-                    </span>
-                </div>
-                <h4 style="font-size: 15px; font-weight: 600; margin: 8px 0; color: hsl(var(--foreground)); line-height: 1.4;">
-                    ${note.title || 'Untitled Note'}
-                </h4>
-                <p style="font-size: 13px; color: hsl(var(--muted-foreground)); margin: 8px 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                    ${note.preview || 'No Preview Available'}
-                </p>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid hsl(var(--border));">
-                    <span style="font-size: 12px; color: hsl(var(--muted-foreground));">
-                        ${keyPointsCount} Key Points
-                    </span>
-                    <button class="view-note-btn" style="
-                        background: transparent;
-                        border: 1px solid hsl(var(--primary));
-                        color: hsl(var(--primary));
-                        padding: 6px 16px;
-                        border-radius: 4px;
-                        font-size: 12px;
-                        cursor: pointer;
-                        transition: all 0.2s;
-                    "
-                    onmouseover="this.style.background='hsl(var(--primary))'; this.style.color='white'"
-                    onmouseout="this.style.background='transparent'; this.style.color='hsl(var(--primary))'">
-                        View
-                    </button>
-                </div>
-            </div>
-        `;
+        const updatedContent = {
+            title,
+            subject,
+            key_points: keyPoints,
+            examples,
+            summary,
+            tags
+        };
+        
+        const saveBtn = modal.querySelector('#saveNoteBtn');
+        
+        try {
+            Utils.showLoadingState(saveBtn, 'Saving...');
+            window.messageModal.toast('Saving changes...', 'info', 2000);
+            
+            const response = await fetch(`http://localhost:5000/api/note/${noteId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    title,
+                    subject,
+                    content: updatedContent
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                window.messageModal.toast('Note saved successfully!', 'success', 2000);
+                modal.remove();
+                this.loadRecentNotes();
+            } else {
+                throw new Error(result.error || 'Failed to save note');
+            }
+        } catch (error) {
+            console.error('Failed to save note:', error);
+            window.messageModal.toast('Save failed: ' + error.message, 'error', 3000);
+        } finally {
+            Utils.hideLoadingState(saveBtn);
+        }
     }
 }
 

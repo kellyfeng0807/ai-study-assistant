@@ -13,6 +13,13 @@ import db_sqlite
 from werkzeug.utils import secure_filename
 
 import logging
+import base64
+import threading
+import time
+import websocket
+import hmac
+import hashlib
+from urllib.parse import urlencode
 
 
 
@@ -20,10 +27,13 @@ bp = Blueprint('note_assistant', __name__, url_prefix='/api/note')
 
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
 DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1'
-BAIDU_APP_ID = '7227061'
-BAIDU_API_KEY = 'MuZYealXv5pwVZsK3tFkWTwe'
-BAIDU_SECRET_KEY = 'zdAvuWkk4aLtefGiILuQb35gcqK7fvz7'
-baidu_client = None
+XFYUN_APPID = 'f047ebc8'
+XFYUN_API_SECRET = 'M2MxZmM2MDdiYmYwNjlhYzFkNDdmOWZi'
+XFYUN_API_KEY = '014159c78a774f99e8e49946b4757daa'
+
+SEGMENT_DURATION_SECONDS = 55
+SAMPLE_RATE = 16000
+SAMPLE_WIDTH = 2
 
 ALLOWED_AUDIO_EXTENSIONS = {'mp3', 'wav', 'pcm', 'webm', 'm4a', 'ogg'}
 
@@ -54,106 +64,114 @@ def _fallback_notes(text, subject):
     return fallback_notes
 
 
-def get_baidu_client():
-    """Get Baidu Speech Recognition client."""
-    global baidu_client
-    if baidu_client is None:
-        try:
-            from aip import AipSpeech
-            baidu_client = AipSpeech(BAIDU_APP_ID, BAIDU_API_KEY, BAIDU_SECRET_KEY)
-        except ImportError:
-            print("Please install Baidu SDK: pip install baidu-aip")
-            return None
-        except Exception as e:
-            print(f"Failed to initialize Baidu client: {e}")
-            return None
-    return baidu_client
+def recognize_audio_xfyun(audio_data, language='zh_cn'):
+    """Recognize audio using Xfyun ASR."""
+    asr = XfyunASR(audio_data, language)
+    return asr.recognize()
 
 
+def recognize_audio_segment(audio_data, format_param='pcm'):
+    """Segment audio and recognize using Xfyun."""
+    logging.debug('Attempting Chinese recognition...')
+    text_zh, error_zh = recognize_audio_xfyun(audio_data, 'zh_cn')
+    zh_len = len(text_zh) if text_zh else 0
+    logging.debug(f'Chinese result: {zh_len} characters')
+
+    logging.debug('Attempting English recognition...')
+    text_en, error_en = recognize_audio_xfyun(audio_data, 'en_us')
+    en_len = len(text_en) if text_en else 0
+    logging.debug(f'English result: {en_len} characters')
+
+    if text_zh and text_en:
+        en_letter_count = sum(1 for c in text_en if c.isalpha())
+        en_ratio = en_letter_count / len(text_en) if text_en else 0
+
+        zh_char_count = sum(1 for c in text_zh if '\u4e00' <= c <= '\u9fff')
+        zh_ratio = zh_char_count / len(text_zh) if text_zh else 0
+
+        logging.debug(f'Chinese ratio: {zh_ratio*100:.1f}%, English ratio: {en_ratio*100:.1f}%')
+
+        if en_ratio > 0.6 and en_len > zh_len * 0.5:
+            logging.debug('Selecting English result')
+            return text_en, None
+        else:
+            logging.debug('Selecting Chinese result')
+            return text_zh, None
+
+    elif text_en:
+        return text_en, None
+    elif text_zh:
+        return text_zh, None
+    else:
+        return None, error_zh or error_en or "Recognition failed"
+
+
+def split_audio_to_segments(audio_data, segment_duration_seconds=55):
+    """Split audio into smaller segments."""
+    bytes_per_second = SAMPLE_RATE * SAMPLE_WIDTH * 1
+    segment_size = segment_duration_seconds * bytes_per_second
+
+    segments = []
+    total_size = len(audio_data)
+
+    for start in range(0, total_size, segment_size):
+        end = min(start + segment_size, total_size)
+        segment = audio_data[start:end]
+
+        min_segment_size = int(0.5 * bytes_per_second)
+        if len(segment) >= min_segment_size:
+            segments.append(segment)
+
+    return segments
+
+# Updating transcribe_audio to use Xfyun logic
 @bp.route('/transcribe', methods=['POST'])
 def transcribe_audio():
-    
     try:
-        logging.debug("start transcribing audio")
-        
-        # 获取百度客户端
-        client = get_baidu_client()
-        if not client:
-            return jsonify({
-                'success': False,
-                'error': 'baidu SDK uninstall, run: pip install baidu-aip chardet'
-            }), 503
-        
-        # 检查文件
+        logging.debug("Starting transcription request")
+
         if 'audio' not in request.files:
-            logging.error("no audio file uploaded")
-            return jsonify({
-                'success': False,
-                'error': 'no audio file uploaded'
-            }), 400
-        
+            logging.error("No audio file uploaded")
+            return jsonify({'success': False, 'error': 'No audio file uploaded'}), 400
+
         audio_file = request.files['audio']
-        
         if audio_file.filename == '':
-            logging.error("file name is empty")
-            return jsonify({
-                'success': False,
-                'error': 'file name is empty'
-            }), 400
-        
-        # 保存临时文件
+            logging.error("File name is empty")
+            return jsonify({'success': False, 'error': 'File name is empty'}), 400
+
         filename = secure_filename(audio_file.filename)
         temp_dir = tempfile.gettempdir()
         temp_path = os.path.join(temp_dir, filename)
         audio_file.save(temp_path)
-        
+
         file_size = os.path.getsize(temp_path)
-        logging.debug(f'audio file saved: {temp_path}, file size: {file_size} bytes')
+        logging.debug(f'Audio file saved: {temp_path}, size: {file_size} bytes')
 
-        # 确定音频格式
+        # Convert audio to PCM if necessary
+        audio_data = None
         file_format = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'webm'
-        logging.debug(f'detected file format: {file_format}')
-
-        # 转换为 PCM 格式
-        if file_format in ['webm', 'm4a']:
-            try:
-                from pydub import AudioSegment
-                audio = AudioSegment.from_file(temp_path, format=file_format)
-                audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-                audio_data = audio.raw_data
-                format_param = 'pcm'
-                os.remove(temp_path)
-                temp_path = None
-            except ImportError:
-                logging.error('pydub not installed, unable to convert audio format')
-                return jsonify({
-                    'success': False,
-                    'error': 'audio format conversion failed, please install pydub'
-                }), 500
+        if file_format in ['webm', 'm4a', 'mp3', 'ogg']:
+            from pydub import AudioSegment
+            audio = AudioSegment.from_file(temp_path, format=file_format)
+            audio = audio.set_frame_rate(SAMPLE_RATE).set_channels(1).set_sample_width(SAMPLE_WIDTH)
+            audio_data = audio.raw_data
         else:
             with open(temp_path, 'rb') as f:
                 audio_data = f.read()
-            format_param = 'wav' if file_format == 'wav' else 'pcm'
 
-        logging.debug(f'audio data size: {len(audio_data)} bytes, using format param: {format_param}')
+        if not audio_data:
+            return jsonify({'success': False, 'error': 'Unable to read audio data'}), 500
 
-        # 调用百度语音识别 API
-        result = client.asr(audio_data, format_param, 16000, {'dev_pid': 1537})
-        logging.debug(f'baidu api return results: {json.dumps(result, ensure_ascii=False)}')
-        
-        if result.get('err_no') == 0:
-            transcribed_text = ''.join(result.get('result', []))
-            logging.info(f'recognition success: {transcribed_text}')
-            return jsonify({'success': True, 'text': transcribed_text, 'length': len(transcribed_text)})
-        else:
-            error_code = result.get('err_no')
-            error_msg = result.get('err_msg', 'unknown error')
-            logging.error(f'recognition failed: error code {error_code}, error message {error_msg}')
-            return jsonify({'success': False, 'error': f'recognition failed: {error_msg}', 'error_code': error_code}), 500
+        # Transcribe audio
+        transcribed_text, error = recognize_audio_segment(audio_data)
+        if error:
+            return jsonify({'success': False, 'error': f'Recognition failed: {error}'}), 500
+
+        return jsonify({'success': True, 'text': transcribed_text, 'length': len(transcribed_text)})
 
     except Exception as e:
-        logging.exception("failed to recognize")
-        return jsonify({'success': False, 'error': f'recognition failed: {str(e)}'}), 500
+        logging.exception("Transcription failed")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/generate', methods=['POST'])
@@ -289,3 +307,191 @@ def health_check():
         return jsonify({'status': 'healthy', 'total_notes': cnt})
     except Exception:
         return jsonify({'status': 'degraded', 'total_notes': 0})
+
+
+# Adding XfyunASR class from note version
+class XfyunASR:
+    """Xfyun WebSocket ASR Client."""
+
+    def __init__(self, audio_data, language='zh_cn'):
+        self.audio_data = audio_data
+        self.language = language
+        self.result = []
+        self.is_finished = False
+        self.error = None
+
+    def on_message(self, ws, message):
+        try:
+            data = json.loads(message)
+            code = data.get("code")
+
+            if code != 0:
+                self.error = f"Xfyun Error {code}: {data.get('message', 'Unknown error')}"
+                self.is_finished = True
+                ws.close()
+                return
+
+            result_data = data.get("data", {})
+            result = result_data.get("result", {})
+
+            pgs = result.get("pgs", "")
+            rg = result.get("rg", [])
+
+            ws_list = result.get("ws", [])
+            current_text = ""
+            for ws_item in ws_list:
+                cw_list = ws_item.get("cw", [])
+                for cw in cw_list:
+                    word = cw.get("w", "")
+                    if word:
+                        current_text += word
+
+            if pgs == "rpl" and len(rg) == 2:
+                start_idx = rg[0]
+                end_idx = rg[1]
+                if start_idx < len(self.result):
+                    self.result = self.result[:start_idx]
+                if current_text:
+                    self.result.append(current_text)
+            elif pgs == "apd" or not pgs:
+                if current_text:
+                    self.result.append(current_text)
+
+            status = result_data.get("status")
+            if status == 2:
+                self.is_finished = True
+                ws.close()
+
+        except Exception as e:
+            self.error = str(e)
+            self.is_finished = True
+            ws.close()
+
+    def on_error(self, ws, error):
+        self.error = str(error)
+        self.is_finished = True
+
+    def on_close(self, ws, close_status_code, close_msg):
+        self.is_finished = True
+
+    def on_open(self, ws):
+        def send_audio():
+            try:
+                frame_size = 1280
+                interval = 0.04
+
+                status = 0
+                offset = 0
+                total_len = len(self.audio_data)
+
+                while offset < total_len:
+                    end = min(offset + frame_size, total_len)
+                    chunk = self.audio_data[offset:end]
+
+                    if offset == 0:
+                        status = 0
+                    elif end >= total_len:
+                        status = 2
+                    else:
+                        status = 1
+
+                    audio_base64 = base64.b64encode(chunk).decode('utf-8')
+
+                    if status == 0:
+                        message = {
+                            "common": {"app_id": XFYUN_APPID},
+                            "business": {
+                                "language": self.language,
+                                "domain": "iat",
+                                "accent": "mandarin",
+                                "vad_eos": 3000,
+                                "ptt": 1
+                            },
+                            "data": {
+                                "status": status,
+                                "format": "audio/L16;rate=16000",
+                                "encoding": "raw",
+                                "audio": audio_base64
+                            }
+                        }
+                    else:
+                        message = {
+                            "data": {
+                                "status": status,
+                                "format": "audio/L16;rate=16000",
+                                "encoding": "raw",
+                                "audio": audio_base64
+                            }
+                        }
+
+                    ws.send(json.dumps(message))
+                    offset = end
+
+                    if status != 2:
+                        time.sleep(interval)
+
+            except Exception as e:
+                self.error = str(e)
+                ws.close()
+
+        threading.Thread(target=send_audio).start()
+
+    def recognize(self):
+        try:
+            url = create_xfyun_auth_url()
+
+            ws = websocket.WebSocketApp(
+                url,
+                on_message=self.on_message,
+                on_error=self.on_error,
+                on_close=self.on_close,
+                on_open=self.on_open
+            )
+
+            ws.run_forever()
+
+            timeout = 60
+            start_time = time.time()
+            while not self.is_finished and (time.time() - start_time) < timeout:
+                time.sleep(0.1)
+
+            if self.error:
+                return None, self.error
+
+            return ''.join(self.result), None
+
+        except Exception as e:
+            return None, str(e)
+
+
+# Adding create_xfyun_auth_url function from note version
+def create_xfyun_auth_url():
+    """Create Xfyun WebSocket authentication URL."""
+    from datetime import datetime
+    from time import mktime
+    from wsgiref.handlers import format_date_time
+
+    now = datetime.now()
+    date = format_date_time(mktime(now.timetuple()))
+
+    signature_origin = f"host: ws-api.xfyun.cn\ndate: {date}\nGET /v2/iat HTTP/1.1"
+
+    signature_sha = hmac.new(
+        XFYUN_API_SECRET.encode('utf-8'),
+        signature_origin.encode('utf-8'),
+        digestmod=hashlib.sha256
+    ).digest()
+
+    signature_sha_base64 = base64.b64encode(signature_sha).decode('utf-8')
+
+    authorization_origin = f'api_key="{XFYUN_API_KEY}", algorithm="hmac-sha256", headers="host date request-line", signature="{signature_sha_base64}"'
+    authorization = base64.b64encode(authorization_origin.encode('utf-8')).decode('utf-8')
+
+    params = {
+        "authorization": authorization,
+        "date": date,
+        "host": "ws-api.xfyun.cn"
+    }
+
+    url = f"wss://ws-api.xfyun.cn/v2/iat?{urlencode(params)}"
+    return url
