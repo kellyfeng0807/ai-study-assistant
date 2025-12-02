@@ -10,22 +10,18 @@ import re
 import time
 import os
 import traceback
+import sys
 from dashscope import MultiModalConversation, Generation
 
-# 导入共享数据库模块
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from db_sqlite import (
-    init_error_table, insert_error, update_error, delete_error,
-    get_error_by_id, list_errors, count_errors, update_error_redo
-)
+# 导入共享数据库模块（参照 map_generation.py 的方式）
+import db_sqlite
 
 # ===== 配置 =====
 error_bp = Blueprint('error_book', __name__, url_prefix='/api/error')
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-52e14360ea034580a43eee057212de78")
 
 # 初始化错题表
-init_error_table()
+db_sqlite.init_error_table()
 
 
 # ===== 工具函数 =====
@@ -120,7 +116,7 @@ def upload_question():
         print("✅ Final parsed result:", result)
         
         # 保存到数据库
-        new_id = insert_error(parsed)
+        new_id = db_sqlite.insert_error(parsed)
         result['id'] = new_id
         
         return jsonify(result)
@@ -146,8 +142,8 @@ def list_errors_route():
     subject = request.args.get('subject', '')
     user_id = request.args.get('user_id')
     
-    errors = list_errors(subject=subject if subject else None, user_id=user_id)
-    total = count_errors(subject=subject if subject else None, user_id=user_id)
+    errors = db_sqlite.list_errors(subject=subject if subject else None, user_id=user_id)
+    total = db_sqlite.count_errors(subject=subject if subject else None, user_id=user_id)
     
     return jsonify({
         'success': True,
@@ -168,7 +164,7 @@ def get_error():
     except ValueError:
         return jsonify({'success': False, 'error': 'Invalid id format'}), 400
     
-    error = get_error_by_id(error_id)
+    error = db_sqlite.get_error_by_id(error_id)
     if not error:
         return jsonify({'success': False, 'error': 'Error not found'}), 404
     
@@ -181,7 +177,7 @@ def get_error():
 # ===== 路由：删除错题 =====
 @error_bp.route('/delete/<int:error_id>', methods=['DELETE'])
 def delete_error_route(error_id):
-    success = delete_error(error_id)
+    success = db_sqlite.delete_error(error_id)
     if success:
         return jsonify({'success': True, 'message': 'Error deleted successfully'})
     else:
@@ -204,12 +200,12 @@ def redo_error():
         return jsonify({'success': False, 'error': 'Invalid id format'}), 400
     
     # 获取原错题信息
-    error = get_error_by_id(error_id)
+    error = db_sqlite.get_error_by_id(error_id)
     if not error:
         return jsonify({'success': False, 'error': 'Error not found'}), 404
     
     # 更新重做记录
-    success = update_error_redo(error_id, redo_answer)
+    success = db_sqlite.update_error_redo(error_id, redo_answer)
     if success:
         return jsonify({
             'success': True,

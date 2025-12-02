@@ -14,11 +14,7 @@ import db_sqlite
 # 添加services路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from services.ai_service import ai_service
-try:
-    import db_sqlite
-    HAS_DB = True
-except Exception:
-    HAS_DB = False
+
 
 map_bp = Blueprint('map_generation', __name__, url_prefix='/api/map')
 
