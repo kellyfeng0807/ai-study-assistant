@@ -111,10 +111,29 @@
 
                 <div class="filters-bar">
                     <div class="filter-group">
-                        <button class="filter-button active" data-filter="all">All</button>
-                        <button class="filter-button" data-filter="mathematics">Mathematics</button>
-                        <button class="filter-button" data-filter="physics">Physics</button>
-                        <button class="filter-button" data-filter="english">English</button>
+                        <button class="filter-button active" data-dim="subject" data-filter="all">All</button>
+                        <button class="filter-button" data-dim="subject" data-filter="Chinese">Chinese</button>
+                        <button class="filter-button" data-dim="subject" data-filter="Mathematics">Mathematics</button>
+                        <button class="filter-button" data-dim="subject" data-filter="English">English</button>
+                        <button class="filter-button" data-dim="subject" data-filter="Physics">Physics</button>
+                        <button class="filter-button" data-dim="subject" data-filter="Chemistry">Chemistry</button>
+                        <button class="filter-button" data-dim="subject" data-filter="Politics">Politics</button>
+                        <button class="filter-button" data-dim="subject" data-filter="History">History</button>
+                        <button class="filter-button" data-dim="subject" data-filter="Geography">Geography</button>
+                        <button class="filter-button" data-dim="subject" data-filter="Biology">Biology</button>
+                    </div>
+                    <!-- 难度筛选 -->
+                    <div class="filter-group">
+                        <button class="filter-button active" data-dim="difficulty" data-filter="all">All</button>
+                        <button class="filter-button" data-dim="difficulty" data-filter="easy">Easy</button>
+                        <button class="filter-button" data-dim="difficulty" data-filter="medium">Medium</button>
+                        <button class="filter-button" data-dim="difficulty" data-filter="difficult">Difficult</button>
+                    </div>
+                    <!-- 是否掌握筛选 -->
+                    <div class="filter-group">
+                        <button class="filter-button active" data-dim="mastered" data-filter="all">All</button>
+                        <button class="filter-button" data-dim="mastered" data-filter="true">Mastered</button>
+                        <button class="filter-button" data-dim="mastered" data-filter="false">Not Mastered</button>
                     </div>
                     <div class="sort-group">
                         <select class="sort-select">
@@ -131,71 +150,7 @@
                         <a href="#" class="link-button">View All</a>
                     </div>
                     <div class="errors-list">
-                        <div class="error-card">
-                            <div class="error-header">
-                                <span class="error-subject">Mathematics</span>
-                                <span class="error-difficulty difficulty-hard">Hard</span>
-                            </div>
-                            <div class="error-content">
-                                <h4 class="error-title">Quadratic Equation</h4>
-                                <p class="error-description">Solve: x² - 5x + 6 = 0</p>
-                                <div class="error-analysis">
-                                    <span class="analysis-tag">Factoring Method</span>
-                                    <span class="analysis-tag">Common Mistake</span>
-                                </div>
-                            </div>
-                            <div class="error-footer">
-                                <span class="error-date">Nov 10, 2025</span>
-                                <div class="error-actions">
-                                    <button class="button-outline">Review</button>
-                                    <button class="button-outline">Practice</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="error-card">
-                            <div class="error-header">
-                                <span class="error-subject">Physics</span>
-                                <span class="error-difficulty difficulty-medium">Medium</span>
-                            </div>
-                            <div class="error-content">
-                                <h4 class="error-title">Newton's Second Law</h4>
-                                <p class="error-description">Calculate force given mass and acceleration</p>
-                                <div class="error-analysis">
-                                    <span class="analysis-tag">Unit Conversion</span>
-                                    <span class="analysis-tag">Formula Application</span>
-                                </div>
-                            </div>
-                            <div class="error-footer">
-                                <span class="error-date">Nov 9, 2025</span>
-                                <div class="error-actions">
-                                    <button class="button-outline">Review</button>
-                                    <button class="button-outline">Practice</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="error-card">
-                            <div class="error-header">
-                                <span class="error-subject">English</span>
-                                <span class="error-difficulty difficulty-easy">Easy</span>
-                            </div>
-                            <div class="error-content">
-                                <h4 class="error-title">Present Perfect Tense</h4>
-                                <p class="error-description">Incorrect use of 'have been' vs 'had been'</p>
-                                <div class="error-analysis">
-                                    <span class="analysis-tag">Grammar Rule</span>
-                                    <span class="analysis-tag">Tense Confusion</span>
-                                </div>
-                            </div>
-                            <div class="error-footer">
-                                <span class="error-date">Nov 8, 2025</span>
-                                <div class="error-actions">
-                                    <button class="button-outline">Review</button>
-                                    <button class="button-outline">Practice</button>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- 错题卡片将通过 JS 动态加载 -->
                     </div>
                 </section>
             </div>

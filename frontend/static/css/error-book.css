@@ -170,17 +170,17 @@
 }
 
 .error-title {
-    font-size: 16px;
+    font-size: 20px;
     font-weight: 600;
     color: hsl(var(--foreground));
     margin-bottom: var(--spacing-xs);
 }
 
+/* 作用于 error-description 内部的所有元素，包括公式 */
 .error-description {
-    font-size: 14px;
-    color: hsl(var(--muted-foreground));
-    line-height: 1.5;
-    margin-bottom: var(--spacing-sm);
+    font-size: 17px;
+    line-height: 1.7;
+    font-weight: 500;
 }
 
 .error-analysis {
@@ -219,4 +219,59 @@
 #uploadArea {
     position: relative;
     z-index: 9999 !important;
+}
+
+/* 左上角斜角标识 */
+.error-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.mastered-ribbon {
+    position: absolute;
+    top: 0px;
+    left: -40px;
+    width: 100px;
+    text-align: center;
+    color: white;
+    font-weight: bold;
+    transform: rotate(-45deg);
+    z-index: 0;
+    font-size: 13px;
+    padding: 4px 0;
+}
+
+/* 已掌握/未掌握样式区分 */
+.mastered-ribbon.mastered {
+    background: hsl(142.1 76.2% 36.3% / 0.15);
+    color: hsl(142.1 76.2% 36.3%);
+}
+
+.mastered-ribbon.not-mastered {
+    background: hsl(0 84.2% 60.2% / 0.15);
+    color: hsl(0 84.2% 60.2%);
+}
+
+.filters-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    animation: fadeIn 500ms ease-out;
+}
+
+/* 每组内按钮水平排列 */
+.filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.sort-group {
+    margin-top: var(--spacing-xs);
 }

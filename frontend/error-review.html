@@ -108,23 +108,73 @@
                                 <h4 class="error-title" id="qTitle">Loading...</h4>
                                 <div class="error-description tex2jax_process" id="questionContent"></div>
 
-                                <div class="review-section">
-                                    <h5>Your Answer:</h5>
-                                    <div class="answer-content tex2jax_process" id="userAnswer"></div>
-                                </div>
+                                <!-- 折叠/展开按钮 -->
+                                <button class="toggle-details" style="margin:10px 0;">
+                                    <i class="fas fa-chevron-down"></i> Show Details
+                                </button>
 
-                                <div class="review-section">
-                                    <h5>Correct Answer:</h5>
-                                    <div class="answer-content tex2jax_process" id="theAnswer"></div>
-                                </div>
+                                <!-- 折叠区域：包含用户答案、正确答案和分析 -->
+                                <div class="details-block" style="display:none; margin-top:10px;">
+                                    <div class="review-section">
+                                        <h5>Your Answer:</h5>
+                                        <div class="answer-content tex2jax_process" id="userAnswer"></div>
+                                    </div>
 
-                                <div class="review-section">
-                                    <h5>Step-by-step Analysis:</h5>
-                                    <div class="analysis-content tex2jax_process" id="analysisContent"></div>
+                                    <div class="review-section">
+                                        <h5>Correct Answer:</h5>
+                                        <div class="answer-content tex2jax_process" id="theAnswer"></div>
+                                    </div>
+
+                                    <div class="review-section">
+                                        <h5>Step-by-step Analysis:</h5>
+                                        <div class="analysis-content tex2jax_process" id="analysisContent"></div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="error-footer">
                                 <span id="metaInfo" style="color: var(--text-muted); font-size: 0.9em;"></span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Redo Section -->
+                <section class="section redo-section-card">
+                    <div class="section-header">
+                        <h3 class="section-title">Redo This Question</h3>
+                        <p class="page-subtitle">Resubmit the answer</p>
+                    </div>
+
+                    <div class="errors-list">
+                        <div class="error-card redo-card" id="redoCard">
+                            <div class="error-content">
+                                <h4 class="error-title">Upload Your Answer</h4>
+
+                                <!-- Dropzone：支持点击和拖拽 -->
+                                <div id="redoDropzone" class="dropzone" role="button" tabindex="0">
+                                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                    <p class="dz-text">Drag & Drop your answer image here</p>
+                                    <p class="upload-subtext">or click to choose a file</p>
+                                    <input type="file" id="redoFile" accept="image/*" class="upload-input" />
+                                </div>
+
+                                <!-- 预览区 -->
+                                <div id="redoPreview" style="margin-top:12px; display:none;">
+                                    <img id="redoPreviewImg" src="" alt="Preview" style="max-width:240px; border-radius:8px; box-shadow:0 1px 6px rgba(0,0,0,.08);" />
+                                </div>
+
+                                <!-- 按钮区域 -->
+                                <div style="margin-top:14px; display:flex; gap:12px;">
+                                    <button id="redoBtn" class="redo-btn">Submit Redo</button>
+                                    <button id="redoClearBtn" class="redo-clear-btn" type="button">Clear</button>
+                                </div>
+
+                                <!-- 结果提示 -->
+                                <div id="redoResult" class="redo-result" role="status"></div>
+                            </div>
+
+                            <div class="error-footer" style="margin-top:8px;">
+                                <small style="color:var(--text-muted)">Hint: If a question is judged as correct, it will be marked as mastered.</small>
                             </div>
                         </div>
                     </div>
