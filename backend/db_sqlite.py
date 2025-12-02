@@ -303,3 +303,210 @@ def get_all_mindmaps():
     rows = cur.fetchall()
     conn.close()
     return [_row_to_mindmap_dict(row) for row in rows]
+
+
+# ========== Error Book Functions ==========
+
+def init_error_table():
+    """Create error_book table if not exists."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS error_book (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER DEFAULT 1,
+            subject TEXT,
+            type TEXT,
+            tags TEXT,
+            question TEXT,
+            user_answer TEXT,
+            correct_answer TEXT,
+            analysis_steps TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            difficulty TEXT DEFAULT 'medium',
+            reviewed INTEGER DEFAULT 0,
+            redo_answer TEXT,
+            redo_time DATETIME
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+
+def _row_to_error_dict(row):
+    """Convert a database row to error dict."""
+    if not row:
+        return None
+    
+    # Parse tags and analysis_steps from JSON
+    def _parse_json_field(v):
+        if v is None:
+            return []
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, list):
+                return parsed
+        except Exception:
+            pass
+        return []
+    
+    return {
+        'id': row['id'],
+        'user_id': row['user_id'],
+        'subject': row['subject'],
+        'type': row['type'],
+        'tags': _parse_json_field(row['tags']),
+        'question_text': row['question'],
+        'user_answer': row['user_answer'],
+        'correct_answer': row['correct_answer'],
+        'analysis_steps': _parse_json_field(row['analysis_steps']),
+        'created_at': row['created_at'],
+        'updated_at': row['updated_at'],
+        'difficulty': row['difficulty'],
+        'reviewed': bool(row['reviewed']),
+        'redo_answer': row['redo_answer'],
+        'redo_time': row['redo_time'],
+        'success': True
+    }
+
+
+def insert_error(error):
+    """Insert a new error record."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    tags = json.dumps(error.get('tags', []), ensure_ascii=False)
+    analysis_steps = json.dumps(error.get('analysis_steps', []), ensure_ascii=False)
+    
+    cur.execute('''
+        INSERT INTO error_book (user_id, subject, type, tags, question, user_answer, correct_answer, analysis_steps, created_at, updated_at, difficulty, reviewed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        error.get('user_id', 1),
+        error.get('subject', ''),
+        error.get('type', ''),
+        tags,
+        error.get('question_text', ''),
+        error.get('user_answer', ''),
+        error.get('correct_answer', ''),
+        analysis_steps,
+        now,
+        now,
+        error.get('difficulty', 'medium'),
+        0
+    ))
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return new_id
+
+
+def update_error(error_id, error):
+    """Update an existing error record."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    tags = json.dumps(error.get('tags', []), ensure_ascii=False)
+    analysis_steps = json.dumps(error.get('analysis_steps', []), ensure_ascii=False)
+    
+    cur.execute('''
+        UPDATE error_book SET subject=?, type=?, tags=?, question=?, user_answer=?, correct_answer=?, analysis_steps=?, updated_at=?, difficulty=?, reviewed=?
+        WHERE id=?
+    ''', (
+        error.get('subject', ''),
+        error.get('type', ''),
+        tags,
+        error.get('question_text', ''),
+        error.get('user_answer', ''),
+        error.get('correct_answer', ''),
+        analysis_steps,
+        now,
+        error.get('difficulty', 'medium'),
+        1 if error.get('reviewed') else 0,
+        error_id
+    ))
+    conn.commit()
+    conn.close()
+
+
+def delete_error(error_id):
+    """Delete an error record by id."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM error_book WHERE id=?', (error_id,))
+    conn.commit()
+    changes = cur.rowcount
+    conn.close()
+    return changes > 0
+
+
+def get_error_by_id(error_id):
+    """Get a single error by id."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM error_book WHERE id=?', (error_id,))
+    row = cur.fetchone()
+    conn.close()
+    return _row_to_error_dict(row)
+
+
+def list_errors(subject=None, user_id=None, limit=100):
+    """List errors with optional filtering."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    query = 'SELECT * FROM error_book WHERE 1=1'
+    params = []
+    
+    if subject:
+        query += ' AND subject=?'
+        params.append(subject)
+    if user_id:
+        query += ' AND user_id=?'
+        params.append(user_id)
+    
+    query += ' ORDER BY created_at DESC LIMIT ?'
+    params.append(limit)
+    
+    cur.execute(query, params)
+    rows = cur.fetchall()
+    conn.close()
+    return [_row_to_error_dict(r) for r in rows]
+
+
+def count_errors(subject=None, user_id=None):
+    """Count errors with optional filtering."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    query = 'SELECT COUNT(*) FROM error_book WHERE 1=1'
+    params = []
+    
+    if subject:
+        query += ' AND subject=?'
+        params.append(subject)
+    if user_id:
+        query += ' AND user_id=?'
+        params.append(user_id)
+    
+    cur.execute(query, params)
+    count = cur.fetchone()[0]
+    conn.close()
+    return count
+
+
+def update_error_redo(error_id, redo_answer):
+    """Update error with redo answer."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    
+    cur.execute('''
+        UPDATE error_book SET redo_answer=?, redo_time=?, reviewed=1, updated_at=?
+        WHERE id=?
+    ''', (redo_answer, now, now, error_id))
+    conn.commit()
+    changes = cur.rowcount
+    conn.close()
+    return changes > 0

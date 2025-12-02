@@ -4,28 +4,28 @@ Error Book Manager Module
 上传/拍照题目 → OCR识别 → 自动分类 → 生成复习计划
 """
 
-
-
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_from_directory
 import json
 import re
-#from paddleocr import PPStructureV3
-from openai import OpenAI
 import time
 import os
-import json
-import re
-import time
-from flask import request, jsonify, send_from_directory
-from flask import Blueprint
-from dashscope import MultiModalConversation, Generation
 import traceback
-import html
-# ===== 临时内存存储（开发用）=====
-_ERROR_DB = []
+from dashscope import MultiModalConversation, Generation
+
+# 导入共享数据库模块
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from db_sqlite import (
+    init_error_table, insert_error, update_error, delete_error,
+    get_error_by_id, list_errors, count_errors, update_error_redo
+)
+
 # ===== 配置 =====
 error_bp = Blueprint('error_book', __name__, url_prefix='/api/error')
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-52e14360ea034580a43eee057212de78")
+
+# 初始化错题表
+init_error_table()
 
 
 # ===== 工具函数 =====
@@ -118,7 +118,11 @@ def upload_question():
         }
 
         print("✅ Final parsed result:", result)
-        _ERROR_DB.append(result)
+        
+        # 保存到数据库
+        new_id = insert_error(parsed)
+        result['id'] = new_id
+        
         return jsonify(result)
 
     except Exception as e:
@@ -138,16 +142,82 @@ def upload_question():
 
 
 @error_bp.route('/list', methods=['GET'])
-def list_errors():
+def list_errors_route():
     subject = request.args.get('subject', '')
-    filtered = _ERROR_DB
-    if subject:
-        filtered = [e for e in filtered if e.get('subject', '').lower() == subject.lower()]
+    user_id = request.args.get('user_id')
+    
+    errors = list_errors(subject=subject if subject else None, user_id=user_id)
+    total = count_errors(subject=subject if subject else None, user_id=user_id)
+    
     return jsonify({
         'success': True,
-        'errors': filtered,
-        'total': len(filtered)
+        'errors': errors,
+        'total': total
     })
+
+
+# ===== 路由：获取单个错题 =====
+@error_bp.route('/get', methods=['GET'])
+def get_error():
+    error_id = request.args.get('id')
+    if not error_id:
+        return jsonify({'success': False, 'error': 'Missing id parameter'}), 400
+    
+    try:
+        error_id = int(error_id)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid id format'}), 400
+    
+    error = get_error_by_id(error_id)
+    if not error:
+        return jsonify({'success': False, 'error': 'Error not found'}), 404
+    
+    return jsonify({
+        'success': True,
+        'error': error
+    })
+
+
+# ===== 路由：删除错题 =====
+@error_bp.route('/delete/<int:error_id>', methods=['DELETE'])
+def delete_error_route(error_id):
+    success = delete_error(error_id)
+    if success:
+        return jsonify({'success': True, 'message': 'Error deleted successfully'})
+    else:
+        return jsonify({'success': False, 'error': 'Error not found'}), 404
+
+
+# ===== 路由：重做错题 =====
+@error_bp.route('/redo', methods=['POST'])
+def redo_error():
+    data = request.json
+    error_id = data.get('id')
+    redo_answer = data.get('redo_answer', '')
+    
+    if not error_id:
+        return jsonify({'success': False, 'error': 'Missing id'}), 400
+    
+    try:
+        error_id = int(error_id)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid id format'}), 400
+    
+    # 获取原错题信息
+    error = get_error_by_id(error_id)
+    if not error:
+        return jsonify({'success': False, 'error': 'Error not found'}), 404
+    
+    # 更新重做记录
+    success = update_error_redo(error_id, redo_answer)
+    if success:
+        return jsonify({
+            'success': True,
+            'message': 'Redo recorded successfully',
+            'correct_answer': error.get('correct_answer', '')
+        })
+    else:
+        return jsonify({'success': False, 'error': 'Failed to update redo'}), 500
 
 # ===== 路由：生成相似练习题 =====
 @error_bp.route('/practice/generate-similar', methods=['POST'])
