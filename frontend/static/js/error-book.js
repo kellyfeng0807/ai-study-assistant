@@ -163,7 +163,16 @@ class ErrorBookManager {
 
         for (const file of this.selectedFiles) {
             try {
-                const uploadResult = await fileUploader.uploadFile(file, '/error/upload');
+                // 使用相对路径直接调用 fetch（像 map 一样）
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/api/error/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const uploadResult = await response.json();
 
                 if (!uploadResult?.success || !uploadResult.question_text) {
                     console.error(`Failed to parse question from ${file.name}`);
@@ -193,17 +202,6 @@ class ErrorBookManager {
 
         this.resetUploadArea();
         try { Utils.hideLoadingState(processBtn); } catch(e) { /* ignore */ }
-
-        function escapeHtml(s) {
-            if (!s) return '';
-            return String(s)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;')
-                .replace(/\n/g, '<br/>');
-        }
     }
     
     addErrorCard(data) {
