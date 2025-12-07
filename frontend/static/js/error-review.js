@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // 从服务器获取数据
     try {
-        const res = await fetch(`/api/error/get?id=${encodeURIComponent(errorId)}`);
+        const res = await fetch(`http://localhost:5000/api/error/get?id=${encodeURIComponent(errorId)}`);
         if (!res.ok) {
             throw new Error(`HTTP ${res.status}`);
         }
@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 redoResultEl.className = 'redo-result';
 
                 try {
-                    const res = await fetch('/api/error/redo', {
+                    const res = await fetch('http://localhost:5000/api/error/redo', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

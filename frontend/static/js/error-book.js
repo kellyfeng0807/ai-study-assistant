@@ -57,8 +57,8 @@ class ErrorBookManager {
     // 从后端数据库加载错题
     async loadFromServer() {
         try {
-            const res = await fetch('/api/error/list');
-            console.log('Fetch /api/error/list status:', res.status);
+            const res = await fetch('http://localhost:5000/api/error/list');
+            console.log('Fetch http://localhost:5000/api/error/list status:', res.status);
 
             if (!res.ok) {
                 console.error('Failed to fetch error list:', await res.text());
@@ -167,7 +167,7 @@ class ErrorBookManager {
                 const formData = new FormData();
                 formData.append('file', file);
                 
-                const response = await fetch('/api/error/upload', {
+                const response = await fetch('http://localhost:5000/api/error/upload', {
                     method: 'POST',
                     body: formData
                 });
@@ -425,7 +425,7 @@ class ErrorBookManager {
         if (!confirmed) return;
 
         try {
-            const response = await fetch(`/api/error/delete/${id}`, {
+            const response = await fetch(`http://localhost:5000/api/error/delete/${id}`, {
                 method: 'DELETE'
             });
 

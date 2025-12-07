@@ -85,7 +85,7 @@ async function initPracticePage() {
 
   try {
     // 从数据库获取原始错题
-    const getRes = await fetch(`/api/error/get?id=${encodeURIComponent(errorId)}`);
+    const getRes = await fetch(`http://localhost:5000/api/error/get?id=${encodeURIComponent(errorId)}`);
     if (!getRes.ok) {
       throw new Error('Failed to fetch original question from database');
     }
@@ -98,7 +98,7 @@ async function initPracticePage() {
       return;
     }
 
-    const response = await fetch('/api/error/practice/generate-similar', {
+    const response = await fetch('http://localhost:5000/api/error/practice/generate-similar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
