@@ -9,7 +9,8 @@ import db_sqlite
 
 track_bp = Blueprint("track_bp", __name__)
 
-
+# Initialize study_progress table
+#db_sqlite.init_db()
 @track_bp.route('/api/track_time', methods=['POST'])
 def track_time():
     try:
@@ -26,8 +27,7 @@ def track_time():
         today = datetime.now().strftime("%Y-%m-%d")
         user_id = 1  # Test user, replace with login user in production
 
-        # Initialize study_progress table
-        db_sqlite.init_db()
+        
 
         # Get or create study progress record
         row = db_sqlite.get_study_progress(user_id, today, subject)

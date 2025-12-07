@@ -98,6 +98,15 @@ class ErrorBookManager {
             console.error("Failed to load error list:", e);
         }
     }
+
+    // 重新从服务器加载错题（清空后重新加载，类似 map/note 的做法）
+    async reloadErrorsFromServer() {
+        const errorsList = document.querySelector('.errors-list');
+        if (errorsList) {
+            errorsList.innerHTML = ''; // Clear existing cards
+        }
+        await this.loadFromServer();
+    }
     
     bindEventListeners() {
         // 处理图片上传按钮
@@ -148,55 +157,40 @@ class ErrorBookManager {
 
         const processBtn = document.getElementById('processBtn');
         Utils.showLoadingState(processBtn, 'Processing images...');
-        const errorsList = document.querySelector('.errors-list');
+
+        let successCount = 0;
+        let failCount = 0;
 
         for (const file of this.selectedFiles) {
             try {
                 const uploadResult = await fileUploader.uploadFile(file, '/error/upload');
 
                 if (!uploadResult?.success || !uploadResult.question_text) {
-                    Utils.showNotification(`Failed to parse question from ${file.name}`, 'error');
+                    console.error(`Failed to parse question from ${file.name}`);
+                    failCount++;
                     continue;
                 }
 
-                const cardData = {
-                    id: uploadResult.id,
-                    subject: uploadResult.subject || '未知科目',
-                    type: uploadResult.type || '',
-                    tags: Array.isArray(uploadResult.tags) ? uploadResult.tags : [],
-                    question_text: uploadResult.question_text,
-                    user_answer: uploadResult.user_answer || '',
-                    correct_answer: uploadResult.correct_answer || '',
-                    analysis_steps: Array.isArray(uploadResult.analysis_steps) ? uploadResult.analysis_steps : [],
-                    difficulty: uploadResult.difficulty || 'medium',
-                    created_at: uploadResult.created_at || new Date().toISOString()
-                };
-
-                // 数据已在后端保存到数据库，不需要保存到 localStorage
-                // 直接渲染新卡片
-                this.addErrorCard({
-                    id: cardData.id,
-                    subject: cardData.subject,
-                    difficulty: cardData.difficulty,
-                    tags: cardData.tags,
-                    text: `<p>${escapeHtml(cardData.question_text)}</p>`,
-                    created_at: cardData.created_at,
-                    reviewed: false
-                });
-
-                if (typeof MathJax !== 'undefined') {
-                    MathJax.typesetPromise([errorsList]).catch(console.warn);
-                }
-
-                Utils.showNotification(`Question processed from ${file.name}`, 'success');
+                successCount++;
 
             } catch (err) {
                 console.error('Error processing image:', file.name, err);
-                Utils.showNotification(`Error processing ${file.name}`, 'error');
+                failCount++;
             }
         }
 
-        Utils.showNotification('All images processed', 'success');
+        // Reload all errors from server (like map/note do)
+        await this.reloadErrorsFromServer();
+
+        // Show unified notification (like delete operation)
+        if (successCount > 0 && failCount === 0) {
+            Utils.showNotification(`Successfully processed ${successCount} question(s)`, 'success');
+        } else if (successCount > 0 && failCount > 0) {
+            Utils.showNotification(`Processed ${successCount} question(s), ${failCount} failed`, 'warning');
+        } else {
+            Utils.showNotification('Failed to process questions', 'error');
+        }
+
         this.resetUploadArea();
         try { Utils.hideLoadingState(processBtn); } catch(e) { /* ignore */ }
 
