@@ -118,9 +118,22 @@ def upload_question():
         new_id = db_sqlite.insert_error(parsed)
         saved = db_sqlite.get_error_by_id(new_id)
         
+        # 返回前移除 'success' 字段避免重复
+        if isinstance(saved, dict) and 'success' in saved:
+            del saved['success']
+        
         return jsonify({
             'success': True,
-            **saved
+            'question_text': saved.get('question_text'),
+            'subject': saved.get('subject'),
+            'type': saved.get('type'),
+            'tags': saved.get('tags'),
+            'user_answer': saved.get('user_answer'),
+            'correct_answer': saved.get('correct_answer'),
+            'analysis_steps': saved.get('analysis_steps'),
+            'difficulty': saved.get('difficulty'),
+            'created_at': saved.get('created_at'),
+            'id': new_id
         })
 
     except Exception as e:
@@ -140,16 +153,44 @@ def upload_question():
 
 @error_bp.route('/list', methods=['GET'])
 def list_errors_route():
+    import sys
+    print(f"[ERROR_LIST] DB_PATH: {db_sqlite.DB_PATH}", file=sys.stderr)
+    print(f"[ERROR_LIST] DB exists: {os.path.exists(db_sqlite.DB_PATH)}", file=sys.stderr)
+    
     subject = request.args.get('subject', '')
     user_id = request.args.get('user_id')
     
     errors = db_sqlite.list_errors(subject=subject if subject else None, user_id=user_id)
     total = db_sqlite.count_errors(subject=subject if subject else None, user_id=user_id)
     
+    print(f"[ERROR_LIST] Found {total} errors", file=sys.stderr)
+    
     return jsonify({
         'success': True,
         'errors': errors,
         'total': total
+    })
+
+
+# ===== 路由：健康检查及初始化 =====
+@error_bp.route('/health', methods=['GET'])
+def health_check():
+    """检查错题模块是否正常工作"""
+    import sys
+    
+    db_info = {
+        'db_path': db_sqlite.DB_PATH,
+        'db_exists': os.path.exists(db_sqlite.DB_PATH),
+        'db_readable': os.access(db_sqlite.DB_PATH, os.R_OK) if os.path.exists(db_sqlite.DB_PATH) else False,
+        'error_count': db_sqlite.count_errors()
+    }
+    
+    print(f"[ERROR_HEALTH] {db_info}", file=sys.stderr)
+    
+    return jsonify({
+        'success': True,
+        'status': 'healthy',
+        'database': db_info
     })
 
 
