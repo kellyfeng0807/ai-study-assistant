@@ -79,11 +79,7 @@ if __name__ == '__main__':
             print('Initializing sqlite DB (all tables)...')
             db_sqlite.init_db()  # Now initializes all tables: note, mindmap, error_book, study_progress
             # run migration script if available
-            try:
-                from scripts.migrate_notes_to_db import migrate_notes
-                migrate_notes()
-            except Exception:
-                print('Note migration script not present or migration failed.')
+            
             print('sqlite DB initialized')
         except Exception as e:
             print('DB init failed:', e)

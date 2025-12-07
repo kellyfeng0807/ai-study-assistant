@@ -10,7 +10,7 @@ import db_sqlite
 track_bp = Blueprint("track_bp", __name__)
 
 # Initialize study_progress table
-#db_sqlite.init_db()
+db_sqlite.init_db()
 @track_bp.route('/api/track_time', methods=['POST'])
 def track_time():
     try:

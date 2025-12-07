@@ -21,7 +21,7 @@ error_bp = Blueprint('error_book', __name__, url_prefix='/api/error')
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-52e14360ea034580a43eee057212de78")
 
 # 初始化错题表
-#db_sqlite.init_db()
+db_sqlite.init_db()
 
 
 # ===== 工具函数 =====
