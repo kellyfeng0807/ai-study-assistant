@@ -28,18 +28,29 @@ const Utils = {
     },
     
     showNotification(message, type = 'info') {
+        // Create toast container if it doesn't exist
+        let container = document.querySelector('.toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'toast-container';
+            document.body.appendChild(container);
+        }
+        
         const notification = document.createElement('div');
-        notification.className = `toast toast-${type}`;
+        notification.className = `toast ${type}`;  // Changed from toast-${type} to match CSS
         notification.innerHTML = `
-            <i class="fas fa-${this.getIconByType(type)}"></i>
-            <span>${message}</span>
+            <i class="fas fa-${this.getIconByType(type)} toast-icon"></i>
+            <span class="toast-message">${message}</span>
         `;
         
-        document.body.appendChild(notification);
-        setTimeout(() => notification.classList.add('show'), 100);
+        container.appendChild(notification);
         
+        // Trigger show animation
+        setTimeout(() => notification.classList.add('show'), 10);
+        
+        // Auto remove after 3 seconds
         setTimeout(() => {
-            notification.classList.remove('show');
+            notification.classList.add('hiding');
             setTimeout(() => notification.remove(), 300);
         }, 3000);
     },

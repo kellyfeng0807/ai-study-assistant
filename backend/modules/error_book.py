@@ -52,17 +52,35 @@ def clean_json_for_array(text: str) -> str:
 # ===== 路由：上传错题图片 =====
 @error_bp.route('/upload', methods=['POST'])
 def upload_question():
+    print("=== Error Upload Request Received ===")
+    
     if 'file' not in request.files:
+        print("ERROR: No file in request")
         return jsonify({'success': False, 'error': 'No file provided'}), 400
 
     uploaded_file = request.files['file']
     if uploaded_file.filename == '':
+        print("ERROR: Empty filename")
         return jsonify({'success': False, 'error': 'Empty filename'}), 400
 
+    print(f"File received: {uploaded_file.filename}, size: {uploaded_file.content_length}")
+    
     temp_dir = "./temp_uploads"
-    os.makedirs(temp_dir, exist_ok=True)
+    try:
+        os.makedirs(temp_dir, exist_ok=True)
+        print(f"Temp directory ensured: {os.path.abspath(temp_dir)}")
+    except Exception as e:
+        print(f"ERROR: Failed to create temp directory: {e}")
+        return jsonify({'success': False, 'error': f'Failed to create temp directory: {str(e)}'}), 500
+    
     temp_path = os.path.join(temp_dir, f"{int(time.time() * 1000)}_{uploaded_file.filename}")
-    uploaded_file.save(temp_path)
+    
+    try:
+        uploaded_file.save(temp_path)
+        print(f"File saved to: {temp_path}")
+    except Exception as e:
+        print(f"ERROR: Failed to save file: {e}")
+        return jsonify({'success': False, 'error': f'Failed to save file: {str(e)}'}), 500
 
     try:
         prompt = (
@@ -91,6 +109,10 @@ def upload_question():
             ]
         }]
 
+        print("Calling Qwen-VL API...")
+        if not DASHSCOPE_API_KEY or DASHSCOPE_API_KEY == "sk-52e14360ea034580a43eee057212de78":
+            print("WARNING: Using default API key, may not work in production!")
+        
         response = MultiModalConversation.call(
             model='qwen-vl-plus',
             messages=messages,
@@ -98,26 +120,34 @@ def upload_question():
             result_format='message'
         )
 
+        print(f"API Response status: {response.status_code}")
+        
         if response.status_code != 200:
-            raise Exception(f"Qwen-VL API Error {response.code}: {response.message}")
+            error_msg = f"Qwen-VL API Error {response.code}: {response.message}"
+            print(f"ERROR: {error_msg}")
+            raise Exception(error_msg)
 
         raw_output = response.output.choices[0].message.content[0]['text']
+        print(f"API Response (first 200 chars): {raw_output[:200]}...")
         
-
         cleaned_json = clean_json_for_object(raw_output)
         parsed = json.loads(cleaned_json)
+        print(f"Parsed successfully: subject={parsed.get('subject')}, type={parsed.get('type')}")
 
         # 保存到数据库（按 Note 模块的模式：保存后立即读取，确保数据一致）
         new_id = db_sqlite.insert_error(parsed)
+        print(f"Saved to database with ID: {new_id}")
         saved = db_sqlite.get_error_by_id(new_id)
         
+        print("=== Upload Success ===")
         return jsonify({
             'success': True,
-            'error': saved
+            **saved  # Changed from 'error': saved to unpack the dict
         })
 
     except Exception as e:
-        
+        print(f"=== Upload Failed ===")
+        print(f"Exception: {type(e).__name__}: {str(e)}")
         traceback.print_exc()
         return jsonify({
             'success': False,
