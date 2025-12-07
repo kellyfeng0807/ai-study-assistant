@@ -29,9 +29,8 @@ def get_conn():
 
 
 def init_db():
-    """Ensure the necessary tables exist and migrate minimal schema.
-    This will create the note table if it does not exist.
-    It will add missing columns if they don't exist.
+    """Ensure ALL necessary tables exist and migrate minimal schema.
+    This will create note, mindmap, error_book, and study_progress tables if they don't exist.
     """
     # Ensure DB file is writable; attempt to chmod if not
     try:
@@ -54,7 +53,8 @@ def init_db():
 
     conn = get_conn()
     cur = conn.cursor()
-    # Create user, note and mindmap tables if missing minimal fields
+    
+    # Create note table
     cur.execute('''
     CREATE TABLE IF NOT EXISTS note (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +80,68 @@ def init_db():
             conn.commit()
         except Exception:
             pass
+    
+    # Create mindmap table
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS mindmap (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER DEFAULT 1,
+        title TEXT,
+        mermaid_code TEXT,
+        depth INTEGER DEFAULT 3,
+        style TEXT DEFAULT 'TD',
+        source TEXT DEFAULT 'manual',
+        source_file TEXT DEFAULT 'none',
+        context TEXT,
+        node_positions TEXT DEFAULT '{}',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    conn.commit()
+    
+    # Create error_book table
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS error_book (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER DEFAULT 1,
+        subject TEXT,
+        type TEXT,
+        tags TEXT,
+        question TEXT,
+        user_answer TEXT,
+        correct_answer TEXT,
+        analysis_steps TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        difficulty TEXT DEFAULT 'medium',
+        reviewed INTEGER DEFAULT 0,
+        redo_answer TEXT,
+        redo_time DATETIME
+    )
+    ''')
+    conn.commit()
+    
+    # Create study_progress table
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS study_progress (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER DEFAULT 1,
+        date TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        reviewed_questions INTEGER DEFAULT 0,
+        review_correct_questions INTEGER DEFAULT 0,
+        review_time_minutes INTEGER DEFAULT 0,
+        practice_questions INTEGER DEFAULT 0,
+        practice_correct_questions INTEGER DEFAULT 0,
+        practice_time_minutes INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, date, subject)
+    )
+    ''')
+    conn.commit()
+    
     conn.close()
 
 
@@ -305,34 +367,71 @@ def get_all_mindmaps():
     return [_row_to_mindmap_dict(row) for row in rows]
 
 
-# ========== Error Book Functions ==========
+# ========== Study Progress Functions ==========
 
-def init_error_table():
-    """Create error_book table if not exists."""
+def get_study_progress(user_id, date, subject):
+    """Get study progress record."""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute('''
-        CREATE TABLE IF NOT EXISTS error_book (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER DEFAULT 1,
-            subject TEXT,
-            type TEXT,
-            tags TEXT,
-            question TEXT,
-            user_answer TEXT,
-            correct_answer TEXT,
-            analysis_steps TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            difficulty TEXT DEFAULT 'medium',
-            reviewed INTEGER DEFAULT 0,
-            redo_answer TEXT,
-            redo_time DATETIME
-        )
-    ''')
+        SELECT id, reviewed_questions, review_correct_questions, review_time_minutes,
+               practice_questions, practice_correct_questions, practice_time_minutes
+        FROM study_progress
+        WHERE user_id = ? AND date = ? AND subject = ?
+    ''', (user_id, date, subject))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def insert_study_progress(user_id, date, subject):
+    """Insert a new study progress record."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    cur.execute('''
+        INSERT INTO study_progress(
+            user_id, date, subject,
+            reviewed_questions, review_correct_questions, review_time_minutes,
+            practice_questions, practice_correct_questions, practice_time_minutes,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, ?, ?)
+    ''', (user_id, date, subject, now, now))
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return new_id
+
+
+def update_study_progress_review(row_id, reviewed, correct_review, review_time):
+    """Update review-related fields in study progress."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    cur.execute('''
+        UPDATE study_progress
+        SET reviewed_questions=?, review_correct_questions=?, review_time_minutes=?, updated_at=?
+        WHERE id=?
+    ''', (reviewed, correct_review, review_time, now, row_id))
     conn.commit()
     conn.close()
 
+
+def update_study_progress_practice(row_id, practice_count, correct_practice, practice_time):
+    """Update practice-related fields in study progress."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    cur.execute('''
+        UPDATE study_progress
+        SET practice_questions=?, practice_correct_questions=?, practice_time_minutes=?, updated_at=?
+        WHERE id=?
+    ''', (practice_count, correct_practice, practice_time, now, row_id))
+    conn.commit()
+    conn.close()
+
+
+# ========== Error Book Functions ==========
 
 def _row_to_error_dict(row):
     """Convert a database row to error dict."""

@@ -76,8 +76,8 @@ if __name__ == '__main__':
     if args.init_db:
         try:
             import db_sqlite
-            print('Initializing sqlite DB...')
-            db_sqlite.init_db()
+            print('Initializing sqlite DB (all tables)...')
+            db_sqlite.init_db()  # Now initializes all tables: note, mindmap, error_book, study_progress
             # run migration script if available
             try:
                 from scripts.migrate_notes_to_db import migrate_notes

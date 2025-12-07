@@ -155,7 +155,7 @@ class ErrorBookManager {
                 const uploadResult = await fileUploader.uploadFile(file, '/error/upload');
 
                 if (!uploadResult?.success || !uploadResult.question_text) {
-                    Utils.showNotification(`题目解析失败，跳过 ${file.name}`, 'warning');
+                    Utils.showNotification(`Failed to parse question from ${file.name}`, 'error');
                     continue;
                 }
 
@@ -188,15 +188,15 @@ class ErrorBookManager {
                     MathJax.typesetPromise([errorsList]).catch(console.warn);
                 }
 
-                Utils.showNotification(`题目处理完成：${file.name}`, 'success');
+                Utils.showNotification(`Question processed from ${file.name}`, 'success');
 
             } catch (err) {
-                console.error('处理图片出错:', file.name, err);
-                Utils.showNotification(`处理图片出错：${file.name}`, 'error');
+                console.error('Error processing image:', file.name, err);
+                Utils.showNotification(`Error processing ${file.name}`, 'error');
             }
         }
 
-        Utils.showNotification('所有图片处理完成 ', 'success');
+        Utils.showNotification('All images processed', 'success');
         this.resetUploadArea();
         try { Utils.hideLoadingState(processBtn); } catch(e) { /* ignore */ }
 
@@ -418,30 +418,40 @@ class ErrorBookManager {
         window.location.href = `/error-practice.html?id=${id}`;
     }
 
-    deleteError(id, card) {
+    async deleteError(id, card) {
         if (!id) {
             console.error("Error: missing id for delete");
             return;
         }
 
-        if (!confirm("确定要删除这条错题吗？")) return;
+        const confirmed = await window.messageModal.confirm(
+            'Are you sure you want to delete this error? This action cannot be undone.',
+            'Confirm Delete',
+            { danger: true, confirmText: 'Delete', cancelText: 'Cancel' }
+        );
 
-        fetch(`/api/error/delete/${id}`, {
-            method: 'DELETE'
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                card.remove();
-                Utils.showNotification("删除成功", 'success');
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch(`/api/error/delete/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    card.remove();
+                    Utils.showNotification('Error deleted successfully', 'success');
+                } else {
+                    Utils.showNotification('Failed to delete error: ' + data.error, 'error');
+                }
             } else {
-                Utils.showNotification("删除失败：" + data.error, 'error');
+                Utils.showNotification('Failed to delete error', 'error');
             }
-        })
-        .catch(err => {
+        } catch (err) {
             console.error("delete failed", err);
-            Utils.showNotification("删除失败", 'error');
-        });
+            Utils.showNotification('Error deleting error', 'error');
+        }
     }
 }
 

@@ -21,7 +21,7 @@ error_bp = Blueprint('error_book', __name__, url_prefix='/api/error')
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-52e14360ea034580a43eee057212de78")
 
 # 初始化错题表
-db_sqlite.init_error_table()
+db_sqlite.init_db()
 
 
 # ===== 工具函数 =====
@@ -107,19 +107,14 @@ def upload_question():
         cleaned_json = clean_json_for_object(raw_output)
         parsed = json.loads(cleaned_json)
 
-        result = {
-            "id": f"err_{int(time.time() * 1000)}",
-            "success": True,
-            **parsed
-        }
-
-       
-        
-        # 保存到数据库
+        # 保存到数据库（按 Note 模块的模式：保存后立即读取，确保数据一致）
         new_id = db_sqlite.insert_error(parsed)
-        result['id'] = new_id
+        saved = db_sqlite.get_error_by_id(new_id)
         
-        return jsonify(result)
+        return jsonify({
+            'success': True,
+            'error': saved
+        })
 
     except Exception as e:
         
@@ -259,7 +254,7 @@ def generate_similar_exercises():
             raise Exception(f"Qwen API Error {response.code}: {response.message}")
 
         raw = response.output.choices[0].message.content.strip()
-        print("🔍 Raw Qwen output:", repr(raw))
+        print("Raw Qwen output:", repr(raw))
 
         cleaned = clean_json_for_array(raw)
         similar_list = json.loads(cleaned)
@@ -275,7 +270,7 @@ def generate_similar_exercises():
         })
 
     except Exception as e:
-        print(f"❌ Generate similar failed: {e}")
+        print(f"Generate similar failed: {e}")
         traceback.print_exc()
         return jsonify({
             "success": False,
