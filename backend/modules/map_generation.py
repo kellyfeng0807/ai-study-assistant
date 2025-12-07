@@ -18,6 +18,10 @@ from services.ai_service import ai_service
 
 map_bp = Blueprint('map_generation', __name__, url_prefix='/api/map')
 
+# Debug: Print database info on module load
+print(f"[MAP_INIT] db_sqlite.DB_PATH: {db_sqlite.DB_PATH}", file=sys.stderr)
+print(f"[MAP_INIT] DB file exists: {os.path.exists(db_sqlite.DB_PATH)}", file=sys.stderr)
+
 # 配置上传路径
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'mindmaps')
 ALLOWED_EXTENSIONS = {'pdf', 'ppt', 'pptx', 'doc', 'docx', 'txt', 'mp3', 'wav', 'mp4', 'm4a'}

@@ -39,6 +39,11 @@ ALLOWED_AUDIO_EXTENSIONS = {'mp3', 'wav', 'pcm', 'webm', 'm4a', 'ogg'}
 
 db_sqlite.init_db()
 
+# Debug: Print database info on module load
+import sys
+print(f"[NOTE_INIT] db_sqlite.DB_PATH: {db_sqlite.DB_PATH}", file=sys.stderr)
+print(f"[NOTE_INIT] DB file exists: {os.path.exists(db_sqlite.DB_PATH)}", file=sys.stderr)
+
 # Added debug logging to trace execution flow
 logging.basicConfig(level=logging.DEBUG)
 

@@ -23,6 +23,10 @@ DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-52e14360ea034580a43eee057
 # 初始化错题表
 db_sqlite.init_db()
 
+# Debug: Print database info on module load
+print(f"[ERROR_BOOK_INIT] db_sqlite.DB_PATH: {db_sqlite.DB_PATH}", file=sys.stderr)
+print(f"[ERROR_BOOK_INIT] DB file exists: {os.path.exists(db_sqlite.DB_PATH)}", file=sys.stderr)
+
 
 # ===== 工具函数 =====
 def clean_json_for_object(text: str) -> str:
@@ -153,44 +157,16 @@ def upload_question():
 
 @error_bp.route('/list', methods=['GET'])
 def list_errors_route():
-    import sys
-    print(f"[ERROR_LIST] DB_PATH: {db_sqlite.DB_PATH}", file=sys.stderr)
-    print(f"[ERROR_LIST] DB exists: {os.path.exists(db_sqlite.DB_PATH)}", file=sys.stderr)
-    
     subject = request.args.get('subject', '')
     user_id = request.args.get('user_id')
     
     errors = db_sqlite.list_errors(subject=subject if subject else None, user_id=user_id)
     total = db_sqlite.count_errors(subject=subject if subject else None, user_id=user_id)
     
-    print(f"[ERROR_LIST] Found {total} errors", file=sys.stderr)
-    
     return jsonify({
         'success': True,
         'errors': errors,
         'total': total
-    })
-
-
-# ===== 路由：健康检查及初始化 =====
-@error_bp.route('/health', methods=['GET'])
-def health_check():
-    """检查错题模块是否正常工作"""
-    import sys
-    
-    db_info = {
-        'db_path': db_sqlite.DB_PATH,
-        'db_exists': os.path.exists(db_sqlite.DB_PATH),
-        'db_readable': os.access(db_sqlite.DB_PATH, os.R_OK) if os.path.exists(db_sqlite.DB_PATH) else False,
-        'error_count': db_sqlite.count_errors()
-    }
-    
-    print(f"[ERROR_HEALTH] {db_info}", file=sys.stderr)
-    
-    return jsonify({
-        'success': True,
-        'status': 'healthy',
-        'database': db_info
     })
 
 
