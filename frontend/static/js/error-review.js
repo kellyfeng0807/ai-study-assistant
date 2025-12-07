@@ -59,25 +59,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let card;
     
-    // 首先尝试从服务器获取数据
+    // 从服务器获取数据
     try {
         const res = await fetch(`/api/error/get?id=${encodeURIComponent(errorId)}`);
-        if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.error) {
-                card = data.error;
-                subject = card.subject || "unknown";
-                console.log("Loaded from server, subject:", subject);
-            }
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
         }
+        
+        const data = await res.json();
+        if (!data.success || !data.error) {
+            throw new Error(data.error || 'Record not found');
+        }
+        
+        card = data.error;
+        subject = card.subject || "unknown";
+        console.log("Loaded from database, subject:", subject);
+        
     } catch (err) {
-        console.warn('Failed to fetch from server, trying localStorage:', err);
-    }
-
-    // 如果服务器没有数据，尝试从 localStorage 获取
-    if (!card) {
-        const raw = JSON.parse(localStorage.getItem('errorbook_items') || '{}');
-        card = raw[errorId];
+        console.error('Failed to fetch from database:', err);
+        if (reviewCard) reviewCard.innerHTML = `<p class="empty-state">Error: ${err.message}</p>`;
+        return;
     }
 
     if (!card) {

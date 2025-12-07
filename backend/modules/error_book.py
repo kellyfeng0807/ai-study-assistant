@@ -102,7 +102,7 @@ def upload_question():
             raise Exception(f"Qwen-VL API Error {response.code}: {response.message}")
 
         raw_output = response.output.choices[0].message.content[0]['text']
-        print("🔍 Raw Qwen-VL output:", repr(raw_output))
+        
 
         cleaned_json = clean_json_for_object(raw_output)
         parsed = json.loads(cleaned_json)
@@ -113,7 +113,7 @@ def upload_question():
             **parsed
         }
 
-        print("✅ Final parsed result:", result)
+       
         
         # 保存到数据库
         new_id = db_sqlite.insert_error(parsed)
@@ -122,7 +122,7 @@ def upload_question():
         return jsonify(result)
 
     except Exception as e:
-        print(f"❌ Processing failed: {e}")
+        
         traceback.print_exc()
         return jsonify({
             'success': False,

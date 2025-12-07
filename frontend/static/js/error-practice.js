@@ -83,22 +83,26 @@ async function initPracticePage() {
     return;
   }
 
-  // 从 localStorage 获取原始错题
-  const raw = JSON.parse(localStorage.getItem('errorbook_items') || '{}');
-  const originalCard = raw[errorId];
-
-  if (!originalCard) {
-    container.innerHTML = `<p>Original question not found for ID: ${errorId}</p>`;
-    console.warn('Available keys in localStorage:', Object.keys(raw));
-    return;
-  }
-
   try {
+    // 从数据库获取原始错题
+    const getRes = await fetch(`/api/error/get?id=${encodeURIComponent(errorId)}`);
+    if (!getRes.ok) {
+      throw new Error('Failed to fetch original question from database');
+    }
+    
+    const getData = await getRes.json();
+    const originalCard = getData.error;
+
+    if (!originalCard) {
+      container.innerHTML = `<p>Original question not found for ID: ${errorId}</p>`;
+      return;
+    }
+
     const response = await fetch('/api/error/practice/generate-similar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        question_text: originalCard.question_text,
+        question_text: originalCard.question,
         count: 3
       })
     });

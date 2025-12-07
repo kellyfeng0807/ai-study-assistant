@@ -172,14 +172,8 @@ class ErrorBookManager {
                     created_at: uploadResult.created_at || new Date().toISOString()
                 };
 
-                try {
-                    const raw = JSON.parse(localStorage.getItem('errorbook_items') || '{}');
-                    raw[cardData.id] = cardData;
-                    localStorage.setItem('errorbook_items', JSON.stringify(raw));
-                } catch (e) {
-                    console.warn('localStorage 写入失败', e);
-                }
-
+                // 数据已在后端保存到数据库，不需要保存到 localStorage
+                // 直接渲染新卡片
                 this.addErrorCard({
                     id: cardData.id,
                     subject: cardData.subject,
