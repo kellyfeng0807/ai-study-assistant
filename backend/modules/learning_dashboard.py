@@ -1007,6 +1007,10 @@ def get_heatmap():
         cur.execute('SELECT COUNT(*) FROM note WHERE created_at LIKE ?', (date_pattern,))
         note_count = cur.fetchone()[0]
         
+        # 统计当天思维导图数
+        cur.execute('SELECT COUNT(*) FROM mindmap WHERE created_at LIKE ?', (date_pattern,))
+        mindmap_count = cur.fetchone()[0]
+        
         # 统计当天错题活动
         cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at LIKE ? OR updated_at LIKE ?', 
                     (date_pattern, date_pattern))
@@ -1021,21 +1025,22 @@ def get_heatmap():
         
         # 如果没有 study_progress 数据，使用估算
         if study_minutes == 0:
-            study_minutes = note_count * 15 + error_count * 10
+            study_minutes = note_count * 15 + mindmap_count * 20 + error_count * 10
         
-        # 计算学习强度（0-4级）- 基于学习时间
-        if study_minutes == 0:
+        # 计算总活动数（包括mindmap）
+        total_activity = note_count + mindmap_count + error_count
+        
+        # 计算学习强度（0-4级）- 基于活动数量和学习时间的综合
+        if total_activity == 0:
             level = 0
-        elif study_minutes <= 15:
-            level = 1  # 1-15 分钟
-        elif study_minutes <= 30:
-            level = 2  # 16-30 分钟
-        elif study_minutes <= 60:
-            level = 3  # 31-60 分钟
+        elif study_minutes <= 15 or total_activity == 1:
+            level = 1  # 少量活动或很短时间
+        elif study_minutes <= 30 or total_activity <= 2:
+            level = 2  # 中等活动
+        elif study_minutes <= 60 or total_activity <= 4:
+            level = 3  # 较多活动
         else:
-            level = 4  # 60+ 分钟
-        
-        total_activity = note_count + error_count
+            level = 4  # 大量活动或长时间学习
         
         heatmap_data.append({
             'date': date_str,
@@ -1044,6 +1049,7 @@ def get_heatmap():
             'count': total_activity,
             'minutes': study_minutes,
             'notes': note_count,
+            'mindmaps': mindmap_count,
             'errors': error_count
         })
     

@@ -102,7 +102,7 @@ async function initPracticePage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        question_text: originalCard.question,
+        question_text: originalCard.question_text,
         count: 3
       })
     });

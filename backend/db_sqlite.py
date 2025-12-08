@@ -419,7 +419,7 @@ def insert_study_progress(user_id, date, subject):
     return new_id
 
 
-def update_study_progress_review(row_id, reviewed, correct_review, review_time):
+def update_study_progress_review(row_id, reviewed, correct_review, review_time_minutes):
     """Update review-related fields in study progress."""
     conn = get_conn()
     cur = conn.cursor()
@@ -428,12 +428,12 @@ def update_study_progress_review(row_id, reviewed, correct_review, review_time):
         UPDATE study_progress
         SET reviewed_questions=?, review_correct_questions=?, review_time_minutes=?, updated_at=?
         WHERE id=?
-    ''', (reviewed, correct_review, review_time, now, row_id))
+    ''', (reviewed, correct_review, review_time_minutes, now, row_id))
     conn.commit()
     conn.close()
 
 
-def update_study_progress_practice(row_id, practice_count, correct_practice, practice_time):
+def update_study_progress_practice(row_id, practice_count, correct_practice, practice_time_minutes):
     """Update practice-related fields in study progress."""
     conn = get_conn()
     cur = conn.cursor()
@@ -442,7 +442,7 @@ def update_study_progress_practice(row_id, practice_count, correct_practice, pra
         UPDATE study_progress
         SET practice_questions=?, practice_correct_questions=?, practice_time_minutes=?, updated_at=?
         WHERE id=?
-    ''', (practice_count, correct_practice, practice_time, now, row_id))
+    ''', (practice_count, correct_practice, practice_time_minutes, now, row_id))
     conn.commit()
     conn.close()
 
