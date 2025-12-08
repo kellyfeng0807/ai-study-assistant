@@ -5,6 +5,45 @@
  * 新增：View All 显示所有笔记
  */
 
+// ========== 时间追踪（查看笔记时） ==========
+let noteViewStartTime = null;
+let noteViewSubject = "General";
+
+function startNoteViewTimer(subject = "General") {
+    noteViewStartTime = Date.now();
+    noteViewSubject = subject || "General";
+    console.log(`Started viewing note: ${noteViewSubject}`);
+}
+
+async function trackNoteViewTime() {
+    if (!noteViewStartTime) return;
+    
+    const seconds = Math.floor((Date.now() - noteViewStartTime) / 1000);
+    noteViewStartTime = null; // 重置
+    
+    if (seconds < 5 || seconds > 7200) return; // 忽略太短或太长的时间
+    
+    try {
+        await fetch('/api/track_time', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                seconds: seconds,
+                mode: 'review',
+                subject: noteViewSubject,
+                is_correct: 1
+            })
+        });
+        console.log(` Tracked ${seconds}s for viewing note (${noteViewSubject})`);
+    } catch (err) {
+        console.warn('Failed to track note view time:', err);
+    }
+}
+
+// 页面离开时追踪时间
+window.addEventListener('beforeunload', () => trackNoteViewTime());
+window.addEventListener('pagehide', () => trackNoteViewTime());
+
 class NoteAssistantManager {
     constructor() {
         // 录音相关
@@ -16,6 +55,7 @@ class NoteAssistantManager {
         this.audioBlob = null;
         this.audioFileName = null;  
         this.currentEditingNoteId = null;
+        this.allNotesData = null;  // 存储所有笔记数据，用于筛选
 
         this.init();
     }
@@ -137,7 +177,7 @@ class NoteAssistantManager {
         if (viewAllBtn) {
             viewAllBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                this.loadAllNotes();
+                this.showAllNotesModal();
             });
         }
     }
@@ -774,6 +814,9 @@ class NoteAssistantManager {
     
     async viewNoteDetail(noteId) {
         try {
+            // 先追踪之前查看的笔记时间（如果有）
+            await trackNoteViewTime();
+            
             console.log('Viewing note details:', noteId);
             
             const response = await fetch(`http://localhost:5000/api/note/${noteId}`);
@@ -781,6 +824,10 @@ class NoteAssistantManager {
             
             if (data.success && data.note) {
                 this.displayGeneratedNote(data.note.content);
+                
+                // 开始计时新的笔记查看
+                const subject = data.note.subject || data.note.content?.subject || "General";
+                startNoteViewTimer(subject);
             } else {
                 Utils.showNotification('Failed to load note details', 'error');
             }
@@ -791,29 +838,15 @@ class NoteAssistantManager {
     }
     
 
-    // Load all notes without limit (replaces the modal approach)
-    async loadAllNotes() {
+    // 显示所有笔记的模态框（带学科筛选）
+    async showAllNotesModal() {
         try {
             const response = await fetch('http://localhost:5000/api/note/list?limit=1000');
             const data = await response.json();
             
             if (data.success && data.notes && data.notes.length > 0) {
-                this.renderAllNoteCards(data.notes);
-                
-                // Update the view all button to show "Show Less"
-                const viewAllBtn = document.querySelector('.section-header .link-button');
-                if (viewAllBtn) {
-                    viewAllBtn.textContent = 'Show Less';
-                    viewAllBtn.onclick = (e) => {
-                        e.preventDefault();
-                        this.loadRecentNotes();
-                        viewAllBtn.textContent = 'View All';
-                        viewAllBtn.onclick = (e) => {
-                            e.preventDefault();
-                            this.loadAllNotes();
-                        };
-                    };
-                }
+                this.allNotesData = data.notes;  // 保存所有笔记数据
+                this.renderAllNotesModal(data.notes);
             } else {
                 Utils.showNotification('No notes found', 'info');
             }
@@ -823,7 +856,239 @@ class NoteAssistantManager {
         }
     }
     
-    // Render all notes in the grid (without limit)
+    // 获取所有科目列表
+    getSubjectList(notes) {
+        const subjects = new Set();
+        notes.forEach(note => {
+            if (note.subject) {
+                subjects.add(note.subject);
+            }
+        });
+        return Array.from(subjects).sort();
+    }
+    
+    // 根据科目筛选笔记
+    filterNotesBySubject(subject) {
+        const notesContainer = document.getElementById('allNotesContainer');
+        const modal = document.querySelector('.all-notes-modal');
+        if (!notesContainer || !this.allNotesData) return;
+        
+        let filteredNotes = this.allNotesData;
+        if (subject && subject !== 'all') {
+            filteredNotes = this.allNotesData.filter(note => note.subject === subject);
+        }
+        
+        // 更新标题显示数量
+        const titleEl = document.getElementById('allNotesTitle');
+        if (titleEl) {
+            if (subject && subject !== 'all') {
+                titleEl.textContent = `${subject} (${filteredNotes.length})`;
+            } else {
+                titleEl.textContent = `All Notes (${filteredNotes.length})`;
+            }
+        }
+        
+        // 更新笔记列表
+        if (filteredNotes.length > 0) {
+            notesContainer.innerHTML = filteredNotes.map(note => this.createCompactNoteCardHTML(note)).join('');
+            
+            // 重新绑定所有按钮事件
+            if (modal) {
+                this.bindAllNotesModalEvents(modal);
+            }
+        } else {
+            notesContainer.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: hsl(var(--muted-foreground));">
+                    <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i>
+                    <p style="font-size: 16px; margin: 0;">No notes in this subject</p>
+                </div>
+            `;
+        }
+    }
+    
+    // 渲染所有笔记的模态框
+    renderAllNotesModal(notes) {
+        // 获取所有科目
+        const subjects = this.getSubjectList(notes);
+        
+        const modal = document.createElement('div');
+        modal.className = 'note-modal all-notes-modal';
+        modal.style.zIndex = '10000';
+        
+        modal.innerHTML = `
+            <div class="note-modal-content" style="max-width: 900px; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column;">
+                <div class="note-modal-header" style="flex-shrink: 0;">
+                    <h3 id="allNotesTitle">All Notes (${notes.length})</h3>
+                    <button class="close-button" onclick="this.closest('.note-modal').remove()">×</button>
+                </div>
+                
+                <!-- 科目筛选 -->
+                <div style="padding: 12px 20px; border-bottom: 1px solid hsl(var(--border)); display: flex; align-items: center; gap: 12px;">
+                    <label style="font-size: 14px; color: hsl(var(--muted-foreground));">
+                        <i class="fas fa-filter"></i> Filter by Subject:
+                    </label>
+                    <select id="subjectFilter" style="
+                        padding: 8px 12px;
+                        border: 1px solid hsl(var(--border));
+                        border-radius: 6px;
+                        background: hsl(var(--background));
+                        color: hsl(var(--foreground));
+                        font-size: 14px;
+                        min-width: 150px;
+                        cursor: pointer;
+                    ">
+                        <option value="all">All Subjects</option>
+                        ${subjects.map(s => `<option value="${s}">${s}</option>`).join('')}
+                    </select>
+                    <span id="subjectCount" style="font-size: 12px; color: hsl(var(--muted-foreground));">
+                        ${subjects.length} subjects
+                    </span>
+                </div>
+                
+                <div class="note-modal-body" style="flex: 1; overflow-y: auto; padding: 20px;">
+                    <div id="allNotesContainer" class="all-notes-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+                        ${notes.map(note => this.createCompactNoteCardHTML(note)).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // 点击背景关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+        
+        // 绑定筛选事件
+        const filterSelect = document.getElementById('subjectFilter');
+        if (filterSelect) {
+            filterSelect.addEventListener('change', (e) => {
+                this.filterNotesBySubject(e.target.value);
+            });
+        }
+        
+        // 绑定所有按钮事件
+        this.bindAllNotesModalEvents(modal);
+    }
+    
+    // 绑定 View All 模态框中的按钮事件
+    bindAllNotesModalEvents(modal) {
+        // 查看按钮
+        modal.querySelectorAll('.view-note-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const noteId = btn.dataset.id;
+                modal.remove();
+                this.viewNoteDetail(noteId);
+            });
+        });
+        
+        // 编辑按钮
+        modal.querySelectorAll('.edit-note-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const noteId = btn.dataset.id;
+                modal.remove();
+                this.editNote(noteId);
+            });
+        });
+        
+        // 删除按钮
+        modal.querySelectorAll('.delete-note-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const noteId = btn.dataset.id;
+                if (confirm('Are you sure you want to delete this note?')) {
+                    await this.deleteNote(noteId);
+                    // 刷新模态框中的笔记列表
+                    const card = btn.closest('.compact-note-card');
+                    if (card) {
+                        card.remove();
+                    }
+                    // 更新标题中的数量
+                    const remaining = modal.querySelectorAll('.compact-note-card').length;
+                    const titleEl = document.getElementById('allNotesTitle');
+                    if (titleEl) {
+                        titleEl.textContent = `All Notes (${remaining})`;
+                    }
+                }
+            });
+        });
+    }
+    
+    // 紧凑型笔记卡片 HTML
+    createCompactNoteCardHTML(note) {
+        const date = note.date || new Date().toISOString().split('T')[0];
+        const formattedDate = this.formatDate(date);
+        const keyPointsCount = note.content?.key_points?.length || 0;
+        
+        return `
+            <div class="compact-note-card" data-note-id="${note.id}" style="
+                background: hsl(var(--card));
+                border: 1px solid hsl(var(--border));
+                border-radius: 8px;
+                padding: 16px;
+                transition: all 0.2s;
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                    <span style="background: hsl(var(--primary)); color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+                        ${note.subject || 'General'}
+                    </span>
+                    <span style="font-size: 12px; color: hsl(var(--muted-foreground));">
+                        ${formattedDate}
+                    </span>
+                </div>
+                <h4 style="font-size: 15px; font-weight: 600; margin: 8px 0; color: hsl(var(--foreground)); line-height: 1.4;">
+                    ${note.title || 'Untitled Note'}
+                </h4>
+                <p style="font-size: 13px; color: hsl(var(--muted-foreground)); margin: 8px 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                    ${note.preview || 'No preview available'}
+                </p>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid hsl(var(--border));">
+                    <span style="font-size: 12px; color: hsl(var(--muted-foreground));">
+                        ${keyPointsCount} Key Points
+                    </span>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="view-note-btn" data-id="${note.id}" style="
+                            background: transparent;
+                            border: 1px solid hsl(var(--border));
+                            color: hsl(var(--foreground));
+                            padding: 6px 12px;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        ">View</button>
+                        <button class="edit-note-btn" data-id="${note.id}" style="
+                            background: transparent;
+                            border: 1px solid hsl(var(--border));
+                            color: hsl(var(--foreground));
+                            padding: 6px 12px;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        ">Edit</button>
+                        <button class="delete-note-btn" data-id="${note.id}" style="
+                            background: hsl(var(--primary));
+                            border: none;
+                            color: white;
+                            padding: 6px 12px;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        ">Delete</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Render all notes in the grid (without limit) - 保留原有方法以防其他地方调用
     renderAllNoteCards(notes) {
         const notesGrid = document.querySelector('.notes-grid');
         if (!notesGrid) return;
