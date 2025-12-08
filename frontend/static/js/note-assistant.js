@@ -404,7 +404,7 @@ class NoteAssistantManager {
             const transcribeBtn = document.getElementById('transcribeBtn');
             Utils.showLoadingState(transcribeBtn, 'recognizing...');
             
-            const response = await fetch('http://localhost:5000/api/note/transcribe', {
+            const response = await fetch(window.getApiUrl('/api/note/transcribe'), {
                 method: 'POST',
                 body: formData
             });
@@ -599,7 +599,7 @@ class NoteAssistantManager {
 
     async callGenerateAPI(text, subject = 'General') {
         try {
-            const response = await fetch('http://localhost:5000/api/note/generate', {
+            const response = await fetch(window.getApiUrl('/api/note/generate'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -709,7 +709,7 @@ class NoteAssistantManager {
     
     async loadRecentNotes() {
         try {
-            const response = await fetch('http://localhost:5000/api/note/list?limit=10');
+            const response = await fetch(window.getApiUrl('/api/note/list?limit=10'));
             const data = await response.json();
             
             if (data.success && data.notes && data.notes.length > 0) {
@@ -819,7 +819,7 @@ class NoteAssistantManager {
             
             console.log('Viewing note details:', noteId);
             
-            const response = await fetch(`http://localhost:5000/api/note/${noteId}`);
+            const response = await fetch(window.getApiUrl(`/api/note/${noteId}`));
             const data = await response.json();
             
             if (data.success && data.note) {
@@ -841,7 +841,7 @@ class NoteAssistantManager {
     // 显示所有笔记的模态框（带学科筛选）
     async showAllNotesModal() {
         try {
-            const response = await fetch('http://localhost:5000/api/note/list?limit=1000');
+            const response = await fetch(window.getApiUrl('/api/note/list?limit=1000'));
             const data = await response.json();
             
             if (data.success && data.notes && data.notes.length > 0) {
@@ -1106,7 +1106,7 @@ class NoteAssistantManager {
     // Open note in edit mode
     async editNote(noteId) {
         try {
-            const response = await fetch(`http://localhost:5000/api/note/${noteId}`);
+            const response = await fetch(window.getApiUrl(`/api/note/${noteId}`));
             const data = await response.json();
             
             if (data.success && data.note) {
@@ -1212,7 +1212,7 @@ class NoteAssistantManager {
             Utils.showLoadingState(saveBtn, 'Saving...');
             window.messageModal.toast('Saving changes...', 'info', 2000);
             
-            const response = await fetch(`http://localhost:5000/api/note/${noteId}`, {
+            const response = await fetch(window.getApiUrl(`/api/note/${noteId}`), {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'

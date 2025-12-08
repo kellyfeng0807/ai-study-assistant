@@ -2,7 +2,37 @@
  * AI Study Assistant - Main JavaScript
  */
 
-const API_BASE = 'http://localhost:5000/api';
+// 自动检测环境并设置 API 基础地址
+const currentHost = window.location.hostname;
+const isRenderProduction = currentHost.includes('onrender.com');
+const isLocalDevelopment = currentHost === 'localhost' || currentHost === '127.0.0.1';
+
+// 根据环境设置 API 基础地址
+let API_BASE;
+if (isRenderProduction || (!isLocalDevelopment && currentHost !== '')) {
+    // Render 或其他远程环境：使用当前域名
+    API_BASE = window.location.origin + '/api';
+} else {
+    // 本地开发环境
+    API_BASE = 'http://localhost:5000/api';
+}
+
+console.log('🌐 Main.js Environment:', { currentHost, isRenderProduction, isLocalDevelopment, API_BASE });
+
+// 全局函数：获取完整 API URL（供其他脚本使用）
+window.getApiUrl = function(endpoint) {
+    if (!endpoint.startsWith('/')) {
+        endpoint = '/' + endpoint;
+    }
+    // 如果endpoint已经包含/api，直接返回base+endpoint
+    if (endpoint.startsWith('/api')) {
+        return (isRenderProduction || (!isLocalDevelopment && currentHost !== '')) 
+            ? window.location.origin + endpoint 
+            : 'http://localhost:5000' + endpoint;
+    }
+    // 否则使用API_BASE
+    return API_BASE + endpoint;
+};
 
 const Utils = {
     async apiCall(endpoint, method = 'GET', data = null) {

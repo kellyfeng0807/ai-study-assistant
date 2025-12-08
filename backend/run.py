@@ -66,13 +66,25 @@ if __name__ == '__main__':
     parser.add_argument('--init-db', action='store_true', help='Initialize sqlite DB tables and migrate JSON notes')
     args = parser.parse_args()
 
-    app = create_app('development')
+    # 检测运行环境
+    is_render = os.getenv('RENDER') == 'true'
+    port = int(os.getenv('PORT', 5000))
+    
+    # 根据环境选择配置
+    config_name = 'production' if is_render else 'development'
+    app = create_app(config_name)
+    
     print("=" * 50)
     print("AI Study Assistant Backend Starting...")
     print("=" * 50)
-    print(f"Server: http://localhost:5000")
-    print(f"Mind Map: http://localhost:5000/map-generation")
-    print(f"Health Check: http://localhost:5000/api/health")
+    if is_render:
+        print(f"Environment: Render Production")
+        print(f"Listening at: http://0.0.0.0:{port}")
+    else:
+        print(f"Environment: Local Development")
+        print(f"Server: http://localhost:{port}")
+        print(f"Mind Map: http://localhost:{port}/map-generation")
+        print(f"Health Check: http://localhost:{port}/api/health")
     
     # 如果请求，初始化 DB 并迁移 JSON notes
     if args.init_db:
@@ -95,4 +107,6 @@ if __name__ == '__main__':
         print("DeepSeek API Key loaded")
     
     print("=" * 50)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    # Render 环境使用生产模式，本地使用调试模式
+    app.run(debug=not is_render, host='0.0.0.0', port=port)

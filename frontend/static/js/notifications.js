@@ -62,7 +62,7 @@ class NotificationManager {
     async loadNotifications() {
         try {
             // 从数据库获取通知
-            const response = await fetch('http://localhost:5000/api/notifications/list');
+            const response = await fetch(window.getApiUrl('/api/notifications/list'));
             const data = await response.json();
             
             if (data.success && data.notifications) {
@@ -169,7 +169,7 @@ class NotificationManager {
             notif.read = true;
             
             // 更新数据库
-            fetch(`http://localhost:5000/api/notifications/mark-read/${notificationId}`, {
+            fetch(window.getApiUrl(`/api/notifications/mark-read/${notificationId}`), {
                 method: 'POST'
             }).catch(err => console.error('Failed to mark notification as read:', err));
             
@@ -182,7 +182,7 @@ class NotificationManager {
         this.notifications.forEach(n => n.read = true);
         
         // 更新数据库
-        fetch('http://localhost:5000/api/notifications/mark-all-read', {
+        fetch(window.getApiUrl('/api/notifications/mark-all-read'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: 1 })
@@ -218,7 +218,7 @@ class NotificationManager {
         };
 
         // 保存到数据库
-        fetch('http://localhost:5000/api/notifications/create', {
+        fetch(window.getApiUrl('/api/notifications/create'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
