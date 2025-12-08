@@ -1,0 +1,345 @@
+/* Parent View Styles - Compatible with main.css */
+
+/* ===== Report Date ===== */
+.report-date {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-right: 12px;
+}
+
+.btn-secondary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    background: var(--bg-tertiary);
+}
+
+/* ===== Status Banner ===== */
+.status-banner {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.status-banner.status-excellent {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%);
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+.status-banner.status-good {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.status-banner.status-attention {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.status-icon {
+    font-size: 48px;
+    line-height: 1;
+}
+
+.status-content {
+    flex: 1;
+}
+
+.status-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+}
+
+.status-message {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* ===== Report Sections ===== */
+.report-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.section-header {
+    margin-bottom: 20px;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.section-title i {
+    font-size: 18px;
+}
+
+.concerns-section .section-title {
+    color: #dc2626;
+}
+
+.concerns-section .section-title i {
+    color: #dc2626;
+}
+
+.positives-section .section-title {
+    color: #16a34a;
+}
+
+.positives-section .section-title i {
+    color: #16a34a;
+}
+
+.recommendations-section .section-title {
+    color: #2563eb;
+}
+
+.recommendations-section .section-title i {
+    color: #2563eb;
+}
+
+/* ===== Report Cards ===== */
+.concerns-list,
+.positives-list,
+.recommendations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.report-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px 20px;
+    border-radius: 10px;
+    position: relative;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+}
+
+.concern-card.severity-high {
+    background: rgba(220, 38, 38, 0.05);
+    border-left: 4px solid #dc2626;
+}
+
+.concern-card.severity-medium {
+    background: rgba(245, 158, 11, 0.05);
+    border-left: 4px solid #f59e0b;
+}
+
+.positive-card {
+    background: rgba(34, 197, 94, 0.05);
+    border-left: 4px solid #16a34a;
+}
+
+.recommendation-card {
+    background: rgba(59, 130, 246, 0.05);
+    border-left: 4px solid #2563eb;
+}
+
+.card-icon {
+    font-size: 24px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.card-content {
+    flex: 1;
+}
+
+.card-category {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    margin-bottom: 2px;
+}
+
+.card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.card-message {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.severity-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.severity-badge.high {
+    background: #dc2626;
+    color: white;
+}
+
+.severity-badge.medium {
+    background: #f59e0b;
+    color: white;
+}
+
+/* ===== Subject Distribution ===== */
+.subjects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.subject-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.subject-name {
+    width: 120px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.subject-bar {
+    flex: 1;
+    height: 24px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.subject-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), #6366f1);
+    border-radius: 6px;
+    transition: width 0.6s ease-out;
+}
+
+.subject-count {
+    width: 80px;
+    text-align: right;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.no-data {
+    text-align: center;
+    color: var(--text-tertiary);
+    padding: 20px;
+    font-size: 14px;
+}
+
+/* ===== Print Styles ===== */
+@media print {
+    .sidebar {
+        display: none !important;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+    }
+    
+    .btn-secondary,
+    .theme-toggle {
+        display: none !important;
+    }
+    
+    .report-section {
+        break-inside: avoid;
+    }
+    
+    .status-banner {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 1200px) {
+    .metrics-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .content-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    
+    .header-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .status-banner {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .subject-item {
+        flex-wrap: wrap;
+    }
+    
+    .subject-name {
+        width: 100%;
+    }
+    
+    .subject-bar {
+        order: 3;
+        width: 100%;
+    }
+    
+    .severity-badge {
+        position: static;
+        margin-top: 8px;
+    }
+    
+    .report-card {
+        flex-wrap: wrap;
+    }
+}
