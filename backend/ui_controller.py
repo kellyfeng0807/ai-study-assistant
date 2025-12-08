@@ -2,7 +2,7 @@
 UI Controller - Controls web page navigation, animations, and interactions
 """
 
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, redirect
 import os
 
 ui_bp = Blueprint('ui', __name__)
@@ -11,12 +11,11 @@ FRONTEND_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'fronte
 
 @ui_bp.route('/')
 def index():
-    return send_from_directory(FRONTEND_PATH, 'index.html')
-
+    return redirect('/learning-dashboard')
 @ui_bp.route('/dashboard')
 def dashboard():
     # Dashboard is the same as index page
-    return send_from_directory(FRONTEND_PATH, 'index.html')
+    return redirect('/learning-dashboard')
 
 @ui_bp.route('/note-assistant')
 def note_assistant():
@@ -37,6 +36,10 @@ def learning_dashboard():
 @ui_bp.route('/settings')
 def settings():
     return send_from_directory(FRONTEND_PATH, 'settings.html')
+
+@ui_bp.route('/parent-view')
+def parent_view():
+    return send_from_directory(FRONTEND_PATH, 'parent-view.html')
 
 @ui_bp.route('/api/ui/animate', methods=['POST'])
 def trigger_animation():

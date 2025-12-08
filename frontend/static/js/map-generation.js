@@ -3,6 +3,45 @@
  * Enhanced with Mermaid rendering, file upload, and editing capabilities
  */
 
+
+let mapViewStartTime = null;
+let mapViewSubject = "General";
+
+function startMapViewTimer(subject = "General") {
+    mapViewStartTime = Date.now();
+    mapViewSubject = subject || "General";
+    console.log(`Started viewing mind map: ${mapViewSubject}`);
+}
+
+async function trackMapViewTime() {
+    if (!mapViewStartTime) return;
+    
+    const seconds = Math.floor((Date.now() - mapViewStartTime) / 1000);
+    mapViewStartTime = null; // 重置
+    
+    if (seconds < 5 || seconds > 7200) return;
+    
+    try {
+        await fetch('/api/track_time', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                seconds: seconds,
+                mode: 'review',
+                subject: mapViewSubject,
+                is_correct: 1
+            })
+        });
+        console.log(`Tracked ${seconds}s for viewing mind map (${mapViewSubject})`);
+    } catch (err) {
+        console.warn('Failed to track map view time:', err);
+    }
+}
+
+// 页面离开时追踪时间
+window.addEventListener('beforeunload', () => trackMapViewTime());
+window.addEventListener('pagehide', () => trackMapViewTime());
+
 // Initialize Mermaid with default theme
 mermaid.initialize({ 
     startOnLoad: false,

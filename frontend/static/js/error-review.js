@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return;
                     }
 
-                    redoResultEl.textContent = '🎉 答案已提交，已标记为已复习！';
+                    redoResultEl.textContent = '答案已提交，已标记为已复习！';
                     redoResultEl.className = 'redo-result ok';
 
                 } catch (err) {

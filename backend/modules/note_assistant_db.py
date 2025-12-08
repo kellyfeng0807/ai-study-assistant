@@ -58,6 +58,10 @@ def _fallback_notes(text, subject):
     title = sentences[0][:15] + "..." if sentences else "note"
     summary = text[:100] + "..." if len(text) > 100 else text
 
+    # 如果没有科目，默认使用 General
+    if not subject:
+        subject = 'General'
+        
     fallback_notes = {
         'title': title,
         'subject': subject,
@@ -184,20 +188,27 @@ def generate_note():
     try:
         payload = request.get_json() or {}
         text = payload.get('text', '').strip()
-        subject = payload.get('subject', 'General')
+        subject = payload.get('subject', '')
         if not text:
             return jsonify({'success': False, 'error': 'text is required'}), 400
 
+        if subject:
+            subject_instruction = f'Subject is specified as: {subject}'
+        else:
+            subject_instruction = 'Please identify the subject based on content. Use English subject names only (e.g., Mathematics, Physics, Chemistry, Biology, English, Chinese, History, Geography, Computer Science, Economics, Politics, Art, Music, etc.)'
+        
         # Construct the prompt
         prompt = f"""请将以下内容整理成结构化的学习笔记。
 
 原始内容：
 {text}
 
+{subject_instruction}
+
 请按照以下格式输出JSON：
 {{
     "title": "笔记标题",
-    "subject": "{subject}",
+    "subject": "Subject name in English",
     "key_points": ["关键点1", "关键点2", "关键点3"],
     "examples": ["示例1", "示例2"],
     "summary": "内容总结（50-100字）",
@@ -209,7 +220,8 @@ def generate_note():
 2. 如果有例子，提取1-3个代表性示例
 3. 生成简洁的总结
 4. 添加2-3个相关标签
-5. 只返回JSON，不要其他文字"""
+5. subject 字段必须使用英文学科名称（如 Mathematics, Physics, Chemistry, Biology, Chinese, English, History, Geography, Computer Science 等）
+6. 只返回JSON，不要其他文字"""
 
         notes_data = None
         if DEEPSEEK_API_KEY:

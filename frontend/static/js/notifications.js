@@ -61,58 +61,23 @@ class NotificationManager {
 
     async loadNotifications() {
         try {
-            // 从 localStorage 读取通知
-            const stored = localStorage.getItem('notifications');
-            if (stored) {
-                this.notifications = JSON.parse(stored);
+            // 从数据库获取通知
+            const response = await fetch('http://localhost:5000/api/notifications/list');
+            const data = await response.json();
+            
+            if (data.success && data.notifications) {
+                this.notifications = data.notifications;
             } else {
-                // 初始化默认通知
-                this.notifications = this.getDefaultNotifications();
-                this.saveNotifications();
+                this.notifications = [];
             }
 
             this.renderNotifications();
             this.updateBadge();
         } catch (error) {
             console.error('Error loading notifications:', error);
-            this.notifications = this.getDefaultNotifications();
+            this.notifications = [];
             this.renderNotifications();
         }
-    }
-
-    getDefaultNotifications() {
-        return [
-            {
-                id: 'notif-1',
-                title: 'Note Generation Complete',
-                message: 'Your note "Machine Learning Basics" has been successfully generated with 5 key points.',
-                time: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-                read: false,
-                type: 'success',
-                icon: 'fa-file-alt',
-                link: '/note-assistant'
-            },
-            {
-                id: 'notif-2',
-                title: 'Daily Goal Achieved',
-                message: 'Congratulations! You\'ve completed your daily study goal of 2 hours.',
-                time: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-                read: false,
-                type: 'success',
-                icon: 'fa-trophy',
-                link: '/dashboard'
-            },
-            {
-                id: 'notif-3',
-                title: '3 Errors Pending Review',
-                message: 'You have 3 errors in your Error Book that need review. Don\'t forget to practice!',
-                time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-                read: false,
-                type: 'warning',
-                icon: 'fa-exclamation-circle',
-                link: '/error-book'
-            }
-        ];
     }
 
     renderNotifications() {
@@ -202,7 +167,12 @@ class NotificationManager {
         const notif = this.notifications.find(n => n.id === notificationId);
         if (notif && !notif.read) {
             notif.read = true;
-            this.saveNotifications();
+            
+            // 更新数据库
+            fetch(`http://localhost:5000/api/notifications/mark-read/${notificationId}`, {
+                method: 'POST'
+            }).catch(err => console.error('Failed to mark notification as read:', err));
+            
             this.renderNotifications();
             this.updateBadge();
         }
@@ -210,7 +180,14 @@ class NotificationManager {
 
     markAllAsRead() {
         this.notifications.forEach(n => n.read = true);
-        this.saveNotifications();
+        
+        // 更新数据库
+        fetch('http://localhost:5000/api/notifications/mark-all-read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: 1 })
+        }).catch(err => console.error('Failed to mark all as read:', err));
+        
         this.renderNotifications();
         this.updateBadge();
         if (window.messageModal) {
@@ -233,7 +210,6 @@ class NotificationManager {
 
     addNotification(notification) {
         const newNotif = {
-            id: `notif-${Date.now()}`,
             time: new Date().toISOString(),
             read: false,
             type: 'info',
@@ -241,10 +217,28 @@ class NotificationManager {
             ...notification
         };
 
-        this.notifications.unshift(newNotif);
-        this.saveNotifications();
-        this.renderNotifications();
-        this.updateBadge();
+        // 保存到数据库
+        fetch('http://localhost:5000/api/notifications/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: 1,
+                title: newNotif.title,
+                message: newNotif.message,
+                type: newNotif.type,
+                icon: newNotif.icon,
+                link: newNotif.link
+            })
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  newNotif.id = data.notification_id;
+                  this.notifications.unshift(newNotif);
+                  this.renderNotifications();
+                  this.updateBadge();
+              }
+          })
+          .catch(err => console.error('Failed to add notification:', err));
 
         // 显示 toast
         if (window.messageModal) {
@@ -253,11 +247,7 @@ class NotificationManager {
     }
 
     saveNotifications() {
-        try {
-            localStorage.setItem('notifications', JSON.stringify(this.notifications));
-        } catch (error) {
-            console.error('Error saving notifications:', error);
-        }
+        // 不再使用 localStorage，数据保存在数据库中
     }
 
     togglePanel() {

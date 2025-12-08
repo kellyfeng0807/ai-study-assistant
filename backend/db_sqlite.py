@@ -142,6 +142,22 @@ def init_db():
     ''')
     conn.commit()
     
+    # Create notifications table
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER DEFAULT 1,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        type TEXT DEFAULT 'info',
+        icon TEXT DEFAULT 'fa-bell',
+        link TEXT,
+        read INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    conn.commit()
+    
     conn.close()
 
 
@@ -605,6 +621,95 @@ def update_error_redo(error_id, redo_answer):
         UPDATE error_book SET redo_answer=?, redo_time=?, reviewed=1, updated_at=?
         WHERE id=?
     ''', (redo_answer, now, now, error_id))
+    conn.commit()
+    changes = cur.rowcount
+    conn.close()
+    return changes > 0
+
+
+# ========== Notification Functions ==========
+
+def _row_to_notification_dict(row):
+    """Convert a database row to notification dict."""
+    if not row:
+        return None
+    
+    return {
+        'id': row['id'],
+        'user_id': row['user_id'],
+        'title': row['title'],
+        'message': row['message'],
+        'type': row['type'],
+        'icon': row['icon'],
+        'link': row['link'],
+        'read': bool(row['read']),
+        'time': row['created_at']
+    }
+
+
+def insert_notification(user_id, title, message, notif_type='info', icon='fa-bell', link=None):
+    """Insert a new notification."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    
+    cur.execute('''
+        INSERT INTO notifications (user_id, title, message, type, icon, link, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (user_id, title, message, notif_type, icon, link, now))
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return new_id
+
+
+def list_notifications(user_id=1, limit=50):
+    """List notifications for a user."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    cur.execute('''
+        SELECT * FROM notifications 
+        WHERE user_id=? 
+        ORDER BY created_at DESC 
+        LIMIT ?
+    ''', (user_id, limit))
+    
+    rows = cur.fetchall()
+    conn.close()
+    return [_row_to_notification_dict(r) for r in rows]
+
+
+def mark_notification_read(notification_id):
+    """Mark a notification as read."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    cur.execute('UPDATE notifications SET read=1 WHERE id=?', (notification_id,))
+    conn.commit()
+    changes = cur.rowcount
+    conn.close()
+    return changes > 0
+
+
+def mark_all_notifications_read(user_id=1):
+    """Mark all notifications as read for a user."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    cur.execute('UPDATE notifications SET read=1 WHERE user_id=?', (user_id,))
+    conn.commit()
+    changes = cur.rowcount
+    conn.close()
+    return changes
+
+
+def delete_notification(notification_id):
+    """Delete a notification."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    cur.execute('DELETE FROM notifications WHERE id=?', (notification_id,))
     conn.commit()
     changes = cur.rowcount
     conn.close()
