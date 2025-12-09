@@ -6,41 +6,20 @@ from flask import Blueprint, request, jsonify
 import os
 import json
 from datetime import datetime
+import sys
+
+# Add parent directory to path so we can import db_sqlite
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from db_sqlite import get_user_settings, update_user_settings, update_password, verify_password
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/api/settings')
-
-DATA_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'data')
-SETTINGS_FILE = os.path.join(DATA_FOLDER, 'user_settings.json')
-
-# 确保目录存在
-os.makedirs(DATA_FOLDER, exist_ok=True)
-
-def load_settings():
-    """加载用户设置"""
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    
-    # 默认设置
-    return {
-        'username': 'Student',
-        'email': 'student@example.com',
-        'grade_level': '9',
-        'daily_goal': 120,
-        'updated_at': datetime.now().isoformat()
-    }
-
-def save_settings(settings):
-    """保存用户设置"""
-    settings['updated_at'] = datetime.now().isoformat()
-    with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(settings, f, ensure_ascii=False, indent=2)
 
 @settings_bp.route('/', methods=['GET'])
 def get_settings():
     """获取用户设置"""
     try:
-        settings = load_settings()
+        # TODO: Get user_id from session after auth system is implemented
+        settings = get_user_settings(user_id='default')
         return jsonify({
             'success': True,
             'settings': settings
@@ -48,7 +27,7 @@ def get_settings():
     except Exception as e:
         return jsonify({
             'success': False,
-            'error': str(e)
+            'message': str(e)
         }), 500
 
 @settings_bp.route('/', methods=['PUT'])
@@ -64,10 +43,11 @@ def update_settings():
                 'error': 'No data provided'
             }), 400
         
-        # 加载当前设置
-        settings = load_settings()
+        # TODO: Get user_id from session after auth system is implemented
+        user_id = 'default'
         
-        # 更新字段
+        # 准备更新的设置（不包括密码）
+        settings = {}
         if 'username' in data:
             settings['username'] = data['username']
         if 'email' in data:
@@ -83,14 +63,35 @@ def update_settings():
                 }), 400
             settings['daily_goal'] = daily_goal
         
-        # 保存设置
-        save_settings(settings)
+        # 处理密码修改（单独处理）
+        password_updated = False
+        if 'password' in data and data['password']:
+            password = data['password']
+            if len(password) < 6:
+                return jsonify({
+                    'success': False,
+                    'error': 'Password must be at least 6 characters'
+                }), 400
+            if update_password(user_id, password):
+                password_updated = True
         
-        return jsonify({
-            'success': True,
-            'settings': settings,
-            'message': 'Settings updated successfully'
-        })
+        # 保存其他设置到数据库
+        settings_updated = False
+        if settings:
+            settings_updated = update_user_settings(settings, user_id=user_id)
+        
+        if settings_updated or password_updated or not settings:
+            updated_settings = get_user_settings(user_id=user_id)
+            return jsonify({
+                'success': True,
+                'settings': updated_settings,
+                'message': 'Settings updated successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to update settings'
+            }), 500
     
     except ValueError as e:
         return jsonify({
@@ -107,21 +108,28 @@ def update_settings():
 def reset_settings():
     """重置为默认设置"""
     try:
+        # TODO: Get user_id from session after auth system is implemented
+        user_id = 'default'
+        
         default_settings = {
             'username': 'Student',
-            'email': 'student@example.com',
-            'grade_level': '9',
-            'daily_goal': 120,
-            'updated_at': datetime.now().isoformat()
+            'email': '',
+            'grade_level': '',
+            'daily_goal': 60
         }
         
-        save_settings(default_settings)
-        
-        return jsonify({
-            'success': True,
-            'settings': default_settings,
-            'message': 'Settings reset to default'
-        })
+        if update_user_settings(default_settings, user_id=user_id):
+            settings = get_user_settings(user_id=user_id)
+            return jsonify({
+                'success': True,
+                'settings': settings,
+                'message': 'Settings reset to default'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to reset settings'
+            }), 500
     except Exception as e:
         return jsonify({
             'success': False,

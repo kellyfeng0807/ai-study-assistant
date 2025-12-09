@@ -297,6 +297,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
+    // Load user profile for sidebar
+    loadUserProfile();
+    
     // Initialize global AI Chat float for all pages
     try {
         // Ensure CSS for ai-chat is loaded (if not present)
@@ -315,6 +318,41 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Failed to initialize global AI Chat:', e);
     }
 });
+
+/**
+ * Load user profile from settings API and update sidebar
+ */
+async function loadUserProfile() {
+    try {
+        const response = await fetch(window.getApiUrl('/settings/'));
+        const data = await response.json();
+        
+        if (data.success && data.settings) {
+            const settings = data.settings;
+            
+            // Update username
+            document.querySelectorAll('.user-name').forEach(el => {
+                el.textContent = settings.username || 'Student';
+            });
+            
+            // Update email
+            document.querySelectorAll('.user-email').forEach(el => {
+                el.textContent = settings.email || 'student@example.com';
+            });
+            
+            // Update avatar
+            document.querySelectorAll('.avatar').forEach(el => {
+                const initial = (settings.username || 'S')[0].toUpperCase();
+                el.textContent = initial;
+            });
+        }
+    } catch (error) {
+        console.error('Failed to load user profile:', error);
+    }
+}
+
+// Make loadUserProfile globally accessible for Settings page
+window.loadUserProfile = loadUserProfile;
 
 function initSidebarToggle() {
     const sidebar = document.getElementById('sidebar');

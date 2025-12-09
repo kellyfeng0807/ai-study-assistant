@@ -7,6 +7,8 @@ import os
 import sqlite3
 from datetime import datetime
 import json
+import hashlib
+import secrets
 
 _env_db = os.getenv('DATABASE_URI', '')
 if _env_db and _env_db.startswith('sqlite:'):
@@ -157,6 +159,44 @@ def init_db():
     )
     ''')
     conn.commit()
+    
+    # Create user_settings table
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS user_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT UNIQUE NOT NULL,
+        username TEXT DEFAULT 'Student',
+        email TEXT DEFAULT '',
+        password_hash TEXT NOT NULL DEFAULT '',
+        account_type TEXT DEFAULT 'student',
+        parent_id TEXT,
+        avatar_url TEXT,
+        grade_level TEXT DEFAULT '',
+        daily_goal INTEGER DEFAULT 60,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_id) REFERENCES user_settings(user_id)
+    )
+    ''')
+    conn.commit()
+    
+    # Migrate existing user_id column if it's INTEGER
+    try:
+        cur.execute("PRAGMA table_info(user_settings)")
+        cols = {c[1]: c[2] for c in cur.fetchall()}
+        
+        # Add missing columns if they don't exist
+        if 'password_hash' not in cols:
+            cur.execute("ALTER TABLE user_settings ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
+        if 'account_type' not in cols:
+            cur.execute("ALTER TABLE user_settings ADD COLUMN account_type TEXT DEFAULT 'student'")
+        if 'parent_id' not in cols:
+            cur.execute("ALTER TABLE user_settings ADD COLUMN parent_id TEXT")
+        if 'avatar_url' not in cols:
+            cur.execute("ALTER TABLE user_settings ADD COLUMN avatar_url TEXT")
+        conn.commit()
+    except Exception as e:
+        print(f"Migration note: {e}")
     
     conn.close()
 
@@ -714,3 +754,314 @@ def delete_notification(notification_id):
     changes = cur.rowcount
     conn.close()
     return changes > 0
+
+
+# ============================================
+# User Settings Functions
+# ============================================
+
+def generate_user_id():
+    """Generate a unique user ID."""
+    return secrets.token_hex(8)  # 16 character hex string
+
+
+def hash_password(password):
+    """Hash a password using SHA-256 with salt."""
+    salt = secrets.token_hex(16)
+    pwd_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+    return f"{salt}${pwd_hash}"
+
+
+def verify_password(password, password_hash):
+    """Verify a password against its hash."""
+    if not password_hash or '$' not in password_hash:
+        return False
+    try:
+        salt, pwd_hash = password_hash.split('$', 1)
+        test_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+        return test_hash == pwd_hash
+    except Exception:
+        return False
+
+
+def get_user_settings(user_id='default'):
+    """Get user settings from database. Creates default settings if not exists."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    # Try to find by user_id (TEXT)
+    cur.execute('SELECT * FROM user_settings WHERE user_id=?', (user_id,))
+    row = cur.fetchone()
+    
+    # If not found and user_id is 'default', try to find the first record (migration support)
+    if not row and user_id == 'default':
+        cur.execute('SELECT * FROM user_settings ORDER BY id LIMIT 1')
+        row = cur.fetchone()
+        
+        # If found an old record with INTEGER user_id or empty string, migrate it
+        if row:
+            current_user_id = row['user_id']
+            # Only migrate if user_id is empty, '1', or looks like an integer
+            needs_migration = False
+            try:
+                if not current_user_id or current_user_id == '' or (isinstance(current_user_id, (int, str)) and str(current_user_id).isdigit()):
+                    needs_migration = True
+            except:
+                needs_migration = False
+            
+            if needs_migration:
+                old_id = row['id']
+                new_user_id = generate_user_id()
+                try:
+                    cur.execute('UPDATE user_settings SET user_id=? WHERE id=?', (new_user_id, old_id))
+                    conn.commit()
+                    # Re-fetch the updated row
+                    cur.execute('SELECT * FROM user_settings WHERE user_id=?', (new_user_id,))
+                    row = cur.fetchone()
+                except Exception as e:
+                    print(f"Migration update failed: {e}")
+    
+    if not row:
+        # Create default settings with default user_id
+        now = datetime.now().isoformat()
+        default_user_id = user_id if user_id != 'default' else generate_user_id()
+        try:
+            cur.execute('''
+                INSERT INTO user_settings (user_id, username, email, password_hash, account_type, grade_level, daily_goal, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (default_user_id, 'Student', '', '', 'student', '', 60, now, now))
+            conn.commit()
+            
+            cur.execute('SELECT * FROM user_settings WHERE user_id=?', (default_user_id,))
+            row = cur.fetchone()
+        except Exception as e:
+            print(f"Insert failed: {e}")
+            conn.close()
+            return {
+                'user_id': 'default',
+                'username': 'Student',
+                'email': '',
+                'account_type': 'student',
+                'parent_id': None,
+                'avatar_url': None,
+                'grade_level': '',
+                'daily_goal': 60,
+                'updated_at': datetime.now().isoformat()
+            }
+    
+    conn.close()
+    
+    if row:
+        # Handle both old and new schema
+        user_id_value = str(row['user_id']) if row['user_id'] else 'default'
+        account_type_value = row['account_type'] if 'account_type' in row.keys() else 'student'
+        parent_id_value = row['parent_id'] if 'parent_id' in row.keys() else None
+        avatar_url_value = row['avatar_url'] if 'avatar_url' in row.keys() else None
+        
+        return {
+            'user_id': user_id_value,
+            'username': row['username'],
+            'email': row['email'],
+            'account_type': account_type_value,
+            'parent_id': parent_id_value,
+            'avatar_url': avatar_url_value,
+            'grade_level': row['grade_level'],
+            'daily_goal': row['daily_goal'],
+            'updated_at': row['updated_at']
+        }
+    return {
+        'user_id': 'default',
+        'username': 'Student',
+        'email': '',
+        'account_type': 'student',
+        'parent_id': None,
+        'avatar_url': None,
+        'grade_level': '',
+        'daily_goal': 60,
+        'updated_at': datetime.now().isoformat()
+    }
+
+
+def update_user_settings(settings, user_id='default'):
+    """Update user settings in database."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    
+    # First, try to find by user_id
+    cur.execute('SELECT id, user_id FROM user_settings WHERE user_id=?', (user_id,))
+    exists = cur.fetchone()
+    
+    # If not found and user_id is 'default', try to find the first record
+    actual_user_id = user_id
+    if not exists and user_id == 'default':
+        cur.execute('SELECT id, user_id FROM user_settings ORDER BY id LIMIT 1')
+        exists = cur.fetchone()
+        if exists:
+            # Use the found user_id for update
+            actual_user_id = str(exists['user_id'])
+    
+    if exists:
+        # Build update query dynamically based on provided fields
+        update_fields = []
+        values = []
+        
+        if 'username' in settings:
+            update_fields.append('username=?')
+            values.append(settings['username'])
+        if 'email' in settings:
+            update_fields.append('email=?')
+            values.append(settings['email'])
+        if 'grade_level' in settings:
+            update_fields.append('grade_level=?')
+            values.append(settings['grade_level'])
+        if 'daily_goal' in settings:
+            update_fields.append('daily_goal=?')
+            values.append(settings['daily_goal'])
+        if 'avatar_url' in settings:
+            update_fields.append('avatar_url=?')
+            values.append(settings['avatar_url'])
+        
+        if not update_fields:
+            # No fields to update
+            conn.close()
+            return True
+        
+        update_fields.append('updated_at=?')
+        values.append(now)
+        values.append(actual_user_id)  # Use actual_user_id instead of user_id
+        
+        query = f"UPDATE user_settings SET {', '.join(update_fields)} WHERE user_id=?"
+        cur.execute(query, values)
+    else:
+        # Create new settings
+        new_user_id = user_id if user_id != 'default' else generate_user_id()
+        try:
+            cur.execute('''
+                INSERT INTO user_settings (user_id, username, email, password_hash, account_type, grade_level, daily_goal, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                new_user_id,
+                settings.get('username', 'Student'),
+                settings.get('email', ''),
+                '',
+                settings.get('account_type', 'student'),
+                settings.get('grade_level', ''),
+                settings.get('daily_goal', 60),
+                now,
+                now
+            ))
+        except Exception as e:
+            print(f"Insert failed in update_user_settings: {e}")
+            conn.close()
+            return False
+    
+    conn.commit()
+    changes = cur.rowcount
+    conn.close()
+    return changes > 0
+
+
+def update_password(user_id, new_password):
+    """Update user password."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    
+    # Try to find by user_id
+    cur.execute('SELECT id, user_id FROM user_settings WHERE user_id=?', (user_id,))
+    exists = cur.fetchone()
+    
+    # If not found and user_id is 'default', try to find the first record
+    actual_user_id = user_id
+    if not exists and user_id == 'default':
+        cur.execute('SELECT id, user_id FROM user_settings ORDER BY id LIMIT 1')
+        exists = cur.fetchone()
+        if exists:
+            actual_user_id = str(exists['user_id'])
+    
+    if not exists:
+        conn.close()
+        return False
+    
+    password_hash = hash_password(new_password)
+    cur.execute('''
+        UPDATE user_settings 
+        SET password_hash=?, updated_at=?
+        WHERE user_id=?
+    ''', (password_hash, now, actual_user_id))  # Use actual_user_id
+    
+    conn.commit()
+    changes = cur.rowcount
+    conn.close()
+    return changes > 0
+
+
+def get_user_by_email(email):
+    """Get user by email address."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    cur.execute('SELECT * FROM user_settings WHERE email=?', (email,))
+    row = cur.fetchone()
+    conn.close()
+    
+    if row:
+        return {
+            'user_id': row['user_id'],
+            'username': row['username'],
+            'email': row['email'],
+            'password_hash': row['password_hash'],
+            'account_type': row['account_type'],
+            'parent_id': row['parent_id'] if 'parent_id' in row.keys() else None,
+            'avatar_url': row['avatar_url'] if 'avatar_url' in row.keys() else None,
+            'grade_level': row['grade_level'],
+            'daily_goal': row['daily_goal']
+        }
+    return None
+
+
+def create_user(email, username, password, account_type='student', parent_id=None, grade_level='', daily_goal=60, avatar_url=None):
+    """Create a new user account."""
+    conn = get_conn()
+    cur = conn.cursor()
+    now = datetime.now().isoformat()
+    
+    user_id = generate_user_id()
+    password_hash = hash_password(password)
+    
+    try:
+        cur.execute('''
+            INSERT INTO user_settings (user_id, username, email, password_hash, account_type, parent_id, avatar_url, grade_level, daily_goal, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, username, email, password_hash, account_type, parent_id, avatar_url, grade_level, daily_goal, now, now))
+        conn.commit()
+        conn.close()
+        return user_id
+    except sqlite3.IntegrityError as e:
+        conn.close()
+        return None
+
+
+def get_students_by_parent(parent_id):
+    """Get all student accounts under a parent."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    cur.execute('SELECT * FROM user_settings WHERE parent_id=?', (parent_id,))
+    rows = cur.fetchall()
+    conn.close()
+    
+    students = []
+    for row in rows:
+        students.append({
+            'user_id': row['user_id'],
+            'username': row['username'],
+            'email': row['email'],
+            'account_type': row['account_type'],
+            'avatar_url': row['avatar_url'] if 'avatar_url' in row.keys() else None,
+            'grade_level': row['grade_level'],
+            'daily_goal': row['daily_goal']
+        })
+    return students
+
