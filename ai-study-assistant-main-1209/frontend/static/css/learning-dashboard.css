@@ -1,0 +1,1391 @@
+/* Learning Dashboard Styles */
+
+/* ===== 控制栏 ===== */
+.dashboard-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+}
+
+.controls-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.controls-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.period-select {
+    padding: 8px 16px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.period-select:hover {
+    border-color: hsl(var(--foreground));
+}
+
+/* ===== 核心指标网格 ===== */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.metric-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.metric-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.metric-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: hsl(var(--secondary));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: hsl(var(--primary));
+}
+
+.metric-info {
+    flex: 1;
+}
+
+.metric-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin-bottom: 4px;
+}
+
+.metric-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+}
+
+.metric-trend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.metric-trend.positive {
+    color: hsl(142.1 76.2% 36.3%);
+    background: hsl(142.1 76.2% 36.3% / 0.1);
+}
+
+.metric-trend.negative {
+    color: hsl(0 84.2% 60.2%);
+    background: hsl(0 84.2% 60.2% / 0.1);
+}
+
+/* ===== 图表网格 ===== */
+.charts-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.chart-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.chart-card.large {
+    grid-column: span 1;
+}
+
+.chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.chart-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0;
+}
+
+.chart-legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+
+.legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.chart-container {
+    padding: 20px;
+    min-height: 200px;
+}
+
+/* ===== 柱状图 ===== */
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    height: 200px;
+    gap: 8px;
+    padding: 20px 10px 0 10px;
+    position: relative;
+}
+
+.bar-group {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    position: relative;
+    min-width: 50px;
+}
+
+.bar {
+    transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bar-label {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    font-weight: 500;
+    margin-top: 8px;
+}
+
+/* ===== 进度条列表 ===== */
+.progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    height: 100%;
+}
+
+/* ===== 饼状图 ===== */
+.pie-chart-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    padding: 20px;
+}
+
+.pie-chart {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.pie-chart-center {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    background: hsl(var(--card));
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.pie-total {
+    font-size: 28px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    line-height: 1;
+}
+
+.pie-label {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+
+.pie-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pie-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+}
+
+.pie-legend-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.pie-legend-value {
+    color: hsl(var(--muted-foreground));
+    font-weight: 600;
+}
+
+.progress-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+}
+
+.progress-bar {
+    height: 8px;
+    background: hsl(var(--secondary));
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 600ms ease-out;
+}
+
+/* ===== 复习统计 ===== */
+.review-stats {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+}
+
+.review-stat-item {
+    padding: 20px;
+    background: hsl(var(--secondary));
+    border-radius: var(--radius);
+}
+
+.review-stat-label {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.review-stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin-bottom: 12px;
+}
+
+.review-stat-value .completed {
+    color: hsl(142.1 76.2% 36.3%);
+}
+
+.review-stat-bar {
+    height: 8px;
+    background: hsl(var(--border));
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.review-stat-fill {
+    height: 100%;
+    background: hsl(142.1 76.2% 36.3%);
+    border-radius: 4px;
+    transition: width 600ms ease-out;
+}
+
+/* ===== 环形进度图 ===== */
+.mastery-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.mastery-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    border-radius: var(--radius);
+    background: hsl(var(--secondary));
+    transition: var(--transition);
+}
+
+.mastery-item:hover {
+    transform: translateY(-2px);
+}
+
+.mastery-circle {
+    width: 80px;
+    height: 80px;
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.mastery-circle svg {
+    transform: rotate(-90deg);
+}
+
+.mastery-circle-bg {
+    fill: none;
+    stroke: hsl(var(--border));
+    stroke-width: 8;
+}
+
+.mastery-circle-progress {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s ease-out;
+}
+
+.mastery-percentage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+}
+
+.mastery-subject {
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    text-align: center;
+}
+
+/* ===== 性能分析卡片 ===== */
+.performance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.performance-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 20px;
+}
+
+.performance-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0 0 16px 0;
+}
+
+.performance-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.performance-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: hsl(var(--foreground));
+    padding: 10px 12px;
+    background: hsl(var(--secondary));
+    border-radius: var(--radius);
+}
+
+.performance-item i {
+    font-size: 14px;
+}
+
+.performance-item.positive i {
+    color: hsl(142.1 76.2% 36.3%);
+}
+
+.performance-item.warning i {
+    color: hsl(45 93% 47%);
+}
+
+/* ===== 学习习惯 ===== */
+.habits-info {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.habit-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: hsl(var(--secondary));
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+
+.habit-label {
+    color: hsl(var(--muted-foreground));
+    font-weight: 500;
+}
+
+.habit-value {
+    color: hsl(var(--foreground));
+    font-weight: 600;
+}
+
+/* ===== 复习计划 ===== */
+.review-schedule {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 12px;
+}
+
+.schedule-day {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+    transition: var(--transition);
+}
+
+.schedule-day.today {
+    border-color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.05);
+}
+
+.schedule-day:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.schedule-date {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 4px;
+}
+
+.schedule-day-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 8px;
+}
+
+.schedule-count {
+    font-size: 24px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin-bottom: 4px;
+}
+
+.schedule-label {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 1200px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .review-schedule {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-controls {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .controls-left,
+    .controls-right {
+        justify-content: center;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .metric-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .performance-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .review-schedule {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .mastery-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ===== 学习热力图 ===== */
+.heatmap-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.heatmap-card .chart-header {
+    padding: 0 0 16px 0;
+    border-bottom: none;
+}
+
+.heatmap-wrapper {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+}
+
+.heatmap-labels {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 0;
+}
+
+.heatmap-labels span {
+    height: 14px;
+    font-size: 10px;
+    color: hsl(var(--muted-foreground));
+    display: flex;
+    align-items: center;
+}
+
+.heatmap-grid {
+    display: flex;
+    gap: 3px;
+}
+
+.heatmap-week {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.heatmap-day {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.heatmap-day:hover {
+    transform: scale(1.2);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.heatmap-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid hsl(var(--border));
+}
+
+.heatmap-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+}
+
+.heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+}
+
+.heatmap-legend-item {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+/* ===== AI学习建议 ===== */
+.ai-suggestions-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.ai-suggestions-card .chart-header {
+    padding: 0 0 16px 0;
+    border-bottom: none;
+}
+
+.ai-suggestions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.suggestion-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border-radius: var(--radius);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.suggestion-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.suggestion-card.encouragement {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1px solid #bbf7d0;
+}
+
+.suggestion-card.suggestion {
+    background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+    border: 1px solid #fef08a;
+}
+
+.suggestion-icon {
+    font-size: 28px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.suggestion-content {
+    flex: 1;
+}
+
+.suggestion-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin-bottom: 4px;
+}
+
+.suggestion-message {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.5;
+}
+
+/* 深色模式适配 */
+[data-theme="dark"] .suggestion-card.encouragement {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%);
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+[data-theme="dark"] .suggestion-card.suggestion {
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.1) 0%, rgba(234, 179, 8, 0.05) 100%);
+    border-color: rgba(234, 179, 8, 0.3);
+}
+
+/* 热力图响应式 */
+@media (max-width: 768px) {
+    .heatmap-wrapper {
+        justify-content: flex-start;
+    }
+    
+    .heatmap-footer {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    
+    .ai-suggestions-grid {
+        grid-template-columns: 1fr;
+    }
+}
+/* ===== 添加到 learning-dashboard.css 末尾 ===== */
+
+/* Today's Module Usage Card */
+.module-today-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+}
+
+.module-today-card .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.module-today-card .chart-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.module-today-card .chart-title i {
+    color: hsl(var(--primary));
+}
+
+.today-date {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    padding: 4px 12px;
+    background: hsl(var(--muted));
+    border-radius: 12px;
+}
+
+.module-today-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.module-today-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: hsl(var(--background));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    transition: all 0.2s ease;
+}
+
+.module-today-item:hover {
+    border-color: var(--module-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.module-today-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.module-today-info {
+    flex: 0 0 140px;
+}
+
+.module-today-name {
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 4px;
+}
+
+.module-today-time {
+    font-size: 14px;
+    color: hsl(var(--muted-foreground));
+}
+
+.module-today-bar-container {
+    flex: 1;
+    height: 8px;
+    background: hsl(var(--muted));
+    border-radius: 4px;
+    overflow: hidden;
+    min-width: 100px;
+}
+
+.module-today-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.module-today-percentage {
+    font-size: 16px;
+    font-weight: 700;
+    min-width: 50px;
+    text-align: right;
+}
+
+.module-today-summary {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    background: hsl(var(--muted));
+    border-radius: var(--radius);
+    margin-top: 16px;
+}
+
+.summary-total {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+}
+
+.summary-total i {
+    color: hsl(var(--primary));
+}
+
+.summary-total .summary-label {
+    color: hsl(var(--muted-foreground));
+}
+
+.summary-total .summary-value {
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    font-size: 18px;
+}
+
+/* Empty State Styles */
+.empty-module-today {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+}
+
+.empty-module-today i {
+    font-size: 48px;
+    opacity: 0.3;
+    margin-bottom: 16px;
+}
+
+.empty-module-today h4 {
+    margin: 0 0 8px 0;
+    color: hsl(var(--foreground));
+    font-size: 16px;
+}
+
+.empty-module-today p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.empty-chart-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+    height: 100%;
+    min-height: 150px;
+}
+
+.empty-chart-message i {
+    font-size: 36px;
+    opacity: 0.3;
+    margin-bottom: 12px;
+}
+
+.empty-chart-message p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.empty-chart-message .hint {
+    font-size: 12px;
+    margin-top: 8px;
+    opacity: 0.7;
+}
+
+/* Bar Chart Improvements */
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    height: 200px;
+    padding: 20px 10px;
+    gap: 8px;
+}
+
+.bar-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    max-width: 60px;
+}
+
+.bar {
+    width: 100%;
+    max-width: 40px;
+    min-height: 4px;
+    transition: height 0.5s ease;
+    position: relative;
+}
+
+.bar::after {
+    content: attr(data-value);
+    position: absolute;
+    top: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--primary));
+    white-space: nowrap;
+}
+
+.bar-label {
+    margin-top: 8px;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Loading Placeholder */
+.loading-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: hsl(var(--muted-foreground));
+    gap: 12px;
+}
+
+.loading-placeholder i {
+    font-size: 24px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .module-today-item {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    
+    .module-today-info {
+        flex: 1;
+        min-width: 120px;
+    }
+    
+    .module-today-bar-container {
+        flex: 100%;
+        order: 3;
+    }
+    
+    .module-today-percentage {
+        order: 2;
+    }
+    
+    .bar-chart {
+        height: 160px;
+        padding: 10px 5px;
+    }
+    
+    .bar::after {
+        font-size: 9px;
+        top: -18px;
+    }
+}
+/* ===== 添加到 learning-dashboard.css 末尾 ===== */
+
+/* Today's Module Usage Card */
+.module-today-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+}
+
+.module-today-card .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.module-today-card .chart-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.module-today-card .chart-title i {
+    color: hsl(var(--primary));
+}
+
+.today-date {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    padding: 4px 12px;
+    background: hsl(var(--muted));
+    border-radius: 12px;
+}
+
+.module-today-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.module-today-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: hsl(var(--background));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    transition: all 0.2s ease;
+}
+
+.module-today-item:hover {
+    border-color: var(--module-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.module-today-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.module-today-info {
+    flex: 0 0 140px;
+}
+
+.module-today-name {
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 4px;
+}
+
+.module-today-time {
+    font-size: 14px;
+    color: hsl(var(--muted-foreground));
+}
+
+.module-today-bar-container {
+    flex: 1;
+    height: 8px;
+    background: hsl(var(--muted));
+    border-radius: 4px;
+    overflow: hidden;
+    min-width: 100px;
+}
+
+.module-today-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.module-today-percentage {
+    font-size: 16px;
+    font-weight: 700;
+    min-width: 50px;
+    text-align: right;
+}
+
+.module-today-summary {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    background: hsl(var(--muted));
+    border-radius: var(--radius);
+    margin-top: 16px;
+}
+
+.summary-total {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+}
+
+.summary-total i {
+    color: hsl(var(--primary));
+}
+
+.summary-total .summary-label {
+    color: hsl(var(--muted-foreground));
+}
+
+.summary-total .summary-value {
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    font-size: 18px;
+}
+
+/* Empty State Styles */
+.empty-module-today {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+}
+
+.empty-module-today i {
+    font-size: 48px;
+    opacity: 0.3;
+    margin-bottom: 16px;
+}
+
+.empty-module-today h4 {
+    margin: 0 0 8px 0;
+    color: hsl(var(--foreground));
+    font-size: 16px;
+}
+
+.empty-module-today p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.empty-chart-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+    height: 100%;
+    min-height: 150px;
+}
+
+.empty-chart-message i {
+    font-size: 36px;
+    opacity: 0.3;
+    margin-bottom: 12px;
+}
+
+.empty-chart-message p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.empty-chart-message .hint {
+    font-size: 12px;
+    margin-top: 8px;
+    opacity: 0.7;
+}
+
+/* Bar Chart Improvements */
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    height: 200px;
+    padding: 20px 10px;
+    gap: 8px;
+}
+
+.bar-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    max-width: 60px;
+}
+
+.bar {
+    width: 100%;
+    max-width: 40px;
+    min-height: 4px;
+    transition: height 0.5s ease;
+    position: relative;
+}
+
+.bar::after {
+    content: attr(data-value);
+    position: absolute;
+    top: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--primary));
+    white-space: nowrap;
+}
+
+.bar-label {
+    margin-top: 8px;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Loading Placeholder */
+.loading-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: hsl(var(--muted-foreground));
+    gap: 12px;
+}
+
+.loading-placeholder i {
+    font-size: 24px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .module-today-item {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    
+    .module-today-info {
+        flex: 1;
+        min-width: 120px;
+    }
+    
+    .module-today-bar-container {
+        flex: 100%;
+        order: 3;
+    }
+    
+    .module-today-percentage {
+        order: 2;
+    }
+    
+    .bar-chart {
+        height: 160px;
+        padding: 10px 5px;
+    }
+    
+    .bar::after {
+        font-size: 9px;
+        top: -18px;
+    }
+}
+
+/* Heatmap Scale Legend */
+.heatmap-scale {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 10px 16px;
+    background: hsl(var(--muted));
+    border-radius: var(--radius);
+    flex-wrap: wrap;
+}
+
+.heatmap-scale .scale-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    margin-right: 4px;
+}
+
+.heatmap-scale .scale-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.heatmap-scale .scale-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.heatmap-scale .scale-label {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    white-space: nowrap;
+}

@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mind Map - AI Study Assistant</title>
+    
+    <!-- Preload critical CSS for faster page loads -->
+    <link rel="preload" href="static/css/main.css" as="style">
+    <link rel="stylesheet" href="static/css/main.css">
+    <link rel="stylesheet" href="static/css/map-generation.css">
+    <link rel="stylesheet" href="static/css/ai-chat.css">
+    <link rel="stylesheet" href="static/css/message-modal.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- MathJax for LaTeX formula rendering -->
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+    
+    <!-- Mermaid for mind map rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    
+    <!-- DNS prefetch for faster navigation -->
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1 class="app-title">AI Study Assistant</h1>
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="/note-assistant" class="nav-item">
+                    <i class="fas fa-file-text"></i>
+                    <span>Note Assistant</span>
+                </a>
+                <a href="/error-book" class="nav-item">
+                    <i class="fas fa-book-open"></i>
+                    <span>Error Book</span>
+                </a>
+                <a href="/map-generation" class="nav-item active">
+                    <i class="fas fa-sitemap"></i>
+                    <span>Mind Map</span>
+                </a>
+                <a href="/learning-dashboard" class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Analytics</span>
+                </a>
+                <a href="/parent-view" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    <span>Parent View</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <a href="/settings" class="nav-item">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+                <div class="user-profile">
+                    <div class="avatar">S</div>
+                    <div class="user-info">
+                        <div class="user-name">Student</div>
+                        <div class="user-email">student@example.com</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="content-header">
+                <div class="header-left">
+                    <h2 class="page-title">Mind Map Generator</h2>
+                    <p class="page-subtitle">Visualize knowledge structures</p>
+                </div>
+                <div class="header-right">
+                    <button class="icon-button" id="notificationBtn">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </button>
+                    <button class="icon-button theme-toggle">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="content-body">
+                <div class="generation-section">
+                    <div class="generation-card">
+                        <!-- Tab Navigation -->
+                        <div class="tab-navigation">
+                            <button class="tab-button active" data-tab="text-input">
+                                <i class="fas fa-keyboard"></i>
+                                Text Input
+                            </button>
+                            <button class="tab-button" data-tab="notes-select">
+                                <i class="fas fa-sticky-note"></i>
+                                Notes
+                            </button>
+                            <button class="tab-button" data-tab="file-upload">
+                                <i class="fas fa-upload"></i>
+                                File Upload
+                            </button>
+                        </div>
+
+                        <!-- Text Input Tab -->
+                        <div class="tab-content active" id="text-input">
+                            <div class="input-area">
+                                <label class="input-label">Topic or Concept</label>
+                                <input 
+                                    type="text" 
+                                    class="topic-input" 
+                                    id="topicInput"
+                                    placeholder="Enter a topic to generate mind map..."
+                                >
+                            </div>
+                            <div class="input-area">
+                                <label class="input-label">Additional Context (Optional)</label>
+                                <textarea 
+                                    class="context-textarea" 
+                                    id="contextInput"
+                                    placeholder="Add any additional context or requirements for the mind map..."
+                                    rows="3"
+                                ></textarea>
+                            </div>
+                            <div class="options-area">
+                                <div class="option-group">
+                                    <label class="input-label">Depth Level</label>
+                                    <select class="option-select" id="depthSelect">
+                                        <option value="auto" selected>AI Auto-decide</option>
+                                        <option value="2">2 levels (Basic)</option>
+                                        <option value="3">3 levels (Standard)</option>
+                                        <option value="4">4 levels (Detailed)</option>
+                                        <option value="5">5 levels (Comprehensive)</option>
+                                        <option value="custom">Custom...</option>
+                                    </select>
+                                </div>
+                                <div class="option-group custom-depth-group" id="customDepthGroup" style="display: none;">
+                                    <label class="input-label">Custom Depth</label>
+                                    <input 
+                                        type="number" 
+                                        class="topic-input" 
+                                        id="customDepthInput"
+                                        placeholder="Enter depth (1-10)"
+                                        min="1"
+                                        max="10"
+                                        value="3"
+                                    >
+                                </div>
+                                <div class="option-group">
+                                    <label class="input-label">Style</label>
+                                    <select class="option-select" id="styleSelect">
+                                        <option value="TD" selected>Hierarchical (Top-Down)</option>
+                                        <option value="LR">Hierarchical (Left-Right)</option>
+                                        <option value="radial">Radial (Divergent)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="button-primary" id="generateBtn">
+                                <i class="fas fa-magic"></i>
+                                Generate with AI
+                            </button>
+                        </div>
+
+                        <!-- Notes Selection Tab -->
+                        <div class="tab-content" id="notes-select">
+                            <div class="advice-card">
+                                <div class="advice-row">
+                                    <i class="fas fa-info-circle"></i>
+                                    <div>
+                                        <strong>Note</strong>
+                                        <p>Select one or more notes from your Note Assistant to include when generating the mind map. You can customize the map's title, depth, and style below.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="input-area">
+                                <label class="input-label">Select Notes (Maximum 10 displayed, scroll for more)</label>
+                                <div class="notes-select-list" id="notesSelectList">
+                                    <!-- populated by JS -->
+                                </div>
+                            </div>
+
+                            <div class="input-area">
+                                <label class="input-label">Topic/Title (Optional)</label>
+                                <input 
+                                    type="text" 
+                                    class="topic-input" 
+                                    id="notesTopicInput"
+                                    placeholder="Custom map title (leave blank to use 'Selected Notes Map')..."
+                                >
+                            </div>
+
+                            <div class="input-area">
+                                <label class="input-label">Additional Context (Optional)</label>
+                                <textarea 
+                                    class="context-textarea" 
+                                    id="notesContextInput"
+                                    rows="3"
+                                    placeholder="Add any specific instructions or focus areas for the mind map..."
+                                ></textarea>
+                            </div>
+
+                            <div class="options-area">
+                                <div class="option-group">
+                                    <label class="input-label">Depth Level</label>
+                                    <select class="option-select" id="notesDepthSelect">
+                                        <option value="auto">AI Auto-decide</option>
+                                        <option value="2">2 levels (Basic)</option>
+                                        <option value="3" selected>3 levels (Standard)</option>
+                                        <option value="4">4 levels (Detailed)</option>
+                                        <option value="5">5 levels (Comprehensive)</option>
+                                        <option value="custom">Custom...</option>
+                                    </select>
+                                </div>
+                                <div class="option-group custom-depth-group" id="notesCustomDepthGroup" style="display: none;">
+                                    <label class="input-label">Custom Depth</label>
+                                    <input 
+                                        type="number" 
+                                        class="topic-input" 
+                                        id="notesCustomDepthInput"
+                                        placeholder="Enter depth (1-10)"
+                                        min="1"
+                                        max="10"
+                                        value="3"
+                                    >
+                                </div>
+                                <div class="option-group">
+                                    <label class="input-label">Style</label>
+                                    <select class="option-select" id="notesStyleSelect">
+                                        <option value="TD" selected>Hierarchical (Top-Down)</option>
+                                        <option value="LR">Hierarchical (Left-Right)</option>
+                                        <option value="radial">Radial (Divergent)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button class="button-primary" id="generateFromNotesBtn" disabled>
+                                <i class="fas fa-magic"></i>
+                                Generate Map from Notes
+                            </button>
+                        </div>
+
+                        <!-- File Upload Tab -->
+                        <div class="tab-content" id="file-upload">
+                            <div class="upload-area" id="uploadArea">
+                                <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.mp3,.wav,.mp4,.m4a" multiple hidden>
+                                <div class="upload-placeholder">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p class="upload-title">Drag & drop files here</p>
+                                    <p class="upload-subtitle">or click to browse</p>
+                                    <p class="upload-hint">Supports: PDF, Word, PPT, TXT, Audio (Multiple files allowed)</p>
+                                </div>
+                                <div class="upload-preview" id="uploadPreview" style="display: none;">
+                                    <div class="files-list" id="filesList"></div>
+                                    <button class="remove-file-btn" id="removeAllFilesBtn" title="Remove all files">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="input-area">
+                                <label class="input-label">Topic/Title (Optional)</label>
+                                <input 
+                                    type="text" 
+                                    class="topic-input" 
+                                    id="fileTopicInput"
+                                    placeholder="Override topic name from file..."
+                                >
+                            </div>
+                            <div class="input-area">
+                                <label class="input-label">Additional Context (Optional)</label>
+                                <textarea 
+                                    class="context-textarea" 
+                                    id="fileContextInput"
+                                    rows="3"
+                                    placeholder="Add any specific instructions or context for the AI..."
+                                ></textarea>
+                            </div>
+                            <div class="options-area">
+                                <div class="option-group">
+                                    <label class="input-label">Depth Level</label>
+                                    <select class="option-select" id="fileDepthSelect">
+                                        <option value="auto" selected>AI Auto-decide</option>
+                                        <option value="2">2 levels (Basic)</option>
+                                        <option value="3">3 levels (Standard)</option>
+                                        <option value="4">4 levels (Detailed)</option>
+                                        <option value="5">5 levels (Comprehensive)</option>
+                                        <option value="custom">Custom...</option>
+                                    </select>
+                                </div>
+                                <div class="option-group custom-depth-group" id="fileCustomDepthGroup" style="display: none;">
+                                    <label class="input-label">Custom Depth</label>
+                                    <input 
+                                        type="number" 
+                                        class="topic-input" 
+                                        id="fileCustomDepthInput"
+                                        placeholder="Enter depth (1-10)"
+                                        min="1"
+                                        max="10"
+                                        value="3"
+                                    >
+                                </div>
+                                <div class="option-group">
+                                    <label class="input-label">Style</label>
+                                    <select class="option-select" id="fileStyleSelect">
+                                        <option value="TD" selected>Hierarchical (Top-Down)</option>
+                                        <option value="LR">Hierarchical (Left-Right)</option>
+                                        <option value="radial">Radial (Divergent)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="button-primary" id="uploadGenerateBtn" disabled>
+                                <i class="fas fa-magic"></i>
+                                Generate from File
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-section" id="previewSection" style="display: none;">
+                    <div class="preview-header">
+                        <div class="title-edit-container">
+                            <h3 class="preview-title" id="mapTitle">Mind Map Preview</h3>
+                            <input type="text" class="title-input" id="mapTitleInput" style="display: none;">
+                            <button class="icon-button" id="editTitleBtn" title="Edit Title">
+                                <i class="fas fa-pen"></i>
+                            </button>
+                            <button class="icon-button" id="saveTitleBtn" title="Save Title" style="display: none;">
+                                <i class="fas fa-check"></i>
+                            </button>
+                            <button class="icon-button" id="cancelTitleBtn" title="Cancel" style="display: none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="preview-actions">
+                            <button class="icon-button" id="zoomOutBtn" title="Zoom Out">
+                                <i class="fas fa-search-minus"></i>
+                            </button>
+                            <button class="icon-button" id="zoomResetBtn" title="Reset Zoom">
+                                <i class="fas fa-compress"></i>
+                            </button>
+                            <button class="icon-button" id="zoomInBtn" title="Zoom In">
+                                <i class="fas fa-search-plus"></i>
+                            </button>
+                            <span class="zoom-level" id="zoomLevel">100%</span>
+                            <div class="action-divider"></div>
+                            <button class="icon-button" id="editModeBtn" title="Toggle Edit Mode">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="icon-button" id="saveBtn" title="Save Changes">
+                                <i class="fas fa-save"></i>
+                            </button>
+                            <button class="button-outline" id="exportBtn">
+                                <i class="fas fa-download"></i>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- View Mode -->
+                    <div class="preview-canvas" id="viewMode">
+                        <div class="mermaid-container" id="mermaidContainer"></div>
+                    </div>
+
+                    <!-- Edit Mode -->
+                    <div class="edit-canvas" id="editMode" style="display: none;">
+                        <div class="edit-panels">
+                            <div class="code-panel">
+                                <div class="panel-header">
+                                    <h4>Mermaid Code</h4>
+                                    <div class="panel-actions">
+                                        <button class="icon-button" id="formatCodeBtn" title="Format Code">
+                                            <i class="fas fa-align-left"></i>
+                                        </button>
+                                        <button class="button-primary button-sm" id="applyCodeBtn" title="Apply Changes">
+                                            <i class="fas fa-check"></i>
+                                            Apply
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea 
+                                    class="code-editor" 
+                                    id="mermaidCodeEditor"
+                                    placeholder="Enter Mermaid syntax here..."
+                                ></textarea>
+                            </div>
+                            <div class="preview-panel">
+                                <div class="panel-header">
+                                    <h4>Editable Canvas</h4>
+                                    <div class="panel-actions">
+                                        <div class="edit-zoom-controls">
+                                            <button class="icon-button" id="editZoomOutBtn" title="Zoom Out">
+                                                <i class="fas fa-search-minus"></i>
+                                            </button>
+                                            <span class="zoom-level" id="editZoomLevel">100%</span>
+                                            <button class="icon-button" id="editZoomInBtn" title="Zoom In">
+                                                <i class="fas fa-search-plus"></i>
+                                            </button>
+                                            <button class="icon-button" id="editZoomResetBtn" title="Reset Zoom">
+                                                <i class="fas fa-expand"></i>
+                                            </button>
+                                        </div>
+                                        <button class="icon-button" id="refreshPreviewBtn" title="Refresh Canvas">
+                                            <i class="fas fa-sync"></i>
+                                        </button>
+                                        <span class="hint-text">Drag nodes to reposition</span>
+                                    </div>
+                                </div>
+                                <div class="edit-preview-container">
+                                    <div class="mermaid-preview editable-canvas" id="mermaidPreview"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="section">
+                    <div class="section-header">
+                        <h3 class="section-title">Recent Mind Maps</h3>
+                        <a href="#" class="link-button" id="refreshRecentBtn">
+                            <i class="fas fa-sync"></i>
+                            Refresh
+                        </a>
+                    </div>
+                    <div class="maps-grid" id="recentMapsGrid">
+                        <div class="empty-state">
+                            <i class="fas fa-project-diagram"></i>
+                            <p>No mind maps yet. Generate your first one above!</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div id="notificationPanel" class="notification-panel hidden">
+        <div class="panel-header">
+            <h3>Notifications</h3>
+            <button class="close-button">&times;</button>
+        </div>
+        <div class="notification-list">
+            <div class="notification-item unread">
+                <div class="notification-dot"></div>
+                <div class="notification-content">
+                    <div class="notification-title">Mind Map Generated</div>
+                    <div class="notification-time">5 minutes ago</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/js/main.js"></script>
+    <script src="static/js/module-tracker.js"></script>
+    <script src="static/js/message-modal.js"></script>
+    <script src="static/js/notifications.js"></script>
+    <script src="static/js/ai-chat.js"></script>
+    <script src="static/js/map-generation.js"></script>
+</body>
+</html>
