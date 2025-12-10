@@ -9,12 +9,18 @@ import json
 from datetime import datetime
 import uuid
 import sys
+import db_sqlite
 
 # 添加services路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from services.ai_service import ai_service
 
+
 map_bp = Blueprint('map_generation', __name__, url_prefix='/api/map')
+
+# Debug: Print database info on module load
+print(f"[MAP_INIT] db_sqlite.DB_PATH: {db_sqlite.DB_PATH}", file=sys.stderr)
+print(f"[MAP_INIT] DB file exists: {os.path.exists(db_sqlite.DB_PATH)}", file=sys.stderr)
 
 # 配置上传路径
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'mindmaps')
@@ -30,17 +36,36 @@ def allowed_file(filename):
 
 def load_mindmaps():
     """加载所有思维导图数据"""
-    mindmaps_file = os.path.join(DATA_FOLDER, 'mindmaps.json')
-    if os.path.exists(mindmaps_file):
-        with open(mindmaps_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
+    return db_sqlite.get_all_mindmaps()
 
 def save_mindmaps(mindmaps):
     """保存思维导图数据"""
-    mindmaps_file = os.path.join(DATA_FOLDER, 'mindmaps.json')
-    with open(mindmaps_file, 'w', encoding='utf-8') as f:
-        json.dump(mindmaps, f, ensure_ascii=False, indent=2)
+    for mindmap in mindmaps:
+        db_sqlite.update_mindmap(mindmap)
+
+def ensure_unique_title(title, existing_mindmaps):
+    """
+    确保标题唯一性
+    如果标题已存在，添加时间戳或编号
+    """
+    # 检查标题是否已存在
+    existing_titles = [m['title'] for m in existing_mindmaps]
+    
+    if title not in existing_titles:
+        return title
+    
+    # 标题已存在，添加时间戳
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    new_title = f"{title} ({timestamp})"
+    
+    # 如果带时间戳的标题仍然存在（极少情况），添加编号
+    if new_title in existing_titles:
+        counter = 1
+        while f"{title} ({timestamp}_{counter})" in existing_titles:
+            counter += 1
+        new_title = f"{title} ({timestamp}_{counter})"
+    
+    return new_title
 
 def generate_mermaid_from_text(topic, depth=3, context='', style='TD'):
     """
@@ -164,10 +189,14 @@ def generate_mindmap():
         # 生成Mermaid代码
         mermaid_code = generate_mermaid_from_text(topic, depth, context, style)
         
+        # 确保标题唯一
+        mindmaps = load_mindmaps()
+        unique_title = ensure_unique_title(topic, mindmaps)
+        
         mindmap_id = str(uuid.uuid4())
         mindmap = {
             'id': mindmap_id,
-            'title': topic,
+            'title': unique_title,
             'mermaid_code': mermaid_code,
             'depth': depth,
             'style': style,
@@ -178,7 +207,6 @@ def generate_mindmap():
             'node_positions': '{}'
         }
         
-        mindmaps = load_mindmaps()
         mindmaps.insert(0, mindmap)
         save_mindmaps(mindmaps)
         
@@ -299,9 +327,16 @@ def upload_file_for_mindmap():
         else:
             source_file = saved_files[0][0].split(os.sep)[-1] if saved_files else 'unknown'
         
+        # Determine title
+        base_title = topic or (first_filename.rsplit('.', 1)[0] if len(saved_files) == 1 else f"{len(saved_files)} Files Analysis")
+        
+        # 确保标题唯一
+        mindmaps = load_mindmaps()
+        unique_title = ensure_unique_title(base_title, mindmaps)
+        
         mindmap = {
             'id': mindmap_id,
-            'title': topic or (first_filename.rsplit('.', 1)[0] if len(saved_files) == 1 else f"{len(saved_files)} Files Analysis"),
+            'title': unique_title,
             'mermaid_code': mermaid_code,
             'depth': depth,
             'style': style,
@@ -314,7 +349,6 @@ def upload_file_for_mindmap():
             'node_positions': '{}'
         }
         
-        mindmaps = load_mindmaps()
         mindmaps.insert(0, mindmap)
         save_mindmaps(mindmaps)
         
@@ -352,37 +386,125 @@ def upload_file_for_mindmap():
 def list_mindmaps():
     """获取所有思维导图列表"""
     try:
-        mindmaps = load_mindmaps()
+        mindmaps = db_sqlite.get_all_mindmaps()
         return jsonify({
             'success': True,
             'mindmaps': mindmaps,
             'total': len(mindmaps)
         })
-    
     except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
 
+
+@map_bp.route('/generate-from-notes', methods=['POST'])
+def generate_from_notes():
+    """Generate mind map from selected note IDs"""
+    try:
+        data = request.get_json() or {}
+        note_ids = data.get('note_ids', [])
+        if not note_ids:
+            return jsonify({'success': False, 'error': 'note_ids required'}), 400
+
+        # Get optional parameters from request
+        topic = data.get('topic', '').strip() or 'Selected Notes'
+        context = data.get('context', '').strip()
+        depth_input = data.get('depth', '3')
+        style = data.get('style', 'TD')
+
+        # Parse depth
+        if isinstance(depth_input, str):
+            if depth_input.lower() == 'auto':
+                depth = 'auto'
+            else:
+                try:
+                    depth = int(depth_input)
+                except ValueError:
+                    depth = 3
+        else:
+            depth = depth_input if depth_input else 3
+
+        # Load notes data from DB
+        notes = []
+        for nid in note_ids:
+            n = db_sqlite.get_note_by_id(nid)
+            if n:
+                notes.append(n)
+
+        # Collect contents of selected notes
+        selected_texts = []
+        for nid in note_ids:
+            note = next((n for n in notes if str(n.get('id')) == str(nid)), None)
+            if note:
+                # access 'content' dict: note['content']['summary'] & note['content']['key_points']
+                content = note.get('content', {})
+                content_parts = []
+                if content.get('summary'):
+                    content_parts.append(content.get('summary'))
+                if content.get('key_points'):
+                    content_parts.append('\n'.join(content.get('key_points')))
+                if content_parts:
+                    selected_texts.append('\n'.join(content_parts))
+
+        if not selected_texts:
+            return jsonify({'success': False, 'error': 'No note content found for provided ids'}), 400
+
+        combined_content = '\n\n'.join(selected_texts)
+        
+        # Add user context if provided
+        if context:
+            combined_content = f"{context}\n\n{combined_content}"
+
+        # Use AI service to generate mermaid from combined note content
+        try:
+            mermaid_code = ai_service.generate_mindmap_from_content(
+                topic, combined_content, depth, style
+            )
+        except Exception as e:
+            print('AI service error while generating from notes:', e)
+            mermaid_code = generate_mermaid_from_text(topic, depth if depth != 'auto' else 3, combined_content, style)
+
+        # 确保标题唯一
+        mindmaps = load_mindmaps()
+        unique_title = ensure_unique_title(topic, mindmaps)
+        
+        mindmap_id = str(uuid.uuid4())
+        mindmap = {
+            'id': mindmap_id,
+            'title': unique_title,
+            'mermaid_code': mermaid_code,
+            'depth': depth,
+            'style': style,
+            'created_at': datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat(),
+            'source': 'notes_selection',
+            'context': combined_content[:200],
+            'node_positions': '{}'
+        }
+
+        db_sqlite.insert_mindmap(mindmap)
+
+        return jsonify({'success': True, 'mindmap': mindmap, 'mermaid_code': mermaid_code})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @map_bp.route('/<map_id>', methods=['GET'])
 def get_mindmap(map_id):
     """获取特定思维导图"""
     try:
-        mindmaps = load_mindmaps()
-        mindmap = next((m for m in mindmaps if m['id'] == map_id), None)
-        
+        mindmap = db_sqlite.get_mindmap_by_id(map_id)
         if not mindmap:
             return jsonify({
                 'success': False,
                 'error': 'Mind map not found'
             }), 404
-        
         return jsonify({
             'success': True,
             'mindmap': mindmap
         })
-    
     except Exception as e:
         return jsonify({
             'success': False,
@@ -394,35 +516,18 @@ def update_mindmap(map_id):
     """更新思维导图（用户手动编辑）"""
     try:
         data = request.json
-        mindmaps = load_mindmaps()
-        
-        mindmap_index = next((i for i, m in enumerate(mindmaps) if m['id'] == map_id), None)
-        
-        if mindmap_index is None:
-            return jsonify({
-                'success': False,
-                'error': 'Mind map not found'
-            }), 404
-        
-        mindmaps[mindmap_index]['mermaid_code'] = data.get('mermaid_code', mindmaps[mindmap_index]['mermaid_code'])
-        mindmaps[mindmap_index]['title'] = data.get('title', mindmaps[mindmap_index]['title'])
-        mindmaps[mindmap_index]['updated_at'] = datetime.now().isoformat()
-        
-        # 保存 SVG 内容（如果提供）
-        if 'svg_content' in data:
-            mindmaps[mindmap_index]['svg_content'] = data['svg_content']
-        
-        # 保留旧的 node_positions 字段以兼容
-        if 'node_positions' in data:
-            mindmaps[mindmap_index]['node_positions'] = data['node_positions']
-        
-        save_mindmaps(mindmaps)
-        
+        updated_mindmap = {
+            'id': map_id,
+            'title': data.get('title'),
+            'mermaid_code': data.get('mermaid_code'),
+            'updated_at': datetime.now().isoformat(),
+            'node_positions': data.get('node_positions', '{}')
+        }
+        db_sqlite.update_mindmap(updated_mindmap)
         return jsonify({
             'success': True,
-            'mindmap': mindmaps[mindmap_index]
+            'mindmap': updated_mindmap
         })
-    
     except Exception as e:
         return jsonify({
             'success': False,
@@ -433,15 +538,11 @@ def update_mindmap(map_id):
 def delete_mindmap(map_id):
     """删除思维导图"""
     try:
-        mindmaps = load_mindmaps()
-        mindmaps = [m for m in mindmaps if m['id'] != map_id]
-        save_mindmaps(mindmaps)
-        
+        db_sqlite.delete_mindmap(map_id)
         return jsonify({
             'success': True,
             'message': 'Mind map deleted'
         })
-    
     except Exception as e:
         return jsonify({
             'success': False,

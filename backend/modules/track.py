@@ -1,10 +1,16 @@
 from flask import Blueprint, request, jsonify
-import sqlite3, json, os
+import json
 from datetime import datetime
+import sys
+import os
+
+# Import shared database module
+import db_sqlite
 
 track_bp = Blueprint("track_bp", __name__)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "study.db")
+# Initialize study_progress table
+db_sqlite.init_db()
 @track_bp.route('/api/track_time', methods=['POST'])
 def track_time():
     try:
@@ -12,68 +18,46 @@ def track_time():
         seconds = int(data.get("seconds", 0))
         mode = data.get("mode", "unknown")
         subject = data.get("subject", "unknown")
-        is_correct = int(data.get("is_correct", 0))  # 新增
+        is_correct = int(data.get("is_correct", 0))
 
         if seconds <= 0 or seconds > 120 * 60:
             return jsonify({"ignored": True})
 
-        minutes = max(0, round(seconds / 60))
+        if seconds >= 5:  # 至少 5 秒才记录
+            minutes = max(1, round(seconds / 60))  # 最小 1 分钟
+        else:
+            return jsonify({"ignored": True})
+        
         today = datetime.now().strftime("%Y-%m-%d")
-        user_id = 1  # 测试用，正式要替换成登录用户
+        user_id = 1  # Test user, replace with login user in production
 
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
+        
 
-        # 检查当天 + 科目记录是否存在
-        cursor.execute("""
-            SELECT id, reviewed_questions, review_correct_questions,
-                   review_time_minutes,
-                   practice_questions, practice_correct_questions,
-                   practice_time_minutes
-            FROM study_progress
-            WHERE user_id = ? AND date = ? AND subject = ?
-        """, (user_id, today, subject))
-        row = cursor.fetchone()
+        # Get or create study progress record
+        row = db_sqlite.get_study_progress(user_id, today, subject)
 
         if row:
-            row_id, reviewed, correct_review, review_time, practice_count, correct_practice, practice_time = row
+            row_id, reviewed, correct_review, review_time_minutes, practice_count, correct_practice, practice_time_minutes = row
         else:
-            # 不存在就插入一条
-            cursor.execute("""
-                INSERT INTO study_progress(
-                    user_id, date, subject,
-                    reviewed_questions, review_correct_questions, review_time_minutes,
-                    practice_questions, practice_correct_questions, practice_time_minutes
-                ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0)
-            """, (user_id, today, subject))
-            row_id = cursor.lastrowid
-            reviewed = correct_review = review_time = 0
-            practice_count = correct_practice = practice_time = 0
+            # Insert new record if not exists
+            row_id = db_sqlite.insert_study_progress(user_id, today, subject)
+            reviewed = correct_review = review_time_minutes = 0
+            practice_count = correct_practice = practice_time_minutes = 0
 
-        # 根据 mode 更新对应字段
+        # Update based on mode
         if mode == "review":
             reviewed += 1
             correct_review += is_correct
-            review_time += minutes
-            cursor.execute("""
-                UPDATE study_progress
-                SET reviewed_questions=?, review_correct_questions=?, review_time_minutes=?
-                WHERE id=?
-            """, (reviewed, correct_review, review_time, row_id))
+            review_time_minutes += minutes
+            db_sqlite.update_study_progress_review(row_id, reviewed, correct_review, review_time_minutes)
         elif mode == "practice":
             practice_count += 1
             correct_practice += is_correct
-            practice_time += minutes
-            cursor.execute("""
-                UPDATE study_progress
-                SET practice_questions=?, practice_correct_questions=?, practice_time_minutes=?
-                WHERE id=?
-            """, (practice_count, correct_practice, practice_time, row_id))
+            practice_time_minutes += minutes
+            db_sqlite.update_study_progress_practice(row_id, practice_count, correct_practice, practice_time_minutes)
         else:
-            print("⚠ 未知 mode:", mode)
+            print("WARNING: Unknown mode:", mode)
 
-        conn.commit()
-        conn.close()
         return jsonify({"success": True})
 
     except Exception as e:
