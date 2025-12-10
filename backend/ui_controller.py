@@ -37,6 +37,14 @@ def learning_dashboard():
 def settings():
     return send_from_directory(FRONTEND_PATH, 'settings.html')
 
+@ui_bp.route('/login')
+def login():
+    return send_from_directory(FRONTEND_PATH, 'login.html')
+
+@ui_bp.route('/register')
+def register():
+    return send_from_directory(FRONTEND_PATH, 'register.html')
+
 @ui_bp.route('/parent-view')
 def parent_view():
     return send_from_directory(FRONTEND_PATH, 'parent-view.html')

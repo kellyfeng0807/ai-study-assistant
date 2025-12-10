@@ -20,6 +20,7 @@ from modules.learning_dashboard import dashboard_bp
 from modules.chat import chat_bp
 from modules.settings import settings_bp
 from modules.notifications import notifications_bp
+from modules.auth import auth_bp
 
 def create_app(config_name='development'):
     """应用工厂函数"""
@@ -29,6 +30,10 @@ def create_app(config_name='development'):
     
     # 加载配置
     app.config.from_object(config[config_name])
+    
+    # 配置 session
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    app.config['SESSION_TYPE'] = 'filesystem'
     
     # 启用CORS
     CORS(app)
@@ -42,6 +47,7 @@ def create_app(config_name='development'):
     app.register_blueprint(chat_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(notifications_bp)
+    app.register_blueprint(auth_bp)
     
     # 静态文件路由
     @app.route('/static/<path:path>')

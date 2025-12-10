@@ -1,0 +1,610 @@
+/**
+ * Authentication Pages Styles (Login & Register)
+ * Clean black/white/gray design
+ */
+
+/* Login Page Styles */
+.auth-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: hsl(var(--muted));
+    padding: var(--spacing-lg);
+}
+
+.auth-page.register-page {
+    padding: 0;
+    align-items: stretch;
+    background: hsl(var(--background));
+}
+
+.auth-container {
+    width: 100%;
+    max-width: 450px;
+}
+
+.auth-container.register-container {
+    max-width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.auth-card {
+    background: hsl(var(--card));
+    border-radius: var(--radius);
+    border: 1px solid hsl(var(--border));
+    box-shadow: var(--shadow-lg);
+    padding: var(--spacing-2xl);
+    animation: fadeInScale 0.4s ease;
+}
+
+.register-card {
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+    padding: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    animation: none;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Header */
+.auth-header {
+    text-align: center;
+    margin-bottom: var(--spacing-2xl);
+}
+
+.auth-logo {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto var(--spacing-md);
+    background: hsl(var(--primary));
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+}
+
+.auth-logo i {
+    font-size: 32px;
+    color: hsl(var(--primary-foreground));
+}
+
+.auth-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0 0 var(--spacing-xs) 0;
+}
+
+.auth-subtitle {
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+    margin: 0;
+}
+
+/* Form Steps */
+.auth-step {
+    display: none;
+}
+
+.auth-step.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Back Button */
+.back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    color: hsl(var(--muted-foreground));
+    font-size: 0.875rem;
+    font-weight: 500;
+    background: none;
+    border: none;
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+    cursor: pointer;
+    transition: var(--transition);
+    border-radius: var(--radius);
+}
+
+.back-button:hover {
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+}
+
+/* Account List */
+.account-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.account-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.account-item:hover {
+    border-color: hsl(var(--ring));
+    background: hsl(var(--muted));
+}
+
+.account-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1.125rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.account-details {
+    flex: 1;
+    text-align: left;
+}
+
+.account-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0 0 4px 0;
+}
+
+.account-type {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    margin: 0;
+}
+
+.account-arrow {
+    color: hsl(var(--muted-foreground));
+}
+
+/* Selected Account Info */
+.selected-account-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: hsl(var(--muted));
+    border-radius: var(--radius);
+    margin-bottom: var(--spacing-lg);
+    border: 1px solid hsl(var(--border));
+}
+
+.selected-account-info .account-avatar {
+    width: 56px;
+    height: 56px;
+}
+
+/* Form Groups */
+.form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.form-group label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    margin-bottom: var(--spacing-xs);
+}
+
+.form-group label i {
+    color: hsl(var(--muted-foreground));
+}
+
+.form-input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 0.875rem;
+    background: hsl(var(--background));
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    color: hsl(var(--foreground));
+    transition: var(--transition);
+}
+
+.form-input:hover {
+    border-color: hsl(var(--ring));
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
+}
+
+.form-input::placeholder {
+    color: hsl(var(--muted-foreground));
+}
+
+.form-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    margin-top: var(--spacing-xs);
+}
+
+/* Password Input */
+.password-input-wrapper {
+    position: relative;
+}
+
+.password-input-wrapper .form-input {
+    padding-right: 48px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    transition: color 0.2s;
+}
+
+.toggle-password:hover {
+    color: hsl(var(--foreground));
+}
+
+/* Buttons */
+.btn-block {
+    width: 100%;
+    justify-content: center;
+}
+
+/* Auth Footer */
+.auth-footer {
+    text-align: center;
+    margin-top: var(--spacing-xl);
+    padding-top: var(--spacing-xl);
+    border-top: 1px solid hsl(var(--border));
+}
+
+.auth-footer p {
+    margin: 0;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.875rem;
+}
+
+.auth-link {
+    color: hsl(var(--foreground));
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.auth-link:hover {
+    text-decoration: underline;
+}
+
+/* Registration Page Specific */
+.register-header {
+    background: hsl(var(--card));
+    padding: var(--spacing-md) var(--spacing-2xl);
+    border-bottom: 1px solid hsl(var(--border));
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.register-content {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow: hidden;
+    padding: var(--spacing-xl) var(--spacing-2xl);
+    background: hsl(var(--background));
+}
+
+.register-content-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-xl);
+    width: 100%;
+    max-width: 1400px;
+    height: calc(100vh - 340px);
+    overflow: hidden;
+}
+
+.register-section {
+    display: flex;
+    flex-direction: column;
+    background: hsl(var(--card));
+    overflow: hidden;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    height: 100%;
+}
+
+.register-section.parent-section {
+    border-right: none;
+}
+
+.register-section-header {
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border-bottom: 1px solid hsl(var(--border));
+    background: hsl(var(--muted) / 0.5);
+    flex-shrink: 0;
+}
+
+.register-section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0;
+}
+
+.register-section-title i {
+    font-size: 20px;
+    color: hsl(var(--muted-foreground));
+}
+
+.register-section-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--spacing-xl);
+    min-height: 0;
+}
+
+/* Custom scrollbar */
+.students-section .register-section-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.students-section .register-section-content::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.3);
+}
+
+.students-section .register-section-content::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+}
+
+.students-section .register-section-content::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Register Footer */
+.register-footer {
+    padding: var(--spacing-lg) var(--spacing-2xl);
+    border-top: 1px solid hsl(var(--border));
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: hsl(var(--card));
+    gap: var(--spacing-lg);
+    flex-shrink: 0;
+}
+
+.register-footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 1400px;
+    gap: var(--spacing-lg);
+}
+
+.register-footer .auth-footer {
+    margin: 0;
+    padding: 0;
+    border: none;
+    flex: 1;
+    text-align: left;
+}
+
+.register-footer .btn {
+    min-width: auto;
+    padding: 8px 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+}
+
+/* Form Row */
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+}
+
+/* Students Container */
+.students-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.student-form {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+}
+
+.student-form:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.student-form.collapsed .student-form-body {
+    display: none;
+}
+
+.student-form-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: hsl(var(--muted) / 0.3);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.student-form-header:hover {
+    background: hsl(var(--muted) / 0.5);
+}
+
+.student-form-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.student-form-title i {
+    color: hsl(var(--muted-foreground));
+}
+
+.student-form-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.collapse-toggle {
+    background: none;
+    border: none;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    transition: transform 0.3s, color 0.2s;
+}
+
+.student-form.collapsed .collapse-toggle {
+    transform: rotate(-90deg);
+}
+
+.collapse-toggle:hover {
+    color: hsl(var(--foreground));
+}
+
+.remove-student-btn {
+    background: none;
+    border: none;
+    color: hsl(var(--destructive));
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    transition: var(--transition);
+}
+
+.remove-student-btn:hover {
+    opacity: 0.7;
+}
+
+.student-form-body {
+    padding: var(--spacing-lg);
+    background: hsl(var(--card));
+}
+
+.add-student-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    background: hsl(var(--card));
+    border: 2px dashed hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+    padding: var(--spacing-md);
+    font-weight: 500;
+    border-radius: var(--radius);
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.add-student-btn:hover {
+    background: hsl(var(--muted) / 0.5);
+    border-color: hsl(var(--foreground));
+    color: hsl(var(--foreground));
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .register-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .register-section.parent-section {
+        border-right: none;
+        border-bottom: 1px solid hsl(var(--border));
+    }
+}
+
+@media (max-width: 768px) {
+    .auth-card {
+        padding: var(--spacing-xl);
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .register-section-content {
+        padding: var(--spacing-lg);
+    }
+    
+    .register-footer {
+        flex-direction: column;
+    }
+    
+    .register-footer .btn {
+        width: 100%;
+    }
+}
