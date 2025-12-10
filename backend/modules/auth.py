@@ -294,15 +294,202 @@ def logout():
 def get_session():
     """获取当前会话信息"""
     if session.get('logged_in'):
-        return jsonify({
-            'success': True,
-            'logged_in': True,
-            'user_id': session.get('user_id'),
-            'username': session.get('username'),
-            'account_type': session.get('account_type')
-        })
+        user_id = session.get('user_id')
+        
+        # 获取完整的用户信息
+        try:
+            from db_sqlite import get_user_settings
+            user_settings = get_user_settings(user_id)
+            
+            return jsonify({
+                'success': True,
+                'logged_in': True,
+                'user': {
+                    'user_id': user_id,
+                    'username': user_settings.get('username', session.get('username')),
+                    'email': user_settings.get('email', ''),
+                    'account_type': user_settings.get('account_type', session.get('account_type')),
+                    'avatar_url': user_settings.get('avatar_url')
+                }
+            })
+        except Exception as e:
+            # 如果获取设置失败，返回 session 中的基本信息
+            return jsonify({
+                'success': True,
+                'logged_in': True,
+                'user': {
+                    'user_id': user_id,
+                    'username': session.get('username'),
+                    'email': '',
+                    'account_type': session.get('account_type')
+                }
+            })
     else:
         return jsonify({
             'success': True,
             'logged_in': False
         })
+
+
+@auth_bp.route('/accounts', methods=['POST'])
+def get_accounts_by_email():
+    """获取同一邮箱下的所有账号"""
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({
+                'success': False,
+                'error': 'Email is required'
+            }), 400
+        
+        # 获取父账号
+        parent_user = get_user_by_email(email)
+        if not parent_user:
+            return jsonify({
+                'success': False,
+                'error': 'No account found with this email'
+            }), 404
+        
+        accounts = []
+        
+        # 添加父账号
+        accounts.append({
+            'user_id': parent_user['user_id'],
+            'username': parent_user['username'],
+            'account_type': parent_user['account_type'],
+            'email': parent_user['email']
+        })
+        
+        # 获取子账号（学生账号）
+        students = get_students_by_parent(parent_user['user_id'])
+        for student in students:
+            accounts.append({
+                'user_id': student['user_id'],
+                'username': student['username'],
+                'account_type': student['account_type'],
+                'email': ''
+            })
+        
+        return jsonify({
+            'success': True,
+            'accounts': accounts
+        })
+        
+    except Exception as e:
+        print(f"Get accounts error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@auth_bp.route('/parent-email', methods=['POST'])
+def get_parent_email():
+    """获取父账号的邮箱（用于学生账号切换）"""
+    try:
+        data = request.get_json()
+        parent_id = data.get('parent_id')
+        
+        if not parent_id:
+            return jsonify({
+                'success': False,
+                'error': 'Parent ID is required'
+            }), 400
+        
+        # 获取父账号信息
+        parent_settings = get_user_settings(parent_id)
+        
+        if not parent_settings:
+            return jsonify({
+                'success': False,
+                'error': 'Parent account not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'email': parent_settings.get('email', '')
+        })
+        
+    except Exception as e:
+        print(f"Get parent email error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@auth_bp.route('/switch', methods=['POST'])
+def switch_account():
+    """切换账号（需要密码验证）"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        password = data.get('password')
+        
+        print(f"Switch account request - user_id: {user_id}")
+        
+        if not user_id or not password:
+            return jsonify({
+                'success': False,
+                'error': 'User ID and password are required'
+            }), 400
+        
+        # 获取目标用户信息
+        from db_sqlite import get_user_settings
+        target_user = get_user_settings(user_id)
+        
+        if not target_user:
+            print(f"User not found: {user_id}")
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+        
+        # 验证密码
+        password_hash = target_user.get('password_hash', '')
+        print(f"Password hash exists: {bool(password_hash)}")
+        
+        if not password_hash:
+            print(f"No password hash found for user: {user_id}")
+            return jsonify({
+                'success': False,
+                'error': 'Account has no password set'
+            }), 401
+        
+        password_valid = verify_password(password, password_hash)
+        print(f"Password valid: {password_valid}")
+        
+        if not password_valid:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid password'
+            }), 401
+        
+        # 更新 session
+        session['user_id'] = target_user['user_id']
+        session['username'] = target_user['username']
+        session['account_type'] = target_user['account_type']
+        session['logged_in'] = True
+        
+        print(f"Account switched successfully to: {target_user['username']}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Account switched successfully',
+            'user': {
+                'user_id': target_user['user_id'],
+                'username': target_user['username'],
+                'account_type': target_user['account_type']
+            }
+        })
+        
+    except Exception as e:
+        print(f"Switch account error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

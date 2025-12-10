@@ -2,7 +2,7 @@
 User Settings Module
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 import os
 import json
 from datetime import datetime
@@ -18,8 +18,15 @@ settings_bp = Blueprint('settings', __name__, url_prefix='/api/settings')
 def get_settings():
     """获取用户设置"""
     try:
-        # TODO: Get user_id from session after auth system is implemented
-        settings = get_user_settings(user_id='default')
+        # Get user_id from session
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Not logged in'
+            }), 401
+        
+        settings = get_user_settings(user_id=user_id)
         return jsonify({
             'success': True,
             'settings': settings
@@ -34,6 +41,14 @@ def get_settings():
 def update_settings():
     """更新用户设置"""
     try:
+        # Get user_id from session
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Not logged in'
+            }), 401
+        
         data = request.get_json()
         
         # 验证必需字段
@@ -42,9 +57,6 @@ def update_settings():
                 'success': False,
                 'error': 'No data provided'
             }), 400
-        
-        # TODO: Get user_id from session after auth system is implemented
-        user_id = 'default'
         
         # 准备更新的设置（不包括密码）
         settings = {}

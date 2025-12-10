@@ -841,6 +841,7 @@ def get_user_settings(user_id='default'):
                 'user_id': 'default',
                 'username': 'Student',
                 'email': '',
+                'password_hash': '',
                 'account_type': 'student',
                 'parent_id': None,
                 'avatar_url': None,
@@ -857,11 +858,13 @@ def get_user_settings(user_id='default'):
         account_type_value = row['account_type'] if 'account_type' in row.keys() else 'student'
         parent_id_value = row['parent_id'] if 'parent_id' in row.keys() else None
         avatar_url_value = row['avatar_url'] if 'avatar_url' in row.keys() else None
+        password_hash_value = row['password_hash'] if 'password_hash' in row.keys() else ''
         
         return {
             'user_id': user_id_value,
             'username': row['username'],
             'email': row['email'],
+            'password_hash': password_hash_value,
             'account_type': account_type_value,
             'parent_id': parent_id_value,
             'avatar_url': avatar_url_value,

@@ -711,7 +711,7 @@
 .button-primary {
     padding: 10px 20px;
     background: hsl(var(--primary));
-    color: white;
+    color: hsl(var(--primary-foreground));
     border: none;
     border-radius: var(--radius);
     font-size: 14px;

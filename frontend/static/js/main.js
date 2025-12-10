@@ -218,7 +218,8 @@ class ThemeManager {
         document.body.setAttribute('data-theme', theme);
         const icon = document.querySelector('.theme-toggle .fa-moon, .theme-toggle .fa-sun');
         if (icon) {
-            icon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            // Always use moon icon regardless of theme
+            icon.className = 'fas fa-moon';
         }
     }
 }
@@ -320,39 +321,353 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Load user profile from settings API and update sidebar
+ * Load user profile from auth session and update sidebar
+ * Returns true if logged in, false otherwise
  */
 async function loadUserProfile() {
+    // Skip auth check on login and register pages
+    const currentPath = window.location.pathname;
+    const isAuthPage = currentPath.includes('/login') || currentPath.includes('/register');
+    
+    console.log('loadUserProfile called, path:', currentPath, 'isAuthPage:', isAuthPage);
+    
+    if (isAuthPage) {
+        console.log('Skipping auth check on auth page');
+        return true; // Don't check auth on auth pages
+    }
+    
     try {
-        const response = await fetch(window.getApiUrl('/settings/'));
-        const data = await response.json();
+        // Check if user is logged in via session
+        const sessionResponse = await fetch(window.getApiUrl('/auth/session'));
+        const sessionData = await sessionResponse.json();
         
-        if (data.success && data.settings) {
-            const settings = data.settings;
+        console.log('Session data:', sessionData);
+        
+        if (sessionData.logged_in && sessionData.user) {
+            const user = sessionData.user;
             
-            // Update username
+            // Update user name
             document.querySelectorAll('.user-name').forEach(el => {
-                el.textContent = settings.username || 'Student';
+                el.textContent = user.username || 'Student';
             });
             
-            // Update email
-            document.querySelectorAll('.user-email').forEach(el => {
-                el.textContent = settings.email || 'student@example.com';
+            // Update user email - for student accounts, show parent's email
+            document.querySelectorAll('.user-email').forEach(async (el) => {
+                if (user.account_type === 'student' && (!user.email || user.email === '')) {
+                    // Try to get parent's email
+                    try {
+                        const settingsResponse = await fetch(window.getApiUrl('/settings/'));
+                        const settingsData = await settingsResponse.json();
+                        
+                        if (settingsData.success && settingsData.settings.parent_id) {
+                            const parentResponse = await fetch(window.getApiUrl('/auth/parent-email'), {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ parent_id: settingsData.settings.parent_id })
+                            });
+                            const parentData = await parentResponse.json();
+                            
+                            if (parentData.success && parentData.email) {
+                                el.textContent = parentData.email;
+                            } else {
+                                el.textContent = 'Student Account';
+                            }
+                        } else {
+                            el.textContent = 'Student Account';
+                        }
+                    } catch (error) {
+                        console.error('Failed to get parent email:', error);
+                        el.textContent = 'Student Account';
+                    }
+                } else {
+                    el.textContent = user.email || '';
+                }
             });
             
             // Update avatar
             document.querySelectorAll('.avatar').forEach(el => {
-                const initial = (settings.username || 'S')[0].toUpperCase();
+                const initial = (user.username || 'S')[0].toUpperCase();
                 el.textContent = initial;
             });
+            
+            return true;
+        } else {
+            // Not logged in
+            console.log('Not logged in, redirecting to login');
+            // Add a small delay to avoid rapid redirects
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 100);
+            return false;
         }
     } catch (error) {
         console.error('Failed to load user profile:', error);
+        // On error, redirect to login after delay
+        setTimeout(() => {
+            window.location.href = '/login';
+        }, 100);
+        return false;
     }
 }
 
 // Make loadUserProfile globally accessible for Settings page
 window.loadUserProfile = loadUserProfile;
+
+/**
+ * Initialize user menu dropdown for logout/switch account
+ */
+function initUserMenu() {
+    const userProfile = document.querySelector('.user-profile');
+    if (!userProfile) return;
+    
+    // Create dropdown menu if it doesn't exist
+    let dropdown = userProfile.querySelector('.user-menu-dropdown');
+    if (!dropdown) {
+        dropdown = document.createElement('div');
+        dropdown.className = 'user-menu-dropdown';
+        dropdown.innerHTML = `
+            <div class="user-menu-actions">
+                <button class="user-menu-item" id="switchAccountBtn">
+                    <i class="fas fa-exchange-alt"></i>
+                    <span>Switch Account</span>
+                </button>
+                <button class="user-menu-item" id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </button>
+            </div>
+        `;
+        userProfile.appendChild(dropdown);
+    }
+    
+    // Toggle dropdown on click
+    userProfile.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('show');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', () => {
+        dropdown.classList.remove('show');
+    });
+    
+    // Handle logout
+    const logoutBtn = dropdown.querySelector('#logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+                await fetch(window.getApiUrl('/auth/logout'), { method: 'POST' });
+                window.location.href = '/login';
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        });
+    }
+    
+    // Handle switch account
+    const switchBtn = dropdown.querySelector('#switchAccountBtn');
+    if (switchBtn) {
+        switchBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            dropdown.classList.remove('show');
+            await showAccountSwitchModal();
+        });
+    }
+}
+
+/**
+ * Show account switch modal with accounts under same email
+ */
+async function showAccountSwitchModal() {
+    try {
+        // Get current user info
+        const sessionResponse = await fetch(window.getApiUrl('/auth/session'));
+        const sessionData = await sessionResponse.json();
+        
+        if (!sessionData.logged_in) {
+            window.location.href = '/login';
+            return;
+        }
+        
+        const currentUser = sessionData.user;
+        
+        // For student accounts, we need to find parent's email
+        let emailToUse = currentUser.email;
+        
+        // If current user has no email (student account), need to get parent's email
+        if (!emailToUse || emailToUse === '') {
+            // Get user settings which includes parent_id
+            const settingsResponse = await fetch(window.getApiUrl('/settings/'));
+            const settingsData = await settingsResponse.json();
+            
+            if (settingsData.success && settingsData.settings.parent_id) {
+                // Get parent's information to find email
+                const parentResponse = await fetch(window.getApiUrl('/auth/parent-email'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ parent_id: settingsData.settings.parent_id })
+                });
+                const parentData = await parentResponse.json();
+                
+                if (parentData.success && parentData.email) {
+                    emailToUse = parentData.email;
+                }
+            }
+        }
+        
+        if (!emailToUse) {
+            alert('Cannot find associated email for account switching.');
+            return;
+        }
+        
+        // Get accounts under same email
+        const accountsResponse = await fetch(window.getApiUrl('/auth/accounts'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: emailToUse })
+        });
+        const accountsData = await accountsResponse.json();
+        
+        if (!accountsData.success || !accountsData.accounts || accountsData.accounts.length === 0) {
+            alert('No other accounts found under this email.');
+            return;
+        }
+        
+        // Filter out current account if only one account total
+        if (accountsData.accounts.length === 1) {
+            alert('No other accounts available to switch to.');
+            return;
+        }
+        
+        // Create modal
+        const modal = document.createElement('div');
+        modal.className = 'account-switch-modal';
+        modal.innerHTML = `
+            <div class="account-switch-content">
+                <div class="account-switch-header">
+                    <h3>Switch Account</h3>
+                    <p>Select an account to switch to</p>
+                </div>
+                <div class="account-switch-list" id="accountSwitchList">
+                    ${accountsData.accounts.map(account => `
+                        <div class="account-switch-item ${account.user_id === currentUser.user_id ? 'selected' : ''}" 
+                             data-user-id="${account.user_id}"
+                             data-username="${account.username}"
+                             data-account-type="${account.account_type}">
+                            <div class="account-avatar avatar">
+                                ${account.username[0].toUpperCase()}
+                            </div>
+                            <div class="account-details">
+                                <p class="account-name">${account.username}</p>
+                                <p class="account-type">${account.account_type === 'parent' ? 'Parent Account' : 'Student Account'}</p>
+                            </div>
+                            ${account.user_id === currentUser.user_id ? '<i class="fas fa-check" style="margin-left: auto; color: hsl(var(--primary));"></i>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="form-group">
+                    <label for="switchPassword">
+                        <i class="fas fa-lock"></i>
+                        Enter Password
+                    </label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="switchPassword" class="form-input" placeholder="Password" required>
+                        <button type="button" class="toggle-password" data-target="switchPassword">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="account-switch-footer">
+                    <button class="btn button-outline" id="cancelSwitchBtn">Cancel</button>
+                    <button class="btn button-primary" id="confirmSwitchBtn">Switch Account</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Show modal with animation
+        setTimeout(() => modal.classList.add('show'), 10);
+        
+        let selectedUserId = null; // Initialize as null, will be set when user clicks an account
+        
+        // Handle account selection
+        modal.querySelectorAll('.account-switch-item').forEach(item => {
+            item.addEventListener('click', function() {
+                modal.querySelectorAll('.account-switch-item').forEach(i => i.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedUserId = this.dataset.userId;
+            });
+        });
+        
+        // Handle password toggle
+        const toggleBtn = modal.querySelector('.toggle-password');
+        const passwordInput = modal.querySelector('#switchPassword');
+        toggleBtn.addEventListener('click', () => {
+            const type = passwordInput.type === 'password' ? 'text' : 'password';
+            passwordInput.type = type;
+            toggleBtn.querySelector('i').className = type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+        });
+        
+        // Handle cancel
+        modal.querySelector('#cancelSwitchBtn').addEventListener('click', () => {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 200);
+        });
+        
+        // Handle confirm switch
+        modal.querySelector('#confirmSwitchBtn').addEventListener('click', async () => {
+            if (!selectedUserId) {
+                alert('Please select an account');
+                return;
+            }
+            
+            const password = passwordInput.value;
+            if (!password) {
+                alert('Please enter password');
+                return;
+            }
+            
+            try {
+                const response = await fetch(window.getApiUrl('/auth/switch'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: selectedUserId,
+                        password: password
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    modal.classList.remove('show');
+                    setTimeout(() => modal.remove(), 200);
+                    // Reload page to reflect new user
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to switch account');
+                }
+            } catch (error) {
+                console.error('Switch account failed:', error);
+                alert('Failed to switch account');
+            }
+        });
+        
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+                setTimeout(() => modal.remove(), 200);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Failed to show account switch modal:', error);
+        alert('Failed to load accounts');
+    }
+}
 
 function initSidebarToggle() {
     const sidebar = document.getElementById('sidebar');
@@ -370,6 +685,23 @@ function initSidebarToggle() {
         localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
     });
 }
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    // Only load user profile and menu on non-auth pages
+    const currentPath = window.location.pathname;
+    const isAuthPage = currentPath.includes('/login') || currentPath.includes('/register');
+    
+    console.log('DOMContentLoaded - path:', currentPath, 'isAuthPage:', isAuthPage);
+    
+    if (!isAuthPage) {
+        console.log('Initializing user profile and menu');
+        loadUserProfile();
+        initUserMenu();
+    } else {
+        console.log('Skipping initialization on auth page');
+    }
+});
 
 window.AIStudyAssistant = {
     Utils,
