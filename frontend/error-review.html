@@ -9,11 +9,12 @@
     <link rel="preload" href="/static/css/main.css" as="style">
     <link rel="stylesheet" href="/static/css/main.css">
     <link rel="stylesheet" href="/static/css/error-book.css">
-    <!-- review 专用样式（请把之前给你的 redo CSS 追加到此文件） -->
+    <!--  补上 review 专用样式 -->
     <link rel="stylesheet" href="/static/css/error-review.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- MathJax 配置：启用 $...$ -->
+    <!-- 推荐配置：支持动态渲染 + $...$ -->
     <script>
         window.MathJax = {
             tex: {
@@ -23,7 +24,7 @@
                 processEnvironments: true
             },
             startup: {
-                typeset: false  // 我们用手动渲染
+                typeset: false  // 禁止自动渲染，以便手动调用 typesetPromise
             },
             options: {
                 ignoreHtmlClass: 'tex2jax_ignore',
@@ -31,14 +32,23 @@
             }
         };
     </script>
-    <script id="MathJax-script" async
-        src="https://cdn.bootcdn.net/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js">
-    </script>
+    <script>
+window.MathJax = {
+    tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+    },
+    svg: {
+        fontCache: 'global'
+    }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
 
 </head>
 <body>
     <div class="app-container">
-        <!-- 侧边栏 -->
+        <!-- 侧边栏（与 error-book 完全一致） -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h1 class="app-title">AI Study Assistant</h1>
@@ -47,10 +57,6 @@
                 </button>
             </div>
             <nav class="nav-menu">
-                <a href="/dashboard" class="nav-item">
-                    <i class="fas fa-th-large"></i>
-                    <span>Overview</span>
-                </a>
                 <a href="/note-assistant" class="nav-item">
                     <i class="fas fa-file-text"></i>
                     <span>Note Assistant</span>
@@ -62,6 +68,14 @@
                 <a href="/map-generation" class="nav-item">
                     <i class="fas fa-sitemap"></i>
                     <span>Mind Map</span>
+                </a>
+                <a href="/learning-dashboard" class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Analytics</span>
+                </a>
+                <a href="/parent-view" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    <span>Parent View</span>
                 </a>
             </nav>
             <div class="sidebar-footer">
@@ -97,42 +111,45 @@
             </header>
 
             <div class="content-body">
-                <!-- ===== Review Details (原有) ===== -->
-                <section class="section" aria-labelledby="reviewDetailsTitle">
+                <section class="section">
                     <div class="section-header">
-                        <h3 class="section-title" id="reviewDetailsTitle">Review Details</h3>
+                        <h3 class="section-title">Review Details</h3>
                     </div>
-
                     <div class="errors-list">
                         <div class="error-card" id="reviewCard">
                             <div class="error-content">
                                 <h4 class="error-title" id="qTitle">Loading...</h4>
                                 <div class="error-description tex2jax_process" id="questionContent"></div>
 
-                                <!-- 新增折叠按钮 -->
-    <button class="toggle-details" style="margin:10px 0;">
-        <i class="fas fa-chevron-down"></i> Show Details
-    </button>
+                                <!-- 折叠/展开按钮 -->
+                                <button class="toggle-details" style="margin:10px 0;">
+                                    <i class="fas fa-chevron-down"></i> Show Details
+                                </button>
 
-    <!-- 折叠区域：包含用户答案、正确答案和分析 -->
-    <div class="details-block" style="display:none; margin-top:10px;">
-        <div class="review-section">
-            <h5>Your Answer:</h5>
-            <div class="answer-content tex2jax_process" id="userAnswer"></div>
-        </div>
+                                <!-- 折叠区域：包含用户答案、正确答案和分析 -->
+                                <div class="details-block" style="display:none; margin-top:10px;">
+                                    <div class="review-section">
+                                        <h5>Your Answer:</h5>
+                                        <div class="answer-content tex2jax_process" id="userAnswer"></div>
+                                    </div>
 
-        <div class="review-section">
-            <h5>Correct Answer:</h5>
-            <div class="answer-content tex2jax_process" id="theAnswer"></div>
-        </div>
+                                    <div class="review-section">
+                                        <h5>Correct Answer:</h5>
+                                        <div class="answer-content tex2jax_process" id="theAnswer"></div>
+                                    </div>
 
-        <div class="review-section">
-            <h5>Step-by-step Analysis:</h5>
-            <div class="analysis-content tex2jax_process" id="analysisContent"></div>
-        </div>
-    </div>
+                                    <div class="review-section">
+                                        <h5>Step-by-step Analysis:</h5>
+                                        <div class="analysis-content tex2jax_process" id="analysisContent"></div>
+                                    </div>
+                                    <!-- ✅ 新增：上次错题记录（与用户答案等一起折叠） -->
+                                    <!-- 改为：Last Redo Attempt -->
+<div class="review-section" id="lastRedoSection" style="display:none;">
+    <h5><i class="fas fa-redo"></i> Your Last Redo (<span id="redoTimeDisplay">—</span>)</h5>
+    <div class="answer-content tex2jax_process" id="lastRedoAnswer">—</div>
 </div>
-
+                                </div>
+                            </div>
                             <div class="error-footer">
                                 <span id="metaInfo" style="color: var(--text-muted); font-size: 0.9em;"></span>
                             </div>
@@ -140,11 +157,11 @@
                     </div>
                 </section>
 
-                <!-- ===== 新增独立方框：Redo This Question（位于 Review Details 下方） ===== -->
-                <section class="section redo-section-card" aria-labelledby="redoTitle">
+                <!-- Redo Section -->
+                <section class="section redo-section-card">
                     <div class="section-header">
-                        <h3 class="section-title" id="redoTitle">Redo This Question</h3>
-                        <p class="section-subtitle">Resubmit the answer</p>
+                        <h3 class="section-title">Redo This Question</h3>
+                        <p class="page-subtitle">Resubmit the answer</p>
                     </div>
 
                     <div class="errors-list">
@@ -152,16 +169,15 @@
                             <div class="error-content">
                                 <h4 class="error-title">Upload Your Answer</h4>
 
-                                <!-- dropzone：支持点击和拖拽 -->
-                                <div id="redoDropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload answer image">
-                                    <i class="fas fa-cloud-upload-alt upload-icon" aria-hidden="true"></i>
-                                    <p class="dz-text">Drag & Drop your answer image here</p> <!-- 改名为 dz-text -->
-
+                                <!-- Dropzone：支持点击和拖拽 -->
+                                <div id="redoDropzone" class="dropzone" role="button" tabindex="0">
+                                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                    <p class="dz-text">Drag & Drop your answer image here</p>
                                     <p class="upload-subtext">or click to choose a file</p>
                                     <input type="file" id="redoFile" accept="image/*" class="upload-input" />
                                 </div>
 
-                                <!-- 预览区（上传后会显示缩略图） -->
+                                <!-- 预览区 -->
                                 <div id="redoPreview" style="margin-top:12px; display:none;">
                                     <img id="redoPreviewImg" src="" alt="Preview" style="max-width:240px; border-radius:8px; box-shadow:0 1px 6px rgba(0,0,0,.08);" />
                                 </div>
@@ -173,17 +189,42 @@
                                 </div>
 
                                 <!-- 结果提示 -->
-                                <div id="redoResult" class="redo-result" role="status" aria-live="polite"></div>
+                                <div id="redoResult" class="redo-result" role="status"></div>
                             </div>
+
+
 
                             <div class="error-footer" style="margin-top:8px;">
-                                <small style="color:var(--text-muted)">Hint: If a question is judged as correct in one attempt, it will be marked as passed.</small>
+                                <small style="color:var(--text-muted)">Hint: If a question is judged as correct, it will be marked as mastered.</small>
                             </div>
                         </div>
+                        <!-- Text Answer Section -->
+<div class="error-card redo-card" id="textRedoCard">
+    <div class="error-content">
+        <h4 class="error-title">Type Your Answer</h4>
+
+        <textarea id="textAnswer"
+                  placeholder="Type your answer here..."
+                  rows="5"
+                  style="width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;resize:vertical;"></textarea>
+
+        <div style="margin-top:14px;display:flex;gap:12px;">
+            <button id="textRedoBtn" class="redo-btn">Submit Text Answer</button>
+            <button id="textRedoClearBtn" class="redo-clear-btn" type="button">Clear</button>
+        </div>
+
+        <div id="textRedoResult" class="redo-result" role="status"></div>
+    </div>
+
+    <div class="error-footer" style="margin-top:8px;">
+        <small style="color:var(--text-muted)">
+            You can submit text answer directly if this is not an image question.
+        </small>
+    </div>
+</div>
+
                     </div>
                 </section>
-                <!-- ===== End Redo Section ===== -->
-
             </div>
         </main>
     </div>
@@ -193,6 +234,5 @@
     <script src="/static/js/message-modal.js"></script>
     <script src="/static/js/notifications.js"></script>
     <script src="/static/js/error-review.js"></script>
-
 </body>
 </html>

@@ -2,7 +2,37 @@
  * AI Study Assistant - Main JavaScript
  */
 
-const API_BASE = 'http://localhost:5000/api';
+// 自动检测环境并设置 API 基础地址
+const currentHost = window.location.hostname;
+const isRenderProduction = currentHost.includes('onrender.com');
+const isLocalDevelopment = currentHost === 'localhost' || currentHost === '127.0.0.1';
+
+// 根据环境设置 API 基础地址
+let API_BASE;
+if (isRenderProduction || (!isLocalDevelopment && currentHost !== '')) {
+    // Render 或其他远程环境：使用当前域名
+    API_BASE = window.location.origin + '/api';
+} else {
+    // 本地开发环境
+    API_BASE = 'http://localhost:5000/api';
+}
+
+console.log('🌐 Main.js Environment:', { currentHost, isRenderProduction, isLocalDevelopment, API_BASE });
+
+// 全局函数：获取完整 API URL（供其他脚本使用）
+window.getApiUrl = function(endpoint) {
+    if (!endpoint.startsWith('/')) {
+        endpoint = '/' + endpoint;
+    }
+    // 如果endpoint已经包含/api，直接返回base+endpoint
+    if (endpoint.startsWith('/api')) {
+        return (isRenderProduction || (!isLocalDevelopment && currentHost !== '')) 
+            ? window.location.origin + endpoint 
+            : 'http://localhost:5000' + endpoint;
+    }
+    // 否则使用API_BASE
+    return API_BASE + endpoint;
+};
 
 const Utils = {
     async apiCall(endpoint, method = 'GET', data = null) {
@@ -28,18 +58,29 @@ const Utils = {
     },
     
     showNotification(message, type = 'info') {
+        // Create toast container if it doesn't exist
+        let container = document.querySelector('.toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'toast-container';
+            document.body.appendChild(container);
+        }
+        
         const notification = document.createElement('div');
-        notification.className = `toast toast-${type}`;
+        notification.className = `toast ${type}`;  // Changed from toast-${type} to match CSS
         notification.innerHTML = `
-            <i class="fas fa-${this.getIconByType(type)}"></i>
-            <span>${message}</span>
+            <i class="fas fa-${this.getIconByType(type)} toast-icon"></i>
+            <span class="toast-message">${message}</span>
         `;
         
-        document.body.appendChild(notification);
-        setTimeout(() => notification.classList.add('show'), 100);
+        container.appendChild(notification);
         
+        // Trigger show animation
+        setTimeout(() => notification.classList.add('show'), 10);
+        
+        // Auto remove after 3 seconds
         setTimeout(() => {
-            notification.classList.remove('show');
+            notification.classList.add('hiding');
             setTimeout(() => notification.remove(), 300);
         }, 3000);
     },
@@ -52,6 +93,27 @@ const Utils = {
             'info': 'info-circle'
         };
         return icons[type] || 'info-circle';
+    },
+    
+    /**
+     * Shared loading helpers for buttons
+     */
+    showLoadingState(button, message = 'Loading...') {
+        if (!button) return;
+        button.disabled = true;
+        if (!button.dataset.originalHtml) button.dataset.originalHtml = button.innerHTML;
+        button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span>${message}</span>`;
+        button.classList.add('loading');
+    },
+
+    hideLoadingState(button) {
+        if (!button) return;
+        button.disabled = false;
+        if (button.dataset.originalHtml) {
+            button.innerHTML = button.dataset.originalHtml;
+            delete button.dataset.originalHtml;
+        }
+        button.classList.remove('loading');
     },
     
     async navigateTo(page, animation = 'fade') {
@@ -122,40 +184,9 @@ class NavigationManager {
 
 class NotificationPanel {
     constructor() {
-        this.panel = document.getElementById('notificationPanel');
-        this.button = document.getElementById('notificationBtn');
-        this.closeBtn = this.panel?.querySelector('.close-button');
-        this.init();
-    }
-    
-    init() {
-        if (!this.panel || !this.button) return;
-        
-        this.button.addEventListener('click', () => {
-            this.toggle();
-        });
-        
-        this.closeBtn?.addEventListener('click', () => {
-            this.close();
-        });
-        
-        document.addEventListener('click', (e) => {
-            if (!this.panel.contains(e.target) && !this.button.contains(e.target)) {
-                this.close();
-            }
-        });
-    }
-    
-    toggle() {
-        this.panel.classList.toggle('hidden');
-    }
-    
-    close() {
-        this.panel.classList.add('hidden');
-    }
-    
-    open() {
-        this.panel.classList.remove('hidden');
+        // 通知管理已移至 notifications.js
+        // 保留此类以兼容旧代码
+        console.log('NotificationPanel: Using new notifications.js system');
     }
 }
 
@@ -265,6 +296,24 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn('Backend connection failed');
         }
     });
+    
+    // Initialize global AI Chat float for all pages
+    try {
+        // Ensure CSS for ai-chat is loaded (if not present)
+        const aiChatCssHref = 'static/css/ai-chat.css';
+        if (![...document.styleSheets].some(s => s.href && s.href.endsWith('ai-chat.css'))) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = aiChatCssHref;
+            document.head.appendChild(link);
+        }
+
+        if (window.initGlobalAIChat) {
+            window.initGlobalAIChat();
+        }
+    } catch (e) {
+        console.warn('Failed to initialize global AI Chat:', e);
+    }
 });
 
 function initSidebarToggle() {

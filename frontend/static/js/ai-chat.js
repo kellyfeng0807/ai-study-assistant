@@ -682,8 +682,14 @@ class AIChatFloat {
     }
 }
 
-// Initialize AI Chat Float when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    window.aiChat = new AIChatFloat();
-    console.log('AI Chat Float initialized');
-});
+// Export global initializer function; main.js will call this to create a single instance
+function initGlobalAIChat() {
+    if (!window.aiChat) {
+        window.aiChat = new AIChatFloat();
+        console.log('AI Chat Float initialized (global)');
+    }
+    return window.aiChat;
+}
+
+// Expose for manual init in other scripts
+window.initGlobalAIChat = initGlobalAIChat;

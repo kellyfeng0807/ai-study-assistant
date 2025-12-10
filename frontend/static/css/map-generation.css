@@ -1,5 +1,39 @@
 /* Mind Map Generation Styles - Enhanced */
 
+/* Advice Card Styles */
+.advice-card {
+    background: hsl(var(--accent));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: var(--spacing-lg);
+}
+
+.advice-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.advice-row i {
+    font-size: 18px;
+    color: hsl(var(--muted-foreground));
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.advice-row .advice-text {
+    flex: 1;
+    color: hsl(var(--muted-foreground));
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.advice-row .advice-text strong {
+    color: hsl(var(--foreground));
+    font-weight: 600;
+}
+
 .generation-section {
     margin-bottom: var(--spacing-xl);
 }
@@ -227,6 +261,58 @@
     align-self: flex-end;
 }
 
+/* Notes Selection (for multi-select notes panel) */
+.notes-select-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+    max-height: calc(5 * 120px); /* 5 rows, each ~120px tall */
+    overflow-y: auto;
+    padding: var(--spacing-sm);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--card));
+}
+
+.note-select-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    cursor: pointer;
+    transition: var(--transition);
+    min-height: 100px;
+}
+
+.note-select-item:hover {
+    background: hsl(var(--accent));
+}
+
+.note-select-item input[type="checkbox"] {
+    margin-top: 2px;
+    cursor: pointer;
+}
+
+.note-summary {
+    flex: 1;
+}
+
+.note-summary .note-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 4px;
+}
+
+.note-summary .note-excerpt {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.4;
+}
+
 .options-area {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -285,10 +371,34 @@
     gap: var(--spacing-md);
 }
 
+.title-edit-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex: 1;
+}
+
 .preview-title {
     font-size: 18px;
     font-weight: 600;
     color: hsl(var(--foreground));
+}
+
+.title-input {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    flex: 1;
+    max-width: 400px;
+}
+
+.title-input:focus {
+    outline: none;
+    border-color: hsl(var(--primary));
 }
 
 .preview-actions {
@@ -435,25 +545,57 @@
 }
 
 .edit-preview-container .mermaid-preview {
-    width: max-content;
+    width: 100%;
     min-width: 100%;
-    min-height: 400px;
+    min-height: 100%;
     border: none;
     border-radius: 0;
     transition: transform 0.3s ease;
-    transform-origin: top left;
+    transform-origin: center center;
     padding: var(--spacing-xl);
     overflow: visible;
-    display: inline-block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* 确保内容居中显示 */
+    position: relative;
 }
 
 .edit-preview-container .mermaid-preview .mermaid {
-    display: inline-block;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    /* 允许内容自适应 */
+    width: auto;
+    height: auto;
+}
+
+.edit-preview-container .mermaid-preview .mermaid[data-processed="true"] {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.edit-preview-container .mermaid-preview .mermaid svg {
+    display: block !important;
+    max-width: none !important;
+    /* SVG 不受限制，可以任意大小 */
+    width: auto !important;
+    height: auto !important;
+    /* 确保可见 */
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .edit-preview-container .mermaid-preview svg {
     max-width: none !important;
     display: block;
+    /* SVG 不受限制，可以任意大小 */
+    width: auto !important;
+    height: auto !important;
+    /* 确保可见 */
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 /* Edit Zoom Controls */
@@ -492,6 +634,14 @@
 .editable-canvas {
     position: relative;
     cursor: default;
+    overflow: auto;
+    width: 100%;
+    height: 100%;
+    background: 
+        /* Grid pattern for infinite canvas feel */
+        repeating-linear-gradient(0deg, transparent, transparent 19px, hsl(var(--border) / 0.1) 19px, hsl(var(--border) / 0.1) 20px),
+        repeating-linear-gradient(90deg, transparent, transparent 19px, hsl(var(--border) / 0.1) 19px, hsl(var(--border) / 0.1) 20px);
+    background-size: 20px 20px;
 }
 
 .editable-canvas .node {
@@ -530,6 +680,24 @@
 .error-message small {
     font-size: 12px;
     opacity: 0.7;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    text-align: center;
+    padding: var(--spacing-xl);
+    color: hsl(var(--muted-foreground));
+}
+
+.loading-spinner i {
+    font-size: 48px;
+    margin-bottom: var(--spacing-md);
+    color: hsl(var(--primary));
+}
+
+.loading-spinner p {
+    font-size: 14px;
+    font-weight: 500;
 }
 
 /* Recent Maps Grid */

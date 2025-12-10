@@ -3,6 +3,45 @@
  * Enhanced with Mermaid rendering, file upload, and editing capabilities
  */
 
+
+let mapViewStartTime = null;
+let mapViewSubject = "General";
+
+function startMapViewTimer(subject = "General") {
+    mapViewStartTime = Date.now();
+    mapViewSubject = subject || "General";
+    console.log(`Started viewing mind map: ${mapViewSubject}`);
+}
+
+async function trackMapViewTime() {
+    if (!mapViewStartTime) return;
+    
+    const seconds = Math.floor((Date.now() - mapViewStartTime) / 1000);
+    mapViewStartTime = null; // 重置
+    
+    if (seconds < 5 || seconds > 7200) return;
+    
+    try {
+        await fetch('/api/track_time', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                seconds: seconds,
+                mode: 'review',
+                subject: mapViewSubject,
+                is_correct: 1
+            })
+        });
+        console.log(`Tracked ${seconds}s for viewing mind map (${mapViewSubject})`);
+    } catch (err) {
+        console.warn('Failed to track map view time:', err);
+    }
+}
+
+// 页面离开时追踪时间
+window.addEventListener('beforeunload', () => trackMapViewTime());
+window.addEventListener('pagehide', () => trackMapViewTime());
+
 // Initialize Mermaid with default theme
 mermaid.initialize({ 
     startOnLoad: false,
@@ -27,6 +66,11 @@ class MapGenerationManager {
         this.uploadedFiles = [];  // Changed to array for multiple files
         this.zoomLevel = 1.0;
         this.editZoomLevel = 1.0;  // Separate zoom for edit mode
+        
+        // ViewBox 管理
+        this.originalViewBox = null;  // 原始 viewBox（最小尺寸参考）
+        this.containerSize = null;    // 容器尺寸
+        
         this.init();
     }
     
@@ -45,8 +89,10 @@ class MapGenerationManager {
         // Depth selection change handlers
         const depthSelect = document.getElementById('depthSelect');
         const fileDepthSelect = document.getElementById('fileDepthSelect');
+        const notesDepthSelect = document.getElementById('notesDepthSelect');
         const customDepthGroup = document.getElementById('customDepthGroup');
         const fileCustomDepthGroup = document.getElementById('fileCustomDepthGroup');
+        const notesCustomDepthGroup = document.getElementById('notesCustomDepthGroup');
 
         if (depthSelect && customDepthGroup) {
             depthSelect.addEventListener('change', (e) => {
@@ -57,6 +103,12 @@ class MapGenerationManager {
         if (fileDepthSelect && fileCustomDepthGroup) {
             fileDepthSelect.addEventListener('change', (e) => {
                 fileCustomDepthGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
+            });
+        }
+
+        if (notesDepthSelect && notesCustomDepthGroup) {
+            notesDepthSelect.addEventListener('change', (e) => {
+                notesCustomDepthGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
             });
         }
 
@@ -91,10 +143,32 @@ class MapGenerationManager {
             uploadGenerateBtn.addEventListener('click', () => this.generateFromFile());
         }
 
+        // Notes tab: bind generate button
+        const generateFromNotesBtn = document.getElementById('generateFromNotesBtn');
+        if (generateFromNotesBtn) {
+            generateFromNotesBtn.addEventListener('click', () => this.generateFromNotes());
+        }
+
+        // Title edit controls
+        const editTitleBtn = document.getElementById('editTitleBtn');
+        const saveTitleBtn = document.getElementById('saveTitleBtn');
+        const cancelTitleBtn = document.getElementById('cancelTitleBtn');
+
+        if (editTitleBtn) {
+            editTitleBtn.addEventListener('click', () => this.startEditTitle());
+        }
+
+        if (saveTitleBtn) {
+            saveTitleBtn.addEventListener('click', () => this.saveTitle());
+        }
+
+        if (cancelTitleBtn) {
+            cancelTitleBtn.addEventListener('click', () => this.cancelEditTitle());
+        }
+
         // Edit mode controls
         const editModeBtn = document.getElementById('editModeBtn');
         const saveBtn = document.getElementById('saveBtn');
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
         const exportBtn = document.getElementById('exportBtn');
         const formatCodeBtn = document.getElementById('formatCodeBtn');
         const applyCodeBtn = document.getElementById('applyCodeBtn');
@@ -140,10 +214,6 @@ class MapGenerationManager {
 
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.saveChanges());
-        }
-
-        if (fullscreenBtn) {
-            fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
         }
 
         if (exportBtn) {
@@ -211,6 +281,11 @@ class MapGenerationManager {
         document.querySelectorAll('.tab-content').forEach(content => {
             content.classList.toggle('active', content.id === tabId);
         });
+
+        // Load notes when switching to notes tab
+        if (tabId === 'notes-select') {
+            this.loadAvailableNotes();
+        }
     }
 
     setupDragAndDrop() {
@@ -467,6 +542,207 @@ class MapGenerationManager {
         }
     }
 
+    startEditTitle() {
+        const mapTitle = document.getElementById('mapTitle');
+        const mapTitleInput = document.getElementById('mapTitleInput');
+        const editTitleBtn = document.getElementById('editTitleBtn');
+        const saveTitleBtn = document.getElementById('saveTitleBtn');
+        const cancelTitleBtn = document.getElementById('cancelTitleBtn');
+
+        if (mapTitle && mapTitleInput) {
+            mapTitleInput.value = mapTitle.textContent;
+            mapTitle.style.display = 'none';
+            mapTitleInput.style.display = 'block';
+            mapTitleInput.focus();
+            mapTitleInput.select();
+
+            editTitleBtn.style.display = 'none';
+            saveTitleBtn.style.display = 'inline-flex';
+            cancelTitleBtn.style.display = 'inline-flex';
+        }
+    }
+
+    cancelEditTitle() {
+        const mapTitle = document.getElementById('mapTitle');
+        const mapTitleInput = document.getElementById('mapTitleInput');
+        const editTitleBtn = document.getElementById('editTitleBtn');
+        const saveTitleBtn = document.getElementById('saveTitleBtn');
+        const cancelTitleBtn = document.getElementById('cancelTitleBtn');
+
+        mapTitle.style.display = 'block';
+        mapTitleInput.style.display = 'none';
+
+        editTitleBtn.style.display = 'inline-flex';
+        saveTitleBtn.style.display = 'none';
+        cancelTitleBtn.style.display = 'none';
+    }
+
+    async saveTitle() {
+        const mapTitle = document.getElementById('mapTitle');
+        const mapTitleInput = document.getElementById('mapTitleInput');
+        const newTitle = mapTitleInput.value.trim();
+
+        if (!newTitle) {
+            window.messageModal.alert('Title cannot be empty', 'Invalid Title', 'warning');
+            mapTitleInput.focus();
+            return;
+        }
+
+        if (!this.currentMapId) {
+            window.messageModal.alert('No mind map selected', 'Error', 'error');
+            this.cancelEditTitle();
+            return;
+        }
+
+        try {
+            const result = await Utils.apiCall(`/map/${this.currentMapId}`, 'PUT', {
+                title: newTitle
+            });
+
+            if (result && result.success) {
+                mapTitle.textContent = newTitle;
+                this.cancelEditTitle();
+                Utils.showNotification('Title updated successfully', 'success');
+                this.loadRecentMaps(); // Refresh the list
+            } else {
+                window.messageModal.alert(result.error || 'Failed to update title', 'Error', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating title:', error);
+            window.messageModal.alert('Error updating title', 'Error', 'error');
+        }
+    }
+
+    // Load notes for the Notes panel (multi-select)
+    async loadAvailableNotes() {
+        const list = document.getElementById('notesSelectList');
+        if (!list) {
+            console.warn('notesSelectList element not found');
+            return;
+        }
+
+        // Show loading state
+        list.innerHTML = '<div style="text-align: center; padding: 20px; color: hsl(var(--muted-foreground));">Loading notes...</div>';
+
+        try {
+            const res = await fetch('/api/note/list?limit=50');
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+            const data = await res.json();
+            
+            if (data.success && Array.isArray(data.notes) && data.notes.length > 0) {
+                this.renderNotesSelectList(data.notes);
+            } else {
+                // No notes available
+                list.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: hsl(var(--muted-foreground));">
+                        <i class="fas fa-sticky-note" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i>
+                        <p style="font-size: 16px; margin: 0;">No notes found</p>
+                        <p style="font-size: 14px; margin-top: 8px; opacity: 0.7;">Create notes in Note Assistant first</p>
+                    </div>
+                `;
+            }
+        } catch (err) {
+            console.error('Failed to load notes for selection:', err);
+            list.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: hsl(var(--destructive));">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px;"></i>
+                    <p style="font-size: 16px; margin: 0;">Failed to load notes</p>
+                    <p style="font-size: 14px; margin-top: 8px;">${err.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    renderNotesSelectList(notes) {
+        const list = document.getElementById('notesSelectList');
+        const btn = document.getElementById('generateFromNotesBtn');
+        if (!list) return;
+        list.innerHTML = '';
+
+        notes.forEach(note => {
+            const item = document.createElement('label');
+            item.className = 'note-select-item';
+            const preview = note.preview || note.summary || '';
+            item.innerHTML = `
+                <input type="checkbox" value="${note.id}">
+                <div class="note-summary">
+                    <div class="note-title">${this.escapeHtml(note.title || note.subject || 'Untitled')}</div>
+                    <div class="note-excerpt">${this.escapeHtml(preview.slice(0, 120))}</div>
+                </div>
+            `;
+            list.appendChild(item);
+        });
+
+        // Enable selection tracking
+        list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', () => {
+                const anyChecked = Array.from(list.querySelectorAll('input[type="checkbox"]')).some(i => i.checked);
+                if (btn) btn.disabled = !anyChecked;
+            });
+        });
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async generateFromNotes() {
+        const list = document.getElementById('notesSelectList');
+        const btn = document.getElementById('generateFromNotesBtn');
+        const notesTopicInput = document.getElementById('notesTopicInput');
+        const notesContextInput = document.getElementById('notesContextInput');
+        const notesDepthSelect = document.getElementById('notesDepthSelect');
+        const notesCustomDepthInput = document.getElementById('notesCustomDepthInput');
+        const notesStyleSelect = document.getElementById('notesStyleSelect');
+
+        if (!list) return;
+        const checked = Array.from(list.querySelectorAll('input[type="checkbox"]')).filter(i => i.checked).map(i => i.value);
+        if (checked.length === 0) {
+            Utils.showNotification('Please select at least one note', 'error');
+            return;
+        }
+
+        // Get depth value
+        const depthValue = notesDepthSelect?.value;
+        let depth = depthValue === 'custom' 
+            ? (notesCustomDepthInput?.value || '3') 
+            : (depthValue === 'auto' ? 'auto' : depthValue);
+
+        // Build request body
+        const requestBody = {
+            note_ids: checked,
+            topic: notesTopicInput?.value?.trim() || '',
+            context: notesContextInput?.value?.trim() || '',
+            depth: depth,
+            style: notesStyleSelect?.value || 'TD'
+        };
+
+        try {
+            Utils.showLoadingState(btn, 'Generating map from notes...');
+            const res = await fetch('/api/map/generate-from-notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+            const data = await res.json();
+            if (data.success) {
+                Utils.showNotification('Mind map generated from notes!', 'success');
+                this.displayMindMap(data.mindmap);
+            } else {
+                Utils.showNotification(data.error || 'Failed to generate map from notes', 'error');
+            }
+        } catch (err) {
+            console.error('Error generating map from notes', err);
+            Utils.showNotification('Error generating map from notes', 'error');
+        } finally {
+            Utils.hideLoadingState(btn);
+        }
+    }
+
     async renderMermaid(code) {
         const container = document.getElementById('mermaidContainer');
         if (!container) return;
@@ -482,6 +758,7 @@ class MapGenerationManager {
         }
 
         try {
+            // 完全清空容器
             container.innerHTML = '';
             
             mermaid.initialize({ 
@@ -496,20 +773,22 @@ class MapGenerationManager {
                     useMaxWidth: true
                 },
                 deterministicIds: true,
-                deterministicIDSeed: this.currentMapId || 'view'
+                deterministicIDSeed: `view-${this.currentMapId || 'current'}-${Date.now()}`
             });
             
+            // 使用时间戳创建唯一 ID
+            const uniqueId = `mermaid-view-${Date.now()}`;
             const mermaidDiv = document.createElement('div');
             mermaidDiv.className = 'mermaid';
-            mermaidDiv.id = `mermaid-view-${this.currentMapId || 'current'}`;
+            mermaidDiv.id = uniqueId;
             mermaidDiv.textContent = code;
             container.appendChild(mermaidDiv);
             
             await mermaid.run({
-                querySelector: `#${mermaidDiv.id}`
+                querySelector: `#${uniqueId}`
             });
             
-            // 不再应用位置，因为我们直接保存整个 SVG
+            // Mermaid 渲染后 SVG 已经在 mermaidDiv 内，保持原样即可
         } catch (error) {
             console.error('Mermaid render error:', error);
             container.innerHTML = `
@@ -526,7 +805,6 @@ class MapGenerationManager {
         const container = document.getElementById('mermaidContainer');
         if (!container) return;
         
-        console.log('Rendering saved SVG, length:', svgContent.length);
         container.innerHTML = svgContent;
     }
 
@@ -594,6 +872,9 @@ class MapGenerationManager {
         previewContainer.innerHTML = '';
         previewContainer.appendChild(clonedSvg);
         
+        // 初始化 viewBox 管理
+        this.initializeViewBox(clonedSvg);
+        
         this.updateEditZoom();
         this.enableDragAndDrop(previewContainer);
     }
@@ -602,7 +883,10 @@ class MapGenerationManager {
         const codeEditor = document.getElementById('mermaidCodeEditor');
         const previewContainer = document.getElementById('mermaidPreview');
 
-        if (!codeEditor || !previewContainer) return;
+        if (!codeEditor || !previewContainer) {
+            console.error('Editor or preview container not found');
+            return;
+        }
 
         const code = codeEditor.value;
 
@@ -617,6 +901,7 @@ class MapGenerationManager {
         }
 
         try {
+            // 完全清空容器
             previewContainer.innerHTML = '';
             
             mermaid.initialize({ 
@@ -631,37 +916,58 @@ class MapGenerationManager {
                     useMaxWidth: true
                 },
                 deterministicIds: true,
-                deterministicIDSeed: this.currentMapId || 'preview'
+                deterministicIDSeed: `edit-${this.currentMapId || 'new'}-${Date.now()}`
             });
             
-            const tempId = `mermaid-edit-${this.currentMapId || 'new'}`;
-            const mermaidDiv = document.createElement('div');
-            mermaidDiv.className = 'mermaid';
-            mermaidDiv.id = tempId;
-            mermaidDiv.textContent = code;
-            previewContainer.appendChild(mermaidDiv);
+            // 使用 mermaid.render() API 直接获取 SVG 字符串
+            const uniqueId = `mermaid-edit-${Date.now()}`;
+            const { svg } = await mermaid.render(uniqueId, code);
             
-            await mermaid.run({
-                querySelector: `#${tempId}`
-            });
+            // 直接插入 SVG
+            previewContainer.innerHTML = svg;
             
+            // 更新当前代码
+            this.currentMermaidCode = code;
+            
+            // 初始化 viewBox 管理
+            const svgElement = previewContainer.querySelector('svg');
+            if (svgElement) {
+                this.initializeViewBox(svgElement);
+            }
+            
+            // 应用缩放和启用拖拽
             this.updateEditZoom();
             this.enableDragAndDrop(previewContainer);
+            
+            Utils.showNotification('Diagram rendered successfully', 'success');
         } catch (error) {
             console.error('Preview render error:', error);
             previewContainer.innerHTML = `
                 <div class="error-message">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <p>Syntax error</p>
-                    <small>${error.message}</small>
+                    <p>Rendering failed</p>
+                    <small>${error.message || 'Unknown error'}</small>
                 </div>
             `;
+            Utils.showNotification('Failed to render diagram', 'error');
         }
     }
 
-    applyCodeChanges() {
-        // Same as refresh, but with explicit user action
-        this.refreshPreview();
+    async applyCodeChanges() {
+        const applyBtn = document.getElementById('applyCodeBtn');
+        if (applyBtn) {
+            applyBtn.disabled = true;
+            applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
+        }
+        
+        try {
+            await this.refreshPreview();
+        } finally {
+            if (applyBtn) {
+                applyBtn.disabled = false;
+                applyBtn.innerHTML = '<i class="fas fa-check"></i> Apply';
+            }
+        }
     }
 
     enableDragAndDrop(container) {
@@ -746,6 +1052,20 @@ class MapGenerationManager {
                 }
                 
                 draggedElement.setAttribute('transform', newTransform);
+                
+                // 获取元素的边界框并检查是否需要扩展 viewBox
+                try {
+                    const bbox = draggedElement.getBBox();
+                    const transformedBBox = {
+                        x: bbox.x + newX,
+                        y: bbox.y + newY,
+                        width: bbox.width,
+                        height: bbox.height
+                    };
+                    this.expandViewBoxIfNeeded(svg, transformedBBox);
+                } catch (e) {
+                    // getBBox 可能在某些情况下失败，忽略错误
+                }
                 
                 connectedEdges.forEach((edgeInfo) => {
                     this.updateEdgeConnectionById(edgeInfo, deltaX, deltaY);
@@ -1089,10 +1409,21 @@ class MapGenerationManager {
         let svgContent = '';
         
         if (svg) {
-            // 克隆 SVG 并序列化
+            // 克隆 SVG 并优化尺寸（基于实际内容边界）
             const clonedSvg = svg.cloneNode(true);
+            
+            // 计算实际内容边界
+            const bbox = this.calculateActualBBox(svg);
+            const padding = 40;
+            const width = bbox.width + padding * 2;
+            const height = bbox.height + padding * 2;
+            
+            // 设置优化的 viewBox
+            clonedSvg.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
+            clonedSvg.setAttribute('width', width);
+            clonedSvg.setAttribute('height', height);
+            
             svgContent = new XMLSerializer().serializeToString(clonedSvg);
-            console.log('Saved SVG length:', svgContent.length);
         }
 
         const data = {
@@ -1113,6 +1444,7 @@ class MapGenerationManager {
                 this.savedMermaidCode = newCode;
                 this.savedSvgContent = svgContent;  // 保存 SVG 内容
                 
+                // 重新加载地图列表以更新缩略图
                 this.loadRecentMaps();
             } else {
                 window.messageModal.toast(result?.error || 'Failed to save changes', 'error', 3000);
@@ -1172,7 +1504,8 @@ class MapGenerationManager {
 
         // Render thumbnails for each map
         maps.slice(0, 6).forEach(map => {
-            this.renderThumbnail(map.id, map.mermaid_code);
+            // 优先使用保存的 SVG，否则使用 mermaid_code
+            this.renderThumbnail(map.id, map.mermaid_code, map.svg_content);
         });
 
         // Bind action buttons
@@ -1185,17 +1518,60 @@ class MapGenerationManager {
         });
     }
 
-    async renderThumbnail(mapId, mermaidCode) {
+    async renderThumbnail(mapId, mermaidCode, svgContent = null) {
         const thumbnailContainer = document.getElementById(`thumbnail-${mapId}`);
         if (!thumbnailContainer) return;
 
         try {
-            const tempId = `mermaid-thumb-${mapId}`;
-            thumbnailContainer.innerHTML = `<div class="mermaid" id="${tempId}">${mermaidCode}</div>`;
+            // 优先使用保存的 SVG 内容
+            if (svgContent && svgContent.trim().length > 0) {
+                thumbnailContainer.innerHTML = svgContent;
+                
+                // 优化缩略图 SVG 的尺寸
+                const svg = thumbnailContainer.querySelector('svg');
+                if (svg) {
+                    // 计算实际内容边界
+                    const bbox = this.calculateActualBBox(svg);
+                    const padding = 20;
+                    const width = bbox.width + padding * 2;
+                    const height = bbox.height + padding * 2;
+                    
+                    svg.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
+                    svg.setAttribute('width', '100%');
+                    svg.setAttribute('height', '100%');
+                }
+                
+                // Add click to view
+                thumbnailContainer.style.cursor = 'pointer';
+                thumbnailContainer.addEventListener('click', () => this.viewMap(mapId));
+                return;
+            }
+            
+            // Fallback: 使用 mermaid_code 重新渲染
+            // 使用唯一 ID 和时间戳避免冲突
+            const tempId = `mermaid-thumb-${mapId}-${Date.now()}`;
+            
+            // 清空容器
+            thumbnailContainer.innerHTML = '';
+            
+            const mermaidDiv = document.createElement('div');
+            mermaidDiv.className = 'mermaid';
+            mermaidDiv.id = tempId;
+            mermaidDiv.textContent = mermaidCode;
+            thumbnailContainer.appendChild(mermaidDiv);
             
             await mermaid.run({
                 querySelector: `#${tempId}`
             });
+            
+            // 渲染成功后移除 mermaid div，只保留 SVG
+            const svg = thumbnailContainer.querySelector('svg');
+            if (svg && mermaidDiv.parentNode) {
+                thumbnailContainer.removeChild(mermaidDiv);
+                if (!thumbnailContainer.contains(svg)) {
+                    thumbnailContainer.appendChild(svg);
+                }
+            }
             
             // Add click to view
             thumbnailContainer.style.cursor = 'pointer';
@@ -1226,7 +1602,13 @@ class MapGenerationManager {
     }
 
     async deleteMap(mapId) {
-        if (!confirm('Are you sure you want to delete this mind map?')) {
+        const confirmed = await window.messageModal.confirm(
+            'Are you sure you want to delete this mind map? This action cannot be undone.',
+            'Confirm Delete',
+            { danger: true, confirmText: 'Delete', cancelText: 'Cancel' }
+        );
+        
+        if (!confirmed) {
             return;
         }
 
@@ -1252,97 +1634,476 @@ class MapGenerationManager {
         }
     }
 
-    toggleFullscreen() {
-        const previewSection = document.getElementById('previewSection');
-        if (!previewSection) return;
-
-        if (!document.fullscreenElement) {
-            previewSection.requestFullscreen().catch(err => {
-                console.error('Error entering fullscreen:', err);
-            });
-        } else {
-            document.exitFullscreen();
-        }
-    }
-
-    exportMindMap() {
+    async exportMindMap() {
         if (!this.currentMapId) {
             Utils.showNotification('No mind map to export', 'error');
             return;
         }
 
-        // Export as Mermaid code (.mmd)
-        const codeBlob = new Blob([this.currentMermaidCode], { type: 'text/plain' });
-        const codeUrl = URL.createObjectURL(codeBlob);
-        const codeLink = document.createElement('a');
-        codeLink.href = codeUrl;
-        codeLink.download = `mindmap-${this.currentMapId}.mmd`;
-        codeLink.click();
-        URL.revokeObjectURL(codeUrl);
+        // 只导出 PNG
+        await this.exportAsPNG();
 
-        // Export as PNG
-        this.exportAsPNG();
-
-        Utils.showNotification('Mind map exported as .mmd and .png!', 'success');
+        Utils.showNotification('Mind map exported as PNG!', 'success');
     }
 
     async exportAsPNG() {
         try {
-            const svg = document.querySelector('#mermaidContainer svg');
+            // 优先使用编辑模式的 SVG，如果没有则使用查看模式的
+            let svg = document.querySelector('#mermaidPreview svg');
+            if (!svg) {
+                svg = document.querySelector('#mermaidContainer svg');
+            }
+            
             if (!svg) {
                 console.error('No SVG found to export');
+                Utils.showNotification('No diagram to export', 'error');
                 return;
             }
 
             // Clone the SVG to avoid modifying the original
             const svgClone = svg.cloneNode(true);
             
-            // Get SVG dimensions
-            const bbox = svg.getBBox();
-            const width = bbox.width + 40; // Add padding
-            const height = bbox.height + 40;
+            // 如果有 infinite canvas wrapper，临时移除 transform 以获取真实内容
+            const wrapper = svgClone.querySelector('.infinite-canvas-content');
+            if (wrapper) {
+                wrapper.removeAttribute('transform');
+            }
             
-            // Set viewBox and dimensions
-            svgClone.setAttribute('viewBox', `${bbox.x - 20} ${bbox.y - 20} ${width} ${height}`);
+            // 计算所有内容的实际边界框
+            const bbox = this.calculateActualBBox(svgClone);
+            const padding = 40; // 添加 padding
+            
+            const width = Math.max(bbox.width, 100) + padding * 2;
+            const height = Math.max(bbox.height, 100) + padding * 2;
+            
+            // Set viewBox and dimensions based on actual content
+            svgClone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
             svgClone.setAttribute('width', width);
             svgClone.setAttribute('height', height);
+            svgClone.removeAttribute('data-infinite-canvas');
+            
+            // 移除所有 style 属性，使用固定尺寸
+            svgClone.removeAttribute('style');
             
             // Serialize SVG to string
             const svgData = new XMLSerializer().serializeToString(svgClone);
-            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-            const svgUrl = URL.createObjectURL(svgBlob);
+            
+            // 使用 data URI 而不是 blob URL 避免 CORS 问题
+            const svgDataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
             
             // Create an image from SVG
-            const img = new Image();
-            img.onload = () => {
-                // Create canvas
-                const canvas = document.createElement('canvas');
-                canvas.width = width * 2; // 2x for better quality
-                canvas.height = height * 2;
-                const ctx = canvas.getContext('2d');
+            return new Promise((resolve, reject) => {
+                const img = new Image();
                 
-                // White background
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                img.onload = () => {
+                    try {
+                        // Create canvas
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width * 2; // 2x for better quality
+                        canvas.height = height * 2;
+                        const ctx = canvas.getContext('2d');
+                        
+                        // White background
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Draw image scaled 2x
+                        ctx.scale(2, 2);
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // Convert to PNG and download
+                        canvas.toBlob((blob) => {
+                            if (!blob) {
+                                console.error('Failed to create blob');
+                                reject(new Error('Failed to create blob'));
+                                return;
+                            }
+                            
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `mindmap-${this.currentMapId}.png`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            
+                            setTimeout(() => {
+                                URL.revokeObjectURL(url);
+                            }, 100);
+                            
+                            resolve();
+                        }, 'image/png');
+                    } catch (err) {
+                        console.error('Error in image onload:', err);
+                        reject(err);
+                    }
+                };
                 
-                // Draw image scaled 2x
-                ctx.scale(2, 2);
-                ctx.drawImage(img, 0, 0);
+                img.onerror = (err) => {
+                    console.error('Error loading image:', err);
+                    reject(new Error('Failed to load SVG as image'));
+                };
                 
-                // Convert to PNG and download
-                canvas.toBlob((blob) => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `mindmap-${this.currentMapId}.png`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    URL.revokeObjectURL(svgUrl);
-                });
-            };
-            img.src = svgUrl;
+                // 使用 data URI
+                img.src = svgDataUri;
+            });
         } catch (error) {
             console.error('Error exporting PNG:', error);
+            Utils.showNotification('Failed to export PNG', 'error');
+            throw error;
+        }
+    }
+    
+    /**
+     * 初始化 ViewBox 管理
+     * 保存原始 viewBox 作为最小尺寸参考
+     */
+    initializeViewBox(svg) {
+        if (!svg) return;
+        
+        const previewContainer = svg.closest('.mermaid-preview');
+        if (!previewContainer) return;
+        
+        const viewBox = svg.getAttribute('viewBox');
+        if (viewBox) {
+            // 保存原始 viewBox
+            const [x, y, width, height] = viewBox.split(/\s+/).map(parseFloat);
+            this.originalViewBox = { x, y, width, height };
+            svg.dataset.originalViewBox = viewBox;
+        }
+        
+        // 获取容器尺寸
+        const containerRect = previewContainer.getBoundingClientRect();
+        this.containerSize = {
+            width: containerRect.width,
+            height: containerRect.height
+        };
+    }
+
+    /**
+     * 根据当前缩放级别更新 viewBox
+     * zoom = 1.0 时，viewBox 应该匹配容器可见区域
+     * zoom < 1.0 (zoom out) 时，viewBox 更大（看到更多内容）
+     * zoom > 1.0 (zoom in) 时，viewBox 更小（看到更少内容）
+     */
+    updateViewBoxForZoom(svg) {
+        if (!svg || !this.originalViewBox || !this.containerSize) return;
+        
+        const currentViewBox = svg.getAttribute('viewBox');
+        if (!currentViewBox) return;
+        
+        const [currentX, currentY, currentWidth, currentHeight] = currentViewBox.split(/\s+/).map(parseFloat);
+        
+        // 计算容器的宽高比
+        const containerAspect = this.containerSize.width / this.containerSize.height;
+        const originalAspect = this.originalViewBox.width / this.originalViewBox.height;
+        
+        
+        let baseWidth, baseHeight;
+        if (containerAspect > originalAspect) {
+            // 容器更宽，高度对齐
+            baseHeight = this.originalViewBox.height / 4;
+            baseWidth = baseHeight * containerAspect;
+        } else {
+            // 容器更高，宽度对齐
+            baseWidth = this.originalViewBox.width / 4;
+            baseHeight = baseWidth / containerAspect;
+        }
+        
+        // 根据缩放级别调整 viewBox
+        // zoom = 1.0: viewBox = base size
+        // zoom = 0.5: viewBox = base size * 2 (看到更多)
+        // zoom = 2.0: viewBox = base size / 2 (看到更少)
+        const newWidth = baseWidth / this.editZoomLevel;
+        const newHeight = baseHeight / this.editZoomLevel;
+        
+        // 确保不小于原始尺寸
+        const finalWidth = Math.max(newWidth, this.originalViewBox.width);
+        const finalHeight = Math.max(newHeight, this.originalViewBox.height);
+        
+        // 保持中心点不变
+        const centerX = currentX + currentWidth / 2;
+        const centerY = currentY + currentHeight / 2;
+        const newX = centerX - finalWidth / 2;
+        const newY = centerY - finalHeight / 2;
+        
+        svg.setAttribute('viewBox', `${newX} ${newY} ${finalWidth} ${finalHeight}`);
+    }
+
+    /**
+     * 根据元素位置扩展 viewBox（拖拽时调用）
+     * 只在元素超出当前 viewBox 时扩展，不收缩
+     */
+    expandViewBoxIfNeeded(svg, elementBBox) {
+        if (!svg || !elementBBox) return;
+        
+        const viewBoxAttr = svg.getAttribute('viewBox');
+        if (!viewBoxAttr) return;
+        
+        let [vbX, vbY, vbWidth, vbHeight] = viewBoxAttr.split(/\s+/).map(parseFloat);
+        if (!vbWidth || !vbHeight) return;
+        
+        // 容器可见区域的尺寸（在100%缩放时）
+        const containerAspect = this.containerSize ? this.containerSize.width / this.containerSize.height : 1;
+        const baseViewBoxSize = this.originalViewBox ? 
+            (containerAspect > this.originalViewBox.width / this.originalViewBox.height ?
+                this.originalViewBox.height * containerAspect :
+                this.originalViewBox.width / containerAspect) 
+            : Math.max(vbWidth, vbHeight);
+        
+        // padding 为容器尺寸的一部分
+        const padding = baseViewBoxSize * 0.1;
+        
+        // 计算元素的边界
+        const elemLeft = elementBBox.x;
+        const elemRight = elementBBox.x + elementBBox.width;
+        const elemTop = elementBBox.y;
+        const elemBottom = elementBBox.y + elementBBox.height;
+        
+        // 当前 viewBox 的边界
+        let vbRight = vbX + vbWidth;
+        let vbBottom = vbY + vbHeight;
+        
+        let needsUpdate = false;
+        
+        // 只扩展，不收缩
+        // 检测并扩展左边界
+        if (elemLeft < vbX) {
+            vbX = elemLeft - padding;
+            vbWidth = vbRight - vbX;
+            needsUpdate = true;
+        }
+        
+        // 检测并扩展右边界
+        if (elemRight > vbRight) {
+            vbWidth = elemRight + padding - vbX;
+            needsUpdate = true;
+        }
+        
+        // 检测并扩展上边界
+        if (elemTop < vbY) {
+            vbY = elemTop - padding;
+            vbHeight = vbBottom - vbY;
+            needsUpdate = true;
+        }
+        
+        // 检测并扩展下边界
+        if (elemBottom > vbBottom) {
+            vbHeight = elemBottom + padding - vbY;
+            needsUpdate = true;
+        }
+        
+        // 如果需要更新，应用新的 viewBox
+        if (needsUpdate) {
+            svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbWidth} ${vbHeight}`);
+        }
+    }
+    
+    /**
+     * 重置视图：计算所有内容的实际边界，居中显示
+     * 用于"回到100%中心"操作
+     */
+    resetViewToContent(svg) {
+        if (!svg) return;
+        
+        // 计算所有内容的实际边界（忽略当前 viewBox，强制从元素计算）
+        const contentBBox = this.calculateContentBBox(svg);
+        if (!contentBBox) return;
+        
+        const padding = Math.max(contentBBox.width, contentBBox.height) * 0.1;
+        
+        // 计算新的内容边界（四周都加 padding）
+        const newX = contentBBox.x - padding;
+        const newY = contentBBox.y - padding;
+        const newWidth = contentBBox.width + padding * 2;
+        const newHeight = contentBBox.height + padding * 2;
+        
+        // 更新原始 viewBox 参考为新的内容边界
+        this.originalViewBox = { x: newX, y: newY, width: newWidth, height: newHeight };
+        svg.dataset.originalViewBox = `${newX} ${newY} ${newWidth} ${newHeight}`;
+        
+        // 重置缩放级别为 1.0
+        this.editZoomLevel = 1.0;
+        
+        // 重新初始化容器尺寸（可能窗口大小已改变）
+        const previewContainer = svg.closest('.mermaid-preview');
+        if (previewContainer) {
+            const containerRect = previewContainer.getBoundingClientRect();
+            this.containerSize = {
+                width: containerRect.width,
+                height: containerRect.height
+            };
+        }
+        
+        // 使用和初始化相同的逻辑来设置 viewBox
+        // 让 viewBox 匹配容器可见区域（100% 视图）
+        const containerAspect = this.containerSize.width / this.containerSize.height;
+        const contentAspect = newWidth / newHeight;
+        
+        let finalViewBoxWidth, finalViewBoxHeight;
+        if (containerAspect > contentAspect) {
+            // 容器更宽，内容高度对齐
+            finalViewBoxHeight = newHeight/4;
+            finalViewBoxWidth = finalViewBoxHeight * containerAspect;
+        } else {
+            // 容器更高，内容宽度对齐
+            finalViewBoxWidth = newWidth/4;
+            finalViewBoxHeight = finalViewBoxWidth / containerAspect;
+        }
+        
+        // 居中内容
+        const finalX = newX + (newWidth - finalViewBoxWidth) / 2;
+        const finalY = newY + (newHeight - finalViewBoxHeight) / 2;
+        
+        svg.setAttribute('viewBox', `${finalX} ${finalY} ${finalViewBoxWidth} ${finalViewBoxHeight}`);
+        
+        // 手动更新显示
+        const mermaidPreview = document.getElementById('mermaidPreview');
+        const zoomLevelDisplay = document.getElementById('editZoomLevel');
+        
+        if (mermaidPreview) {
+            mermaidPreview.style.transform = `scale(${this.editZoomLevel})`;
+        }
+        
+        if (zoomLevelDisplay) {
+            zoomLevelDisplay.textContent = `${Math.round(this.editZoomLevel * 100)}%`;
+        }
+    }
+    
+    /**
+     * 计算实际内容边界（强制从元素计算，不使用 viewBox）
+     */
+    calculateContentBBox(svg) {
+        if (!svg) return null;
+        
+        try {
+            // 遍历所有可见元素的边界框
+            const elements = svg.querySelectorAll('g.node, g[class*="node"], g[id*="flowchart"], g.nodeLabel, g.edgePath, g.edgeLabel');
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            let foundAny = false;
+            
+            elements.forEach(el => {
+                try {
+                    const bbox = el.getBBox();
+                    if (bbox.width > 0 || bbox.height > 0) {
+                        // 如果元素有 transform，需要考虑 transform
+                        const transform = el.getAttribute('transform');
+                        let tx = 0, ty = 0;
+                        if (transform) {
+                            const match = transform.match(/translate\(([^,]+),([^)]+)\)/);
+                            if (match) {
+                                tx = parseFloat(match[1]) || 0;
+                                ty = parseFloat(match[2]) || 0;
+                            }
+                        }
+                        
+                        minX = Math.min(minX, bbox.x + tx);
+                        minY = Math.min(minY, bbox.y + ty);
+                        maxX = Math.max(maxX, bbox.x + bbox.width + tx);
+                        maxY = Math.max(maxY, bbox.y + bbox.height + ty);
+                        foundAny = true;
+                    }
+                } catch (e) {
+                    // 某些元素可能没有 getBBox 方法
+                }
+            });
+            
+            if (!foundAny) {
+                console.warn('No elements with valid bbox found');
+                return null;
+            }
+            
+            return {
+                x: minX,
+                y: minY,
+                width: maxX - minX,
+                height: maxY - minY
+            };
+        } catch (error) {
+            console.error('Error calculating content bbox:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 计算 SVG 中所有实际内容的边界框
+     * 如果 SVG 使用了 infinite canvas wrapper，会自动处理
+     */
+    calculateActualBBox(svg) {
+        try {
+            // 如果有 infinite canvas wrapper，从 wrapper 内部获取内容
+            const wrapper = svg.querySelector('.infinite-canvas-content');
+            
+            if (wrapper) {
+                // 有 wrapper 的情况，直接获取 wrapper 的 bbox（忽略 transform）
+                try {
+                    const wrapperBBox = wrapper.getBBox();
+                    if (wrapperBBox.width > 0 && wrapperBBox.height > 0) {
+                        return wrapperBBox;
+                    }
+                } catch (e) {
+                    console.warn('Wrapper getBBox failed:', e);
+                }
+            }
+            
+            // 尝试从 SVG 的 viewBox 获取（导出前的原始尺寸）
+            const viewBox = svg.getAttribute('viewBox');
+            if (viewBox) {
+                const parts = viewBox.split(/\s+/).map(parseFloat);
+                // 如果不是我们的大画布 viewBox，使用它
+                if (parts.length === 4 && parts[2] < 10000 && parts[2] > 0 && parts[3] > 0) {
+                    return { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
+                }
+            }
+            
+            // Fallback: 遍历所有可见元素的边界框
+            const targetElement = wrapper || svg;
+            const elements = targetElement.querySelectorAll('g, rect, circle, path, text, polygon, line, polyline');
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            let foundAny = false;
+            
+            elements.forEach(el => {
+                try {
+                    const bbox = el.getBBox();
+                    if (bbox.width > 0 || bbox.height > 0) {
+                        // 如果元素有 transform，需要考虑 transform
+                        const transform = el.getAttribute('transform');
+                        let tx = 0, ty = 0;
+                        if (transform) {
+                            const match = transform.match(/translate\(([^,]+),([^)]+)\)/);
+                            if (match) {
+                                tx = parseFloat(match[1]) || 0;
+                                ty = parseFloat(match[2]) || 0;
+                            }
+                        }
+                        
+                        minX = Math.min(minX, bbox.x + tx);
+                        minY = Math.min(minY, bbox.y + ty);
+                        maxX = Math.max(maxX, bbox.x + bbox.width + tx);
+                        maxY = Math.max(maxY, bbox.y + bbox.height + ty);
+                        foundAny = true;
+                    }
+                } catch (e) {
+                    // 某些元素可能没有 getBBox 方法
+                }
+            });
+            
+            if (!foundAny) {
+                console.warn('No elements with valid bbox found, using fallback');
+                // 使用默认尺寸
+                return { x: 0, y: 0, width: 800, height: 600 };
+            }
+            
+            return {
+                x: minX,
+                y: minY,
+                width: maxX - minX,
+                height: maxY - minY
+            };
+        } catch (error) {
+            console.error('Error calculating bbox:', error);
+            // Fallback
+            return { x: 0, y: 0, width: 800, height: 600 };
         }
     }
 
@@ -1408,8 +2169,14 @@ class MapGenerationManager {
     }
 
     editZoomReset() {
-        this.editZoomLevel = 1.0;
-        this.updateEditZoom();
+        // 重置视图到内容边界并居中
+        const previewContainer = document.getElementById('mermaidPreview');
+        if (previewContainer) {
+            const svg = previewContainer.querySelector('svg');
+            if (svg) {
+                this.resetViewToContent(svg);
+            }
+        }
     }
 
     updateEditZoom() {
@@ -1418,6 +2185,12 @@ class MapGenerationManager {
         
         if (previewContainer) {
             previewContainer.style.transform = `scale(${this.editZoomLevel})`;
+            
+            // 更新 SVG 的 viewBox 以匹配当前缩放级别
+            const svg = previewContainer.querySelector('svg');
+            if (svg) {
+                this.updateViewBoxForZoom(svg);
+            }
         }
         
         if (zoomLevelDisplay) {
@@ -1453,5 +2226,4 @@ class MapGenerationManager {
 
 document.addEventListener('DOMContentLoaded', () => {
     const mapManager = new MapGenerationManager();
-    console.log('Mind Map Generator initialized with Mermaid support');
 });

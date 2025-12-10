@@ -177,13 +177,11 @@
 }
 
 /* 作用于 error-description 内部的所有元素，包括公式 */
-
 .error-description {
     font-size: 17px;
     line-height: 1.7;
-    font-weight: 500
+    font-weight: 500;
 }
-
 
 .error-analysis {
     display: flex;
@@ -223,11 +221,10 @@
     z-index: 9999 !important;
 }
 
-
 /* 左上角斜角标识 */
 .error-card {
     position: relative;
-    overflow: hidden; /* 避免斜角超出 */
+    overflow: hidden;
 }
 
 .mastered-ribbon {
@@ -245,7 +242,6 @@
 }
 
 /* 已掌握/未掌握样式区分 */
-/* 已掌握/未掌握样式区分 */
 .mastered-ribbon.mastered {
     background: hsl(142.1 76.2% 36.3% / 0.15);
     color: hsl(142.1 76.2% 36.3%);
@@ -258,16 +254,31 @@
 
 .filters-bar {
     display: flex;
-    flex-direction: column; /* 让 filter-group 纵向排列 */
-    align-items: flex-start; /* 左对齐 */
-    gap: 10px;              /* 每组之间的间距 */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    animation: fadeIn 500ms ease-out;
 }
 
 /* 每组内按钮水平排列 */
 .filter-group {
     display: flex;
-    flex-wrap: wrap;       /* 超出换行 */
-    gap: 5px;              /* 按钮之间间距 */
+    flex-wrap: wrap;
+    gap: 5px;
 }
 
+.sort-group {
+    margin-top: var(--spacing-xs);
+}
 
+.error-image {
+    max-width: 200px;   /* 图片的最大宽度 */
+    max-height: 200px;  /* 图片的最大高度 */
+    width: auto;        /* 自动调整宽度以保持比例 */
+    height: auto;       /* 自动调整高度以保持比例 */
+}

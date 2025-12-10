@@ -135,7 +135,13 @@ class SettingsManager {
      * 重置设置
      */
     async handleReset() {
-        if (!confirm('确定要重置所有设置为默认值吗？')) {
+        const confirmed = await window.messageModal.confirm(
+            '确定要重置所有设置为默认值吗？此操作无法撤销。',
+            '确认重置',
+            { danger: true, confirmText: '重置', cancelText: '取消' }
+        );
+        
+        if (!confirmed) {
             return;
         }
         

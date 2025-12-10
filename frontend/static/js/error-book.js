@@ -5,13 +5,12 @@
 class ErrorBookManager {
     constructor() {
         this.selectedFiles = [];
-        //this.currentFilter = 'all';
+        // 多维度筛选状态
         this.currentFilter = {
             subject: 'all',      // 'all' 或具体科目
-            difficulty: 'all',   // 'all' 或 'Easy' / 'Medium' / 'Hard'
-            mastered: 'all'      // 'all' / true / false
+            difficulty: 'all',   // 'all' 或 'easy' / 'medium' / 'difficult'
+            mastered: 'all'      // 'all' / 'true' / 'false'
         };
-
         this.init();
     }
     
@@ -55,91 +54,80 @@ class ErrorBookManager {
         });
     }
 
-    //新增函数
-    // ---- 新增：从后端数据库加载错题 ----
-
+    // 从后端数据库加载错题
     async loadFromServer() {
-    try {
-        const res = await fetch('/api/error/list');
-        console.log('Fetch /api/error/list status:', res.status);
+        try {
+            const res = await fetch(window.getApiUrl('/api/error/list'));
+            console.log('Fetch error list status:', res.status);
 
-        if (!res.ok) {
-            console.error('Failed to fetch error list:', await res.text());
-            return;
-        }
+            if (!res.ok) {
+                console.error('Failed to fetch error list:', await res.text());
+                return;
+            }
 
-        const data = await res.json();
-        console.log('Loaded errors from server:', data);
+            const data = await res.json();
+            console.log('Loaded errors from server:', data);
 
-        if (!data.success) {
-            console.warn("Server list load failed:", data);
-            return;
-        }
+            if (!data.success) {
+                console.warn("Server list load failed:", data);
+                return;
+            }
 
-        data.errors.forEach(err => {
-
-
-            this.addErrorCard({
-                id: err.id,
-                subject: err.subject || '未分类',
-                difficulty: err.difficulty,
-                reviewed: err.reviewed,
-                tags: Array.isArray(err.tags) ? err.tags : [],   // ✅ 确保 tags 是数组
-                text: `<p>${err.question || ''}</p>`,
-                created_at:err.created_at
-                //tags: tags
+            data.errors.forEach(err => {
+                this.addErrorCard({
+                    id: err.id,
+                    subject: err.subject || '未分类',
+                    difficulty: err.difficulty || 'medium',
+                    reviewed: err.reviewed,
+                    tags: Array.isArray(err.tags) ? err.tags : [],
+                    text: `<p>${err.question_text || ''}</p>`,
+                    created_at: err.created_at,
+                    images: Array.isArray(err.images) ? err.images : []
+                });
             });
-        });
 
-        setTimeout(() => this.updateWaterfall(), 50);
-        console.log(`Loaded ${data.total} errors from DB.`);
+            // 渲染 MathJax
+            if (typeof MathJax !== 'undefined') {
+                setTimeout(() => {
+                    MathJax.typesetPromise().catch(console.warn);
+                }, 100);
+            }
 
-    } catch (e) {
-        console.error("Failed to load error list:", e);
+            console.log(`Loaded ${data.total} errors from DB.`);
+
+        } catch (e) {
+            console.error("Failed to load error list:", e);
+        }
     }
-}
 
-
+    // 重新从服务器加载错题（清空后重新加载，类似 map/note 的做法）
+    async reloadErrorsFromServer() {
+        const errorsList = document.querySelector('.errors-list');
+        if (errorsList) {
+            errorsList.innerHTML = ''; // Clear existing cards
+        }
+        await this.loadFromServer();
+    }
+    
     bindEventListeners() {
-    // 处理图片上传按钮
-    const processBtn = document.getElementById('processBtn');
-    if (processBtn) {
-        processBtn.addEventListener('click', () => this.processErrors());
-    }
-
-    // 多维度筛选按钮绑定
-    const filterButtons = document.querySelectorAll('.filter-button');
-    filterButtons.forEach(button => {
-        button.addEventListener('click', (e) => {
-            const dim = e.target.dataset.dim;       // subject / difficulty / mastered
-            const value = e.target.dataset.filter;  // 对应的值
-            if (!dim || !value) return;
-            this.setFilter(dim, value);
-        });
-    });
-
-    // 排序下拉框
-    const sortSelect = document.querySelector('.sort-select');
-    if (sortSelect) {
-        sortSelect.addEventListener('change', (e) => {
-            this.sortErrors(e.target.value);
-        });
-    }
-}
-/*
-    bindEventListeners() {
+        // 处理图片上传按钮
         const processBtn = document.getElementById('processBtn');
         if (processBtn) {
             processBtn.addEventListener('click', () => this.processErrors());
         }
         
+        // 多维度筛选按钮绑定
         const filterButtons = document.querySelectorAll('.filter-button');
         filterButtons.forEach(button => {
             button.addEventListener('click', (e) => {
-                this.setFilter(e.target.dataset.filter);
+                const dim = e.target.dataset.dim;       // subject / difficulty / mastered
+                const value = e.target.dataset.filter;  // 对应的值
+                if (!dim || !value) return;
+                this.setFilter(dim, value);
             });
         });
         
+        // 排序下拉框
         const sortSelect = document.querySelector('.sort-select');
         if (sortSelect) {
             sortSelect.addEventListener('change', (e) => {
@@ -147,7 +135,7 @@ class ErrorBookManager {
             });
         }
     }
-    */
+    
     handleFiles(files) {
         if (files.length === 0) return;
         
@@ -164,232 +152,144 @@ class ErrorBookManager {
         
         Utils.showNotification(`${files.length} image(s) selected`, 'success');
     }
-    
+
     async processErrors() {
-        if (this.selectedFiles.length === 0) return;
+    if (this.selectedFiles.length === 0) return;
 
     const processBtn = document.getElementById('processBtn');
     Utils.showLoadingState(processBtn, 'Processing images...');
-    const errorsList = document.querySelector('.errors-list');
 
-        for (const file of this.selectedFiles) {
-            try {
-                const uploadResult = await fileUploader.uploadFile(file, '/error/upload');
+    let successCount = 0;
+    let failCount = 0;
 
-                if (!uploadResult?.success || !uploadResult.question_text) {
-                    Utils.showNotification(`题目解析失败，跳过 ${file.name}`, 'warning');
-                    continue;
-                }
+    for (const file of this.selectedFiles) {
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
 
-                const cardData = {
-                    id: uploadResult.id,  // ⚠️ 一定要使用数据库 ID,
-                    subject: uploadResult.subject || 'unknown subject',
-                    type: uploadResult.type || '',
-                    tags: Array.isArray(uploadResult.tags) ? uploadResult.tags : [],
-                    question_text: uploadResult.question_text,
-                    user_answer: uploadResult.user_answer || '',
-                    correct_answer: uploadResult.correct_answer || '',
-                    analysis_steps: Array.isArray(uploadResult.analysis_steps) ? uploadResult.analysis_steps : [],
-                    difficulty: uploadResult.difficulty,
+            const response = await fetch(window.getApiUrl('/api/error/upload'), {
+                method: 'POST',
+                body: formData
+            });
 
-                    created_at:uploadResult.created_at//新加的
-               };
+            const uploadResult = await response.json();
 
-                try {
-                    const raw = JSON.parse(localStorage.getItem('errorbook_items') || '{}');
-                    raw[cardData.id] = cardData;
-                    localStorage.setItem('errorbook_items', JSON.stringify(raw));
-                } catch (e) {
-                    console.warn('localStorage 写入失败', e);
-                }
-
-                this.addErrorCard({
-                    id: cardData.id,
-                    subject: cardData.subject,
-                    difficulty: cardData.difficulty,
-                    tags: cardData.tags,        // ✅ 添加 tags
-                    text: `<p>${escapeHtml(cardData.question_text)}</p>`,
-                    created_at:cardData.created_at
-                });
-
-
-                if (typeof MathJax !== 'undefined') {
-                    MathJax.typesetPromise([errorsList]).catch(console.warn);
-                }
-
-                Utils.showNotification(`题目处理完成：${file.name}`, 'success');
-
-            } catch (err) {
-                console.error('处理图片出错:', file.name, err);
-                Utils.showNotification(`处理图片出错：${file.name}`, 'error');
+            // ✅ 正确判断：检查 questions 数组是否存在
+            if (!uploadResult?.success || !Array.isArray(uploadResult.questions) || uploadResult.questions.length === 0) {
+                console.error(`Failed to parse questions from ${file.name}`, uploadResult);
+                failCount++;
+                continue;
             }
-        }
 
-    Utils.showNotification('所有图片处理完成 ', 'success');
+            // ✅ 关键：把整个 questions 数组传给 addErrorCard
+            this.addErrorCard(uploadResult.questions);
+
+            successCount += uploadResult.questions.length;
+
+        } catch (err) {
+            console.error('Error processing image:', file.name, err);
+            failCount++;
+        }
+    }
+
+    await this.reloadErrorsFromServer();
+
+    // Show notification
+    if (successCount > 0 && failCount === 0) {
+        Utils.showNotification(`Successfully processed ${successCount} question(s)`, 'success');
+    } else if (successCount > 0 && failCount > 0) {
+        Utils.showNotification(`Processed ${successCount} question(s), ${failCount} failed`, 'warning');
+    } else {
+        Utils.showNotification('Failed to process questions', 'error');
+    }
+
     this.resetUploadArea();
     try { Utils.hideLoadingState(processBtn); } catch(e) { /* ignore */ }
-
-
-        function escapeHtml(s) {
-            if (!s) return '';
-            return String(s)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;')
-                .replace(/\n/g, '<br/>');
-        }
-    }
-
-
-    addErrorCard(data) {
-
-    // ✅ 如果是多题数组，逐条递归渲染
-    if (Array.isArray(data)) {
-        data.forEach(item => this.addErrorCard(item));
-        return;
-    }
-
-    const errorsList = document.querySelector('.errors-list');
-    if (!errorsList) return;
-
-    console.log("Card ID used:", data.id);
-
-    const card = document.createElement('div');
-    card.className = 'error-card';
-    card.dataset.errorId = data.id;
-
-    let difficultyClass = '';
-    switch ((data.difficulty || '').toLowerCase()) {
-        case 'easy': difficultyClass = 'difficulty-easy'; break;
-        case 'medium': difficultyClass = 'difficulty-medium'; break;
-        case 'difficult': difficultyClass = 'difficulty-hard'; break;
-    }
-
-    // ✅ 保持你原来的 DOM 不变
-    card.innerHTML = `
-    <div class="mastered-ribbon ${data.reviewed ? 'mastered' : 'not-mastered'}">
-        ${data.reviewed ? 'M' : 'NM'}
-    </div>
-        <div class="error-header">
-            <span class="error-subject">${data.subject || '未知科目'}</span>
-            <span class="error-difficulty ${difficultyClass}">${data.difficulty || ''}</span>
-        </div>
-        <div class="error-content">
-            <p class="error-description">${data.text || ''}</p>
-            <!-- ✅ 显示 tags 知识点 -->
-        <div class="error-analysis">
-  ${Array.isArray(data.tags) ? data.tags.map(tag => `<span class="analysis-tag">${tag}</span>`).join(' ') : ''}
-</div>
-        </div>
-        <div class="error-footer">
-            <span class="error-date">
-  ${new Date(data.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-</span>
-
-
-
-            <div class="error-actions">
-                <button class="button-outline review-btn">Review</button>
-                <button class="button-outline practice-btn">Practice</button>
-
-
-
-                <button class="button-outline delete-btn">Delete</button>
-            </div>
-        </div>
-    `;
-
-    errorsList.prepend(card);
-
-    const reviewBtn = card.querySelector('.review-btn');
-    if (reviewBtn) {
-        reviewBtn.addEventListener('click', () => {
-            window.location.href = `/error-review.html?id=${data.id}`;
-        });
-    }
-
-    const practiceBtn = card.querySelector('.practice-btn');
-    if (practiceBtn) {
-        practiceBtn.addEventListener('click', () => {
-            const topic = data.subject || (data.tags && data.tags[0]) || '';
-            window.location.href = `/error/practice.html?id=${data.id}`;
-        });
-    }
 }
 
-
-  /*
     addErrorCard(data) {
+        // 如果是多题数组，逐条递归渲染
+        if (Array.isArray(data)) {
+            data.forEach(item => this.addErrorCard(item));
+            return;
+        }
+
         const errorsList = document.querySelector('.errors-list');
         if (!errorsList) return;
-        //console.log("Card ID used:", cardData.id);
+
         console.log("Card ID used:", data.id);
 
         const card = document.createElement('div');
         card.className = 'error-card';
-
         card.dataset.errorId = data.id;
 
-
         let difficultyClass = '';
-        switch ((data.difficulty || '').toLowerCase()) {
+        const difficultyText = (data.difficulty || 'medium').toLowerCase();
+        switch (difficultyText) {
             case 'easy': difficultyClass = 'difficulty-easy'; break;
             case 'medium': difficultyClass = 'difficulty-medium'; break;
+            case 'difficult': 
             case 'hard': difficultyClass = 'difficulty-hard'; break;
         }
 
-        // 渲染卡片 DOM（列表页只显示题目）
-card.innerHTML = `
-    <div class="error-header">
-        <span class="error-subject">${data.subject || '未知科目'}</span>
-        <span class="error-difficulty ${difficultyClass}">${data.difficulty || ''}</span>
-    </div>
-    <div class="error-content">
-        <p class="error-description">${data.text || ''}</p>
-    </div>
-    <div class="error-footer">
-        <span class="error-date">${new Date().toLocaleDateString()}</span>
-        <div class="error-actions">
-            <button class="button-outline review-btn">Review</button>
-            <button class="button-outline practice-btn">Practice</button>
-
-            <!-- ✅ 显示掌握状态 -->
-            <span class="mastered-label">
-                ${data.reviewed ? '✅ 已掌握' : '❌ 未掌握'}
-            </span>
-
-            <!-- ✅ 新增删除按钮 -->
-            <button class="button-outline delete-btn">Delete</button>
-        </div>
-    </div>
-`;
+        // 格式化日期
+        let dateStr = 'Today';
+        if (data.created_at) {
+            try {
+                dateStr = new Date(data.created_at).toLocaleDateString('en-US', { 
+                    month: 'short', day: 'numeric', year: 'numeric' 
+                });
+            } catch(e) {
+                dateStr = new Date().toLocaleDateString();
+            }
+        }
+        console.log('Image paths:', data.images);
+        // 渲染卡片 DOM
+        card.innerHTML = `
+            <div class="mastered-ribbon ${data.reviewed ? 'mastered' : 'not-mastered'}">
+                ${data.reviewed ? 'M' : 'NM'}
+            </div>
+            <div class="error-header">
+                <span class="error-subject">${data.subject || '未知科目'}</span>
+                <span class="error-difficulty ${difficultyClass}">${data.difficulty || 'medium'}</span>
+            </div>
+            <div class="error-content">
+                <p class="error-description">${data.text || ''}</p>
+                <div class="error-analysis">
+                    ${Array.isArray(data.tags) ? data.tags.map(tag => `<span class="analysis-tag">${tag}</span>`).join(' ') : ''}
+                </div>
+                <div class="error-images">
+                    ${Array.isArray(data.images) ? data.images.map(img => `<img src="${img}" alt="题目图片" class="error-image">`).join('') : ''}
+                </div>
+            </div>
+            <div class="error-footer">
+                <span class="error-date">${dateStr}</span>
+                <div class="error-actions">
+                    <button class="button-outline review-btn">Review</button>
+                    <button class="button-outline practice-btn">Practice</button>
+                    <button class="button-outline delete-btn">Delete</button>
+                </div>
+            </div>
+        `;
 
         errorsList.prepend(card);
 
+        // 绑定 Review 按钮
         const reviewBtn = card.querySelector('.review-btn');
         if (reviewBtn) {
             reviewBtn.addEventListener('click', () => {
-                //window.location.href = `/error-review.html?id=${encodeURIComponent(data.id)}`;
-
-
                 window.location.href = `/error-review.html?id=${data.id}`;
             });
         }
 
-
-
+        // 绑定 Practice 按钮
         const practiceBtn = card.querySelector('.practice-btn');
         if (practiceBtn) {
             practiceBtn.addEventListener('click', () => {
-                const topic = data.subject || (data.tags && data.tags[0]) || '';
-                window.location.href =` /error/practice.html?id=${id}`;
+                window.location.href = `/error-practice.html?id=${data.id}`;
             });
         }
     }
-*/
-
 
     resetUploadArea() {
         this.selectedFiles = [];
@@ -407,88 +307,64 @@ card.innerHTML = `
             imageInput.value = '';
         }
     }
-
-
+    
     setFilter(dim, value) {
-    // 更新当前筛选条件
-    this.currentFilter[dim] = value;
+        // 更新当前筛选条件
+        this.currentFilter[dim] = value;
 
-    // 更新按钮激活状态
-    document.querySelectorAll(`.filter-button[data-dim="${dim}"]`).forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.filter === value);
-    });
-
-    // 应用筛选
-    this.applyFilter();
-}
-
-applyFilter() {
-    const errorCards = document.querySelectorAll('.error-card');
-
-    errorCards.forEach(card => {
-        const subject = card.querySelector('.error-subject').textContent;
-        const difficulty = card.querySelector('.error-difficulty').textContent;
-        const mastered = card.querySelector('.mastered-ribbon')?.classList.contains('mastered');
-
-        let show = true;
-
-        if (this.currentFilter.subject !== 'all' && subject !== this.currentFilter.subject) show = false;
-        if (this.currentFilter.difficulty !== 'all' && difficulty !== this.currentFilter.difficulty) show = false;
-        if (this.currentFilter.mastered !== 'all') {
-            const filterMastered = this.currentFilter.mastered === 'true';
-            if (mastered !== filterMastered) show = false;
-        }
-
-        card.style.display = show ? '' : 'none';
-    });
-}
-
-/*
-    setFilter(filter) {
-        this.currentFilter = filter;
-        
-        const filterButtons = document.querySelectorAll('.filter-button');
-        filterButtons.forEach(button => {
-            button.classList.toggle('active', button.dataset.filter === filter);
+        // 更新按钮激活状态
+        document.querySelectorAll(`.filter-button[data-dim="${dim}"]`).forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === value);
         });
-        
+
+        // 应用筛选
         this.applyFilter();
     }
 
-
     applyFilter() {
         const errorCards = document.querySelectorAll('.error-card');
-        
+
         errorCards.forEach(card => {
-            const subject = card.querySelector('.error-subject').textContent.toLowerCase();
-            const shouldShow = this.currentFilter === 'all' || subject === this.currentFilter;
-            
-            if (shouldShow) {
-                card.style.display = '';
-                card.style.animation = 'slideUp 400ms ease-out';
-            } else {
-                card.style.display = 'none';
+            const subject = card.querySelector('.error-subject')?.textContent || '';
+            const difficulty = (card.querySelector('.error-difficulty')?.textContent || '').toLowerCase();
+            const mastered = card.querySelector('.mastered-ribbon')?.classList.contains('mastered');
+
+            let show = true;
+
+            // 科目筛选
+            if (this.currentFilter.subject !== 'all' && subject !== this.currentFilter.subject) {
+                show = false;
             }
+            // 难度筛选
+            if (this.currentFilter.difficulty !== 'all' && difficulty !== this.currentFilter.difficulty) {
+                show = false;
+            }
+            // 掌握状态筛选
+            if (this.currentFilter.mastered !== 'all') {
+                const filterMastered = this.currentFilter.mastered === 'true';
+                if (mastered !== filterMastered) show = false;
+            }
+
+            card.style.display = show ? '' : 'none';
         });
     }
-     */
+    
     sortErrors(sortBy) {
         const errorsList = document.querySelector('.errors-list');
         const errorCards = Array.from(document.querySelectorAll('.error-card'));
         
         errorCards.sort((a, b) => {
             if (sortBy === 'date') {
-                const dateA = new Date(a.querySelector('.error-date').textContent);
-                const dateB = new Date(b.querySelector('.error-date').textContent);
-                return dateB - dateA;
+                // 用 errorId 排倒序
+                return parseInt(b.dataset.errorId) - parseInt(a.dataset.errorId);
             } else if (sortBy === 'subject') {
                 const subjectA = a.querySelector('.error-subject').textContent;
                 const subjectB = b.querySelector('.error-subject').textContent;
                 return subjectA.localeCompare(subjectB);
             } else if (sortBy === 'difficulty') {
-                const difficultyOrder = { 'Easy': 1, 'Medium': 2, 'Hard': 3 };
-                const diffA = difficultyOrder[a.querySelector('.error-difficulty').textContent] || 0;
-                const diffB = difficultyOrder[b.querySelector('.error-difficulty').textContent] || 0;
+                const difficultyOrder = { 'easy': 1, 'medium': 2, 'difficult': 3, 'hard': 3 };
+                const diffA = difficultyOrder[a.querySelector('.error-difficulty').textContent.toLowerCase()] || 0;
+                const diffB = difficultyOrder[b.querySelector('.error-difficulty').textContent.toLowerCase()] || 0;
                 return diffB - diffA;
             }
             return 0;
@@ -499,6 +375,7 @@ applyFilter() {
 
     bindActionButtons() {
         const errorsList = document.querySelector('.errors-list');
+        if (!errorsList) return;
 
         // 事件委托，监听整个列表
         errorsList.addEventListener('click', (e) => {
@@ -508,7 +385,7 @@ applyFilter() {
             const card = btn.closest('.error-card');
             if (!card) return;
 
-            const id = card.dataset.errorId;  // 读取卡片 ID
+            const id = card.dataset.errorId;
 
             if (btn.classList.contains('review-btn')) {
                 this.goToReview(id);
@@ -527,7 +404,6 @@ applyFilter() {
             console.error("Error: missing question ID for review");
             return;
         }
-
         window.location.href = `/error-review.html?id=${encodeURIComponent(id)}`;
     }
 
@@ -536,36 +412,48 @@ applyFilter() {
             console.error("Error: missing question ID for practice");
             return;
         }
-        window.location.href = `/api/error/practice?id=${id}`;
+        window.location.href = `/error-practice.html?id=${id}`;
     }
 
-    deleteError(id, card) {
-    if (!id) {
-        console.error("Error: missing id for delete");
-        return;
-    }
-
-    if (!confirm("确定要删除这条错题吗？")) return;
-
-    fetch(`/api/error/delete/${id}`, {
-        method: 'POST'
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            card.remove();   // ✅ 立即从页面移除
-            alert("删除成功");
-        } else {
-            alert("删除失败：" + data.error);
+    async deleteError(id, card) {
+        if (!id) {
+            console.error("Error: missing id for delete");
+            return;
         }
-    })
-    .catch(err => console.error("delete failed", err));
-}
 
+        const confirmed = await window.messageModal.confirm(
+            'Are you sure you want to delete this error? This action cannot be undone.',
+            'Confirm Delete',
+            { danger: true, confirmText: 'Delete', cancelText: 'Cancel' }
+        );
 
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch(window.getApiUrl(`/api/error/delete/${id}`), {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    card.remove();
+                    Utils.showNotification('Error deleted successfully', 'success');
+                } else {
+                    Utils.showNotification('Failed to delete error: ' + data.error, 'error');
+                }
+            } else {
+                Utils.showNotification('Failed to delete error', 'error');
+            }
+        } catch (err) {
+            console.error("delete failed", err);
+            Utils.showNotification('Error deleting error', 'error');
+        }
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     const errorBookManager = new ErrorBookManager();
-    errorBookManager.loadFromServer();   // 关键：页面加载时读取数据库
+    errorBookManager.loadFromServer();  // 页面加载时读取数据库
+    console.log('Error Book initialized');
 });

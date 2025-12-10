@@ -137,8 +137,169 @@ h1 {
   background: #e0e0e0;
 }
 
-/* ✅ 覆盖 error-book.css 的横向布局 */
-.error-footer {
-    flex-direction: column !important;
-    align-items: flex-start !important;
+
+/* 收藏按钮 */
+.favorite-practice-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #ffc107; /* 修改边框颜色为黄色 */
+  background: white;
+  color: #ffc107; /* 修改文字颜色为黄色 */
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+/* 鼠标悬停时的样式 */
+.favorite-practice-btn:hover {
+  background: #ffc107; /* 悬停时背景颜色变为指定的黄色 */
+  color: white; /* 悬停时文字颜色变为白色 */
+  border-color: #ffc107; /* 悬停时边框颜色也变为相同的黄色 */
+}
+.favorite-practice-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* 收藏状态文字 */
+.favorite-status {
+  margin-left: 8px;
+  font-weight: bold;
+  color: green;
+}
+
+/* 用户作答区 */
+.user-answer-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border-color, #ccc);
+}
+
+/* 作答切换按钮 */
+.answer-actions {
+  margin-bottom: 8px;
+}
+
+.answer-actions .button-outline {
+  margin-right: 6px;
+}
+
+/* 文字输入区 */
+.text-answer-section {
+  display: none;
+  margin-bottom: 12px;
+}
+
+.text-answer-section .text-answer {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 60px;
+  margin-bottom: 6px;
+}
+
+.submit-text-answer {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #1e90ff;
+  background: white;
+  color: #1e90ff;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* 图片上传区 */
+.image-answer-section {
+  display: none;
+  margin-bottom: 12px;
+}
+
+.answer-image-input {
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.image-preview {
+  display: none;
+  margin-top: 8px;
+}
+
+.image-preview img {
+  max-width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.image-preview button {
+  margin-top: 5px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #1e90ff;
+  background: white;
+  color: #1e90ff;
+  cursor: pointer;
+  font-size: 14px;
+  margin-right: 4px;
+}
+
+/* 答案区 */
+.answer-section {
+  display: none;
+  margin-top: 12px;
+}
+
+.answer-section .answer {
+  margin-top: 8px;
+  padding: 12px;
+  background-color: #f0f8ff;
+  border-left: 3px solid #1e90ff;
+  border-radius: 0 4px 4px 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+
+/* 自定义上传按钮 */
+.custom-file-btn {
+  display: inline-block;
+  padding: 6px 12px;
+  background-color: white; /* 背景颜色为白色 */
+  color: black; /* 文字颜色为黑色 */
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  border: 1px solid black; /* 边框颜色为黑色 */
+  transition: background 0.2s, color 0.2s; /* 添加颜色过渡效果 */
+}
+
+.custom-file-btn:hover {
+  background-color: black; /* 鼠标悬停时背景颜色变为黑色 */
+  color: white; /* 鼠标悬停时文字颜色变为白色 */
+}
+
+/* 隐藏原生文件输入框 */
+.answer-image-input {
+  display: none;
+}
+
+
+.spinner {
+  border: 2px solid #f3f3f3; /* 浅灰 */
+  border-top: 2px solid #1e90ff; /* 蓝色 */
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: middle;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

@@ -133,70 +133,124 @@
   }
 }
 
+/* ===== Redo Card Styles ===== */
+.redo-section-card .section-header { 
+    margin-bottom: 12px; 
+}
 
-/* ===== redo card styles ===== */
-.redo-section-card .section-header { margin-bottom: 12px; }
-.redo-card { border-radius: 14px; padding: 18px; background: var(--card-bg, #fff); box-shadow: 0 6px 20px rgba(16,24,40,0.04); }
+.redo-card { 
+    border-radius: var(--radius); 
+    padding: var(--spacing-lg); 
+    background: hsl(var(--card)); 
+    box-shadow: var(--shadow-sm);
+}
 
 /* Dropzone */
 .dropzone {
-    border: 2px dashed rgba(99,102,241,0.18);
-    border-radius: 12px;
-    padding: 28px;
+    border: 2px dashed hsl(var(--border));
+    border-radius: var(--radius);
+    padding: var(--spacing-xl);
     text-align: center;
     cursor: pointer;
-    transition: background .18s, border-color .18s, transform .08s;
-    background: var(--drop-bg, #fbfbff);
+    transition: var(--transition);
+    background: hsl(var(--background));
 }
-.dropzone:hover { transform: translateY(-2px); }
-.dropzone.dragover { border-color: #4f46e5; background: #f3f4ff; }
 
-/* icon + text */
-.upload-icon { font-size: 36px; color: #6366f1; margin-bottom: 8px; }
-.upload-text { font-size: 1rem; font-weight: 600; margin: 0; }
-.upload-subtext { font-size: 0.9rem; color: #6b7280; margin-top: 6px; }
+.dropzone:hover { 
+    transform: translateY(-2px);
+    border-color: hsl(var(--foreground));
+}
 
-/* hide native input */
-.upload-input { display: none; }
+.dropzone.dragover { 
+    border-color: hsl(var(--primary)); 
+    background: hsl(var(--primary) / 0.05);
+}
 
-/* preview */
-#redoPreview { display: none; }
+/* Dropzone icon + text */
+.dropzone .upload-icon { 
+    font-size: 36px; 
+    color: hsl(var(--muted-foreground)); 
+    margin-bottom: 8px; 
+}
 
-/* redo button (shadcn-like primary) */
+.dropzone .dz-text { 
+    font-size: 1rem; 
+    font-weight: 600; 
+    margin: 0;
+    color: hsl(var(--foreground));
+}
+
+.dropzone .upload-subtext { 
+    font-size: 0.9rem; 
+    color: hsl(var(--muted-foreground)); 
+    margin-top: 6px; 
+}
+
+/* Hide native input */
+.upload-input { 
+    display: none; 
+}
+
+/* Preview */
+#redoPreview { 
+    display: none; 
+}
+
+/* Redo button */
 .redo-btn {
-    background: linear-gradient(180deg,#4f46e5,#4338ca);
-    color: #fff;
+    background: hsl(var(--foreground));
+    color: hsl(var(--background));
     border: none;
     padding: 10px 16px;
-    border-radius: 10px;
-    font-weight: 700;
+    border-radius: var(--radius);
+    font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(79,70,229,0.12);
-    transition: transform .12s, box-shadow .12s, opacity .12s;
+    transition: var(--transition);
 }
-.redo-btn:hover { transform: translateY(-2px); }
-.redo-btn:active { transform: translateY(0); }
-.redo-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
 
-/* clear button (secondary) */
+.redo-btn:hover { 
+    transform: translateY(-2px);
+    opacity: 0.9;
+}
+
+.redo-btn:active { 
+    transform: translateY(0); 
+}
+
+.redo-btn:disabled { 
+    opacity: 0.6; 
+    cursor: not-allowed; 
+    transform: none; 
+}
+
+/* Clear button */
 .redo-clear-btn {
     background: transparent;
-    color: var(--text-muted,#444);
-    border: 1px solid rgba(15,23,42,0.06);
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--border));
     padding: 10px 12px;
-    border-radius: 10px;
+    border-radius: var(--radius);
     cursor: pointer;
+    transition: var(--transition);
 }
-.redo-clear-btn:hover { background: rgba(0,0,0,0.02); }
 
-/* result */
-.redo-result { margin-top: 12px; font-weight: 600; color: #0f172a; }
-.redo-result.ok { color: #047857; }    /* green */
-.redo-result.err { color: #dc2626; }   /* red */
+.redo-clear-btn:hover { 
+    background: hsl(var(--secondary)); 
+}
 
+/* Result */
+.redo-result { 
+    margin-top: 12px; 
+    font-weight: 600; 
+    color: hsl(var(--foreground)); 
+}
 
-.upload-input {
-    display: none;
+.redo-result.ok { 
+    color: hsl(142.1 76.2% 36.3%);
+}
+
+.redo-result.err { 
+    color: hsl(0 84.2% 60.2%);
 }
 
 /* 折叠/展开按钮样式 */
