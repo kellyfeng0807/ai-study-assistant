@@ -1,9 +1,12 @@
 """
-AI Service - DeepSeek API Integration
+AI Service - DeepSeek API Integration & Qwen-VL Integration
 """
 
 import os
+import json
+import re
 from openai import OpenAI
+from dashscope import MultiModalConversation
 
 class AIService:
     def __init__(self):
@@ -11,6 +14,7 @@ class AIService:
             api_key=os.environ.get('DEEPSEEK_API_KEY'),
             base_url="https://api.deepseek.com"
         )
+        self.dashscope_api_key = os.getenv("DASHSCOPE_API_KEY", "sk-52e14360ea034580a43eee057212de78")
     
     def generate_mindmap_mermaid(self, topic, depth=3, context='', style='TD'):
         """
@@ -568,6 +572,400 @@ Be friendly, clear, and concise in your responses. Use LaTeX notation for mathem
         except Exception as e:
             print(f"Error calling DeepSeek chat API: {e}")
             raise Exception("Failed to get AI response")
+    
+    def generate_similar_questions(self, question_text, count=3, grade=None):
+        """
+        生成相似练习题
+        
+        Args:
+            question_text: 原题文本
+            count: 生成题目数量
+            grade: 学生年级（可选），如 "Grade 7", "Grade 10" 等
+            
+        Returns:
+            list: 相似题目列表，每个题目包含 question_text, correct_answer, subject, type, tags, analysis_steps
+        """
+        grade_info = f"\n- **学生年级**: {grade}，请确保题目难度适合该年级水平" if grade else ""
+        
+        prompt = f"""
+你是一位资深中学教师，任务是根据以下原题生成 {{count}} 道"相似知识点、相似难度"的相似练习题，并为每道题提供标准答案。
+{grade_info}
+
+⚠️ 严格要求：
+- 题目必须相似但不重复（改变数字、情境、表达方式、求解内容）
+- 保持相似题型、科目、知识点
+- 每道题包含：题目（question_text）和标准答案（correct_answer），科目，题目类型，知识点，分析步骤
+- 科目（subject）从 Chinese, Mathematics, English, Physics, Chemistry, Politics, History, Geography, Biology 中选择。
+- 不要出有图片的题目
+- 只输出一个 JSON 数组，不要任何解释、注释或 Markdown
+- 数组长度必须等于 {{count}}
+- subject，type，tags用英语
+- **原题题目是英语的就全部用英语**
+- **输出的 JSON 必须是严格合法的，所有反斜杠必须双写（如 \\\\frac），确保能被 Python json.loads 直接解析。**
+
+输出格式示例：
+[
+  {{
+    "subject": "Mathematics",
+    "type": "Single choice",
+    "tags": ["Quadratic Equation", "Discriminant"],
+    "question_text": "题目原文",
+    "analysis_steps": ["步骤1", "步骤2"],
+    "correct_answer": "标准答案"
+  }}
+]
+
+原题如下：
+=====================
+{question_text}
+=====================
+"""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                stream=False,
+                temperature=0.0,  # 数学/代码类任务需要精确性
+                max_tokens=2000
+            )
+            
+            raw_output = response.choices[0].message.content.strip()
+            
+            # 清理可能的 Markdown 代码块
+            if raw_output.startswith('```json'):
+                raw_output = raw_output.replace('```json', '').replace('```', '').strip()
+            elif raw_output.startswith('```'):
+                raw_output = raw_output.replace('```', '').strip()
+            
+            # 提取 JSON 对象
+            import re
+            start = raw_output.find('[')
+            end = raw_output.rfind(']')
+            if start != -1 and end > start:
+                json_str = raw_output[start:end + 1]
+            else:
+                raise ValueError("No valid JSON array found in response")
+            
+            import json
+            similar_list = json.loads(json_str)
+            
+            # 补齐或截断到指定数量
+            similar_list = similar_list[:count]
+            while len(similar_list) < count:
+                similar_list.append({
+                    "question_text": "（生成失败）",
+                    "correct_answer": "",
+                    "subject": "",
+                    "type": "",
+                    "tags": [],
+                    "analysis_steps": []
+                })
+            
+            return similar_list
+            
+        except Exception as e:
+            print(f"Error generating similar questions: {e}")
+            raise Exception(f"Failed to generate similar questions: {str(e)}")
+    
+    def judge_text_answer(self, question_text, user_answer, correct_answer=None):
+        """
+        判断文本答案是否正确
+        
+        Args:
+            question_text: 题目文本
+            user_answer: 用户答案
+            correct_answer: 标准答案（可选）
+            
+        Returns:
+            dict: {'is_correct': bool, 'reason': str}
+        """
+        prompt = f"""
+You are a strict middle school teacher. Please judge whether the student's answer is correct.
+
+Question:
+{question_text}
+
+'Standard Answer:
+{correct_answer}
+
+Accept simplified answers, such as numerical values or option letters.
+Accept numerical answers without units; slightly imprecise but correct final answers are acceptable.
+
+[Requirements]
+1. First, solve the problem completely by yourself to obtain the correct answer.
+2. Compare the student's answer with the correct answer, and use "is_correct" to indicate whether it is correct.
+3. Output only pure JSON:
+{{
+    "reason": "Give me the step-by-step derivation process of the correct answer, one point per line",
+    "is_correct": true or false
+}}
+
+Student's submitted answer:
+{user_answer}
+=====================
+"""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                stream=False,
+                temperature=0.0,  # 判分需要精确性
+                max_tokens=1000
+            )
+            
+            raw_output = response.choices[0].message.content.strip()
+            
+            # 清理可能的 Markdown 包裹
+            if raw_output.startswith("```json"):
+                raw_output = raw_output.split("```json", 1)[1].split("```", 1)[0]
+            elif raw_output.startswith("```"):
+                raw_output = raw_output.split("```", 1)[1].split("```", 1)[0]
+            
+            import json
+            parsed = json.loads(raw_output.strip())
+            
+            
+            return {
+                'is_correct': bool(parsed.get("is_correct", False)),
+                'reason': str(parsed.get("reason", "")).strip()
+            }
+            
+        except Exception as e:
+            print(f"Error judging answer: {e}")
+            return {
+                'is_correct': False,
+                'reason': "AI 判定失败，默认判错"
+            }
+
+    def _clean_json_for_object(self, text: str) -> str:
+        """从文本中提取 JSON（对象或数组）"""
+        text = text.strip()
+        text = re.sub(r'^```(?:json)?\s*', '', text)
+        text = re.sub(r'\s*```$', '', text)
+        
+        # 尝试提取数组
+        start = text.find('[')
+        end = text.rfind(']')
+        if start != -1 and end > start:
+            return text[start:end + 1]
+        
+        # 尝试提取对象
+        start = text.find('{')
+        end = text.rfind('}')
+        if start != -1 and end > start:
+            return text[start:end + 1]
+        
+        raise ValueError("No valid JSON found")
+
+    def ocr_and_parse_question(self, orig_path, cropped_results):
+        """
+        使用 Qwen-VL 识别题目图片并解析
+        
+        Args:
+            orig_path: 原始图片路径
+            cropped_results: 裁剪图片结果列表，每个元素包含 abs_path, bbox 等信息
+            
+        Returns:
+            解析后的题目列表（已处理 JSON）
+        """
+        # 构建 prompt
+        prompt = (
+            "你是一位严谨的中学教师，请根据第一张图片识别题目内容、答案和解析。\n"
+            "【图像说明】\n"
+            "- 图像0：完整原题图片（包含题干、选项、答案等全部内容）\n"
+            "- 图像1, 2, 3, ...：系统自动裁剪的局部图（如选项图、实验图、坐标系等）\n"
+            "- 注意：**裁剪图的索引从 0 开始**，即：\n"
+            "    • 图像1 → 裁剪图索引 0\n"
+            "    • 图像2 → 裁剪图索引 1\n"
+            "    • 图像3 → 裁剪图索引 2\n"
+            "    • 以此类推\n"
+            "\n"
+            "**关键：为每道题指定它所依赖的裁剪图索引（crop_index）**\n"
+            "   - crop_index 是一个整数列表，例如 [0], [1,2], [0,1,2,3,4,5] 或 []。\n"
+            "   - **如果整张原图只包含一道题（无论多少小问），则该题必须包含所有裁剪图索引。**\n"
+            "   - 仅当原图明确包含多道独立题目时，才可将裁剪图分配给不同题。\n"
+            "   - 一道裁剪图只能属于一道题。\n"
+            "\n"
+            "1. 'question_text' 必须完整包含题目原文及所有选项。\n"
+            "2. 只输出合法 JSON 数组，不要解释、Markdown 或额外文字。\n"
+            "请严格输出 JSON 数组，只允许使用以下转义： \\\\, \\\", \\n, \\t, \\r,所有 LaTeX 公式中的反斜杠必须使用双反斜杠 \\\\，不要生成单反斜杠。"
+            "3. 科目（subject）从 Chinese, Mathematics, English, Physics, Chemistry, Politics, History, Geography, Biology 中选择。\n"
+            "4. 题型（type）、知识点（tags）使用英文描述。\n"
+            "5. 'correct_answer' 和 'analysis_steps' 必须基于题目推导，与用户答案无关。\n"
+            "6. 'user_answer' 为图片上的答案。\n"
+            "请按以下格式输出示例：\n"
+            "[\n"
+            "  {\n"
+            "    \"subject\": \"Chinese\",\n"
+            "    \"type\": \"Constructed-response question\",\n"
+            "    \"tags\": [\"Trigonometric Functions\",\"Induction Formulas\"],\n"
+            "    \"question_text\": \"题目原文\",\n"
+            "    \"analysis_steps\": [\"正确步骤1\",\"正确步骤2\"],\n"
+            "    \"correct_answer\": \"正确答案\",\n"
+            "    \"user_answer\": \"学生答案\",\n"
+            "    \"crop_index\": []\n"
+            "  },\n"
+            "  {... 第二题 ...}\n"
+            "]"
+        )
+
+        # 构建消息列表
+        messages = [{
+            "role": "user",
+            "content": (
+                [{"image": f"file://{os.path.abspath(orig_path)}"}] +
+                [{"image": f"file://{crop['abs_path']}"} for crop in cropped_results] +
+                [{"text": prompt}]
+            )
+        }]
+
+        # 调用 Qwen-VL
+        response = MultiModalConversation.call(
+            model='qwen-vl-plus',
+            messages=messages,
+            api_key=self.dashscope_api_key,
+            result_format='message'
+        )
+
+        if response.status_code != 200:
+            raise Exception(f"Qwen-VL API Error {response.code}: {response.message}")
+
+        raw_output = response.output.choices[0].message.content[0]['text']
+        print("=== CLEANED JSON (repr) ===")
+        print(repr(raw_output))
+        print("=== END ===")
+
+        cleaned_json = self._clean_json_for_object(raw_output)
+
+        try:
+            parsed_list = json.loads(cleaned_json)
+        except json.JSONDecodeError as e:
+            print("JSON 解析失败，启动修复模式…")
+            print(e)
+
+            repaired = cleaned_json
+            # 尝试二次修复：去掉孤立反斜杠
+            repaired = repaired.replace("\\'", "'")
+            repaired = repaired.replace('\\"', '"')
+
+            # 再试
+            parsed_list = json.loads(repaired)
+
+        if not isinstance(parsed_list, list):
+            raise ValueError("模型返回的不是 JSON 数组，请检查输出格式。")
+
+        return parsed_list
+
+    def judge_redo_answer_with_image(self, question_text, correct_answer, image_path):
+        """
+        使用 Qwen-VL 判断重做答案（图片形式）
+        
+        Args:
+            question_text: 题目文本
+            correct_answer: 正确答案
+            image_path: 用户答案图片路径
+            
+        Returns:
+            dict: {'user_answer': str, 'is_correct': bool}
+        """
+        prompt = f"""
+已知题目如下（文字形式提供，不需要识别图片中的题目）：
+{question_text}
+
+请严格完成以下任务：
+
+1. **仅识别用户上传图片中的答案部分**（不要包含题目、解析、草稿等）。
+2. **判断该答案是否与上述题目的学科和内容相关**：
+   - 如果题目是生物/化学/历史等非数学题，但答案包含大量数学公式、方程、符号（如 x=, ∫, ∑, Δ 等），视为**无效答案**，判错。
+   - 如果答案明显与题目主题无关（如题目问细胞结构，答案写"E=mc²"），判错。
+3. **仅当图片中答案内容合理且与题目匹配时**，才进行正确性判断。
+4. 输出必须是严格 JSON 格式，不要任何额外文字。
+
+输出格式：
+{{
+  "user_answer": "识别出的图片中的答案原文，不是原题目的答案（保留原始格式，包括 LaTeX）",
+  "is_correct": true 或 false
+}}
+"""
+
+        messages = [{
+            "role": "user",
+            "content": [
+                {"image": f"file://{os.path.abspath(image_path)}"},
+                {"text": prompt}
+            ]
+        }]
+
+        response = MultiModalConversation.call(
+            model='qwen-vl-plus',
+            messages=messages,
+            api_key=self.dashscope_api_key,
+            result_format='message'
+        )
+
+        raw_output = response.output.choices[0].message.content[0]['text']
+        
+
+        parsed = json.loads(self._clean_json_for_object(raw_output))
+        
+        
+        return {
+            'user_answer': parsed.get("user_answer", "").strip(),
+            'is_correct': parsed.get("is_correct", False)
+        }
+
+    def judge_practice_answer_with_image(self, question_text, correct_answer, image_path):
+        """
+        使用 Qwen-VL 判断练习答案（图片形式）
+        
+        Args:
+            question_text: 题目文本
+            correct_answer: 正确答案
+            image_path: 用户答案图片路径
+            
+        Returns:
+            dict: {'user_answer': str, 'is_correct': bool}
+        """
+        prompt = f"""
+已知题目如下：
+{question_text}
+
+请识别用户上传图片中的答案，并判断是否正确。
+
+输出 JSON:
+{{
+    "user_answer": "...",
+    "is_correct": true 或 false
+}}
+"""
+        messages = [{
+            "role": "user",
+            "content": [
+                {"image": f"file://{os.path.abspath(image_path)}"},
+                {"text": prompt}
+            ]
+        }]
+
+        response = MultiModalConversation.call(
+            model='qwen-vl-plus',
+            messages=messages,
+            api_key=self.dashscope_api_key,
+            result_format='message'
+        )
+
+        raw_output = response.output.choices[0].message.content[0]['text']
+        parsed = json.loads(self._clean_json_for_object(raw_output))
+        
+        return {
+            'user_answer': parsed.get("user_answer", "").strip(),
+            'is_correct': parsed.get("is_correct", False)
+        }
 
 # 创建单例实例
 ai_service = AIService()

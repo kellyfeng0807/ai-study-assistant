@@ -58,6 +58,10 @@ def create_app(config_name='development'):
     def send_assets(path):
         return send_from_directory('../frontend/assets', path)
     
+    @app.route('/uploads/<path:path>')
+    def send_uploads(path):
+        return send_from_directory('uploads', path)
+    
     # 健康检查
     @app.route('/api/health')
     def health():

@@ -17,7 +17,44 @@ class ErrorBookManager {
     init() {
         this.initUploadArea();
         this.bindEventListeners();
-        this.bindActionButtons(); 
+        this.bindActionButtons();
+        this.initMessageListener(); 
+
+        // 检查 sessionStorage 标记（用于从 practice 返回时自动刷新）
+        try {
+            const flag = sessionStorage.getItem('refreshErrorList');
+            if (flag) {
+                sessionStorage.removeItem('refreshErrorList');
+                console.log('sessionStorage 标记存在，重新加载错题列表');
+                this.reloadErrorsFromServer();
+            }
+        } catch (e) {
+            // sessionStorage 访问失败，忽略
+        }
+
+        // 当页面可见性发生变化（比如从另一个标签页或返回历史），再次检查标记
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                try {
+                    const flag = sessionStorage.getItem('refreshErrorList');
+                    if (flag) {
+                        sessionStorage.removeItem('refreshErrorList');
+                        console.log('页面可见，sessionStorage 标记触发刷新');
+                        this.reloadErrorsFromServer();
+                    }
+                } catch (e) {}
+            }
+        });
+    }
+    
+    initMessageListener() {
+        // 监听来自 practice 页面的刷新消息
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'refreshErrorList') {
+                console.log('收到刷新请求，重新加载错题列表');
+                this.loadErrors();
+            }
+        });
     }
     
     initUploadArea() {
@@ -81,14 +118,18 @@ class ErrorBookManager {
                     reviewed: err.reviewed,
                     tags: Array.isArray(err.tags) ? err.tags : [],
                     text: `<p>${err.question_text || ''}</p>`,
+                    images: Array.isArray(err.images) ? err.images : [],
                     created_at: err.created_at
                 });
             });
 
-            // 渲染 MathJax
-            if (typeof MathJax !== 'undefined') {
+            // 优化的 MathJax 渲染：批量渲染整个容器
+            if (window.MathJax && window.MathJax.typesetPromise) {
                 setTimeout(() => {
-                    MathJax.typesetPromise().catch(console.warn);
+                    const container = document.querySelector('.errors-list');
+                    if (container) {
+                        MathJax.typesetPromise([container]).catch(console.warn);
+                    }
                 }, 100);
             }
 
@@ -174,13 +215,16 @@ class ErrorBookManager {
                 
                 const uploadResult = await response.json();
 
-                if (!uploadResult?.success || !uploadResult.question_text) {
-                    console.error(`Failed to parse question from ${file.name}`);
-                    failCount++;
-                    continue;
+                if (!uploadResult?.success || !Array.isArray(uploadResult.questions) || uploadResult.questions.length === 0) {
+                console.error(`Failed to parse questions from ${file.name}`, uploadResult);
+                failCount++;
+                continue;
                 }
 
-                successCount++;
+                this.addErrorCard(uploadResult.questions);
+
+                successCount += uploadResult.questions.length;
+
 
             } catch (err) {
                 console.error('Error processing image:', file.name, err);
@@ -240,7 +284,7 @@ class ErrorBookManager {
                 dateStr = new Date().toLocaleDateString();
             }
         }
-
+        
         // 渲染卡片 DOM
         card.innerHTML = `
             <div class="mastered-ribbon ${data.reviewed ? 'mastered' : 'not-mastered'}">
@@ -254,6 +298,9 @@ class ErrorBookManager {
                 <p class="error-description">${data.text || ''}</p>
                 <div class="error-analysis">
                     ${Array.isArray(data.tags) ? data.tags.map(tag => `<span class="analysis-tag">${tag}</span>`).join(' ') : ''}
+                </div>
+                <div class="error-images">
+                    ${Array.isArray(data.images) ? data.images.map(img => `<img src="${img}" alt="题目图片" class="error-image">`).join('') : ''}
                 </div>
             </div>
             <div class="error-footer">
@@ -434,6 +481,8 @@ class ErrorBookManager {
                 if (data.success) {
                     card.remove();
                     Utils.showNotification('Error deleted successfully', 'success');
+                    // Notify practice page to reset button for this error
+                    sessionStorage.setItem('resetPracticeButton', id);
                 } else {
                     Utils.showNotification('Failed to delete error: ' + data.error, 'error');
                 }

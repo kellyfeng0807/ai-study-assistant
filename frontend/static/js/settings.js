@@ -62,7 +62,12 @@ class SettingsManager {
         
         const emailDisplay = document.getElementById('emailDisplay');
         if (emailDisplay) {
-            emailDisplay.textContent = this.settings.email || '';
+            // 如果是学生账号且没有email，尝试显示家长email
+            if (this.settings.account_type === 'student' && (!this.settings.email || this.settings.email === '')) {
+                this.loadParentEmail(emailDisplay);
+            } else {
+                emailDisplay.textContent = this.settings.email || '';
+            }
         }
         
         const accountTypeDisplay = document.getElementById('accountTypeDisplay');
@@ -111,6 +116,34 @@ class SettingsManager {
         const confirmPasswordInput = document.getElementById('confirmPassword');
         if (confirmPasswordInput) {
             confirmPasswordInput.value = '';
+        }
+    }
+    
+    /**
+     * 加载家长邮箱（用于学生账号）
+     */
+    async loadParentEmail(emailElement) {
+        try {
+            if (!this.settings.parent_id) {
+                emailElement.textContent = 'No email set';
+                return;
+            }
+            
+            const response = await fetch(window.getApiUrl('/auth/parent-email'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ parent_id: this.settings.parent_id })
+            });
+            const data = await response.json();
+            
+            if (data.success && data.email) {
+                emailElement.textContent = `${data.email} (Parent)`;
+            } else {
+                emailElement.textContent = 'No email set';
+            }
+        } catch (error) {
+            console.error('Error loading parent email:', error);
+            emailElement.textContent = 'Error loading email';
         }
     }
     

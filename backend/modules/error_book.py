@@ -5,22 +5,34 @@ Error Book Manager Module
 """
 
 from flask import Blueprint, request, jsonify, send_from_directory
+from werkzeug.utils import secure_filename
 import json
 import re
 import time
 import os
 import traceback
 import sys
-from dashscope import MultiModalConversation, Generation
+import base64
+from datetime import datetime
 
-# 导入共享数据库模块（参照 map_generation.py 的方式）
+import cv2
+import numpy as np
+
+# 导入共享模块
 import db_sqlite
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from services.ai_service import ai_service
+
 
 # ===== 配置 =====
 error_bp = Blueprint('error_book', __name__, url_prefix='/api/error')
-DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-52e14360ea034580a43eee057212de78")
 
-# 初始化错题表
+# 文件上传配置 - 所有文件（包括临时文件）都存在这里
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'error-book')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# 初始化数据库
 db_sqlite.init_db()
 
 # Debug: Print database info on module load
@@ -29,28 +41,130 @@ print(f"[ERROR_BOOK_INIT] DB file exists: {os.path.exists(db_sqlite.DB_PATH)}", 
 
 
 # ===== 工具函数 =====
-def clean_json_for_object(text: str) -> str:
-    """从文本中提取第一个 JSON 对象 {...}"""
-    text = text.strip()
-    text = re.sub(r'^```(?:json)?\s*', '', text)
-    text = re.sub(r'\s*```$', '', text)
-    start = text.find('{')
-    end = text.rfind('}')
-    if start != -1 and end > start:
-        return text[start:end + 1]
-    raise ValueError("No valid JSON object found")
+
+def allowed_file(filename):
+    """检查文件类型是否允许"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def clean_json_for_array(text: str) -> str:
-    """从文本中提取第一个 JSON 数组 [...]"""
-    text = text.strip()
-    text = re.sub(r'^```(?:json)?\s*', '', text)
-    text = re.sub(r'\s*```$', '', text)
-    start = text.find('[')
-    end = text.rfind(']')
-    if start != -1 and end > start:
-        return text[start:end + 1]
-    raise ValueError("No valid JSON array found")
+def crop_images_from_image(input_path, output_dir):
+    """
+    裁剪图片中的图片块，保存到 output_dir，并返回每块图片的路径和坐标
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 使用 numpy 读取支持中文路径的图片
+    try:
+        with open(input_path, 'rb') as f:
+            img_data = np.frombuffer(f.read(), np.uint8)
+        img = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError(f"无法解码图片: {input_path}")
+    except Exception as e:
+        raise ValueError(f"无法读取图片: {input_path}, 错误: {str(e)}")
+
+    height, width = img.shape[:2]
+    img_area = height * width
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY_INV, 11, 2)
+
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    results = []
+    padding_ratio = 0.2
+
+    for count, cnt in enumerate(contours):
+        x, y, w, h = cv2.boundingRect(cnt)
+        area_ratio = (w * h) / img_area
+        if area_ratio > 0.01 and 0.3 < w / h < 5:
+            pad_w = int(w * padding_ratio)
+            pad_h = int(h * padding_ratio)
+            x1 = max(x - pad_w, 0)
+            y1 = max(y - pad_h, 0)
+            x2 = min(x + w + pad_w, width)
+            y2 = min(y + h + pad_h, height)
+
+            cropped = img[y1:y2, x1:x2]
+            save_path = os.path.join(output_dir, f"crop_{count}.png")
+            
+            # 使用 numpy 保存支持中文路径
+            try:
+                success, encoded_img = cv2.imencode('.png', cropped)
+                if not success:
+                    continue
+                    
+                with open(save_path, 'wb') as f:
+                    f.write(encoded_img.tobytes())
+                    
+            except Exception as e:
+                print(f"保存裁剪图片失败: {save_path}, 错误: {str(e)}")
+                continue
+
+            results.append({
+                "path": save_path,
+                "bbox": [x1, y1, x2, y2]
+            })
+
+    return results
+
+
+def sort_bboxes_reading_order(bboxes_with_data, y_tolerance=20):
+    """
+    按阅读顺序（从上到下，每行从左到右）排序 bbox 列表。
+
+    Args:
+        bboxes_with_data: List of dict, each has 'bbox': [x1, y1, x2, y2]
+        y_tolerance: y1 差值小于该值的认为在同一行（单位：像素）
+
+    Returns:
+        Sorted list
+    """
+    if not bboxes_with_data:
+        return bboxes_with_data
+
+    # Step 1: 按 y1 排序（初步）
+    items = sorted(bboxes_with_data, key=lambda c: c['bbox'][1])
+
+    # Step 2: 分行
+    lines = []
+    current_line = []
+    current_y = items[0]['bbox'][1]
+
+    for item in items:
+        y1 = item['bbox'][1]
+        if abs(y1 - current_y) <= y_tolerance:
+            # 属于当前行
+            current_line.append(item)
+        else:
+            # 新起一行
+            lines.append(current_line)
+            current_line = [item]
+            current_y = y1
+    if current_line:
+        lines.append(current_line)
+
+    # Step 3: 每行内部按 x1 排序
+    for line in lines:
+        line.sort(key=lambda c: c['bbox'][0])
+
+    # Step 4: 扁平化
+    result = []
+    for line in lines:
+        result.extend(line)
+
+    return result
+
+
+def fix_latex_for_frontend(text):
+    # 把公式里的 \\ 恢复成 \，保证 KaTeX/MathJax 渲染
+    def repl(match):
+        formula = match.group(0)
+        formula = formula.replace('\\\\', '\\')
+        return formula
+
+    text = re.sub(r'\$.*?\$', repl, text, flags=re.DOTALL)
+    text = re.sub(r'\$\$.*?\$\$', repl, text, flags=re.DOTALL)
+    return text
 
 
 # ===== 路由：上传错题图片 =====
@@ -63,96 +177,82 @@ def upload_question():
     if uploaded_file.filename == '':
         return jsonify({'success': False, 'error': 'Empty filename'}), 400
 
-    temp_dir = "./temp_uploads"
-    try:
-        os.makedirs(temp_dir, exist_ok=True)
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to create temp directory: {str(e)}'}), 500
-    
-    temp_path = os.path.join(temp_dir, f"{int(time.time() * 1000)}_{uploaded_file.filename}")
-    
-    try:
-        uploaded_file.save(temp_path)
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to save file: {str(e)}'}), 500
+    if not allowed_file(uploaded_file.filename):
+        return jsonify({'success': False, 'error': 'Invalid file type. Only images allowed.'}), 400
+
+    # 保存原图（使用安全文件名和时间戳）
+    filename = secure_filename(uploaded_file.filename)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    unique_filename = f"{timestamp}_{filename}"
+    orig_path = os.path.join(UPLOAD_FOLDER, unique_filename)
+    uploaded_file.save(orig_path)
 
     try:
-        prompt = (
-            "你是一位严谨的中学教师，请根据图片内容严格按以下规则输出：\n"
-            "1. 只输出一个合法 JSON 对象；\n"
-            "2. 不要任何解释、不要 markdown、不要额外文字；\n"
-            "3. 如果某字段无法识别，留空字符串或空数组。\n\n"
-            "请提取：题目、用户解答、正确答案、错误分析步骤、题型、科目、知识点。\n"
-            "输出格式必须是：\n"
-            "{"
-            "\"subject\": \"数学\","
-            "\"type\": \"解答题\","
-            "\"tags\": [\"三角函数\",\"诱导公式\"],"
-            "\"question_text\": \"题目原文\","
-            "\"user_answer\": \"学生写的解答过程和答案\","
-            "\"correct_answer\": \"正确答案\","
-            "\"analysis_steps\": [\"错误步骤1\",\"错误步骤2\"]"
-            "}"
-        )
+        # 裁剪图片
+        cropped_results = crop_images_from_image(orig_path, output_dir=UPLOAD_FOLDER)
 
-        messages = [{
-            "role": "user",
-            "content": [
-                {"image": f"file://{os.path.abspath(temp_path)}"},
-                {"text": prompt}
-            ]
-        }]
+        cropped_results = sort_bboxes_reading_order(cropped_results, y_tolerance=15)
+        # 为每张裁剪图添加索引和路径
+        for idx, crop in enumerate(cropped_results):
+            crop['index'] = idx
+            crop['abs_path'] = os.path.abspath(crop['path'])
+            crop['rel_path'] = os.path.relpath(crop['path'], start=os.getcwd())
 
-        response = MultiModalConversation.call(
-            model='qwen-vl-plus',
-            messages=messages,
-            api_key=DASHSCOPE_API_KEY,
-            result_format='message'
-        )
-        
-        if response.status_code != 200:
-            raise Exception(f"Qwen-VL API Error {response.code}: {response.message}")
+        # 使用 AI 服务进行 OCR 识别和解析
+        parsed_list = ai_service.ocr_and_parse_question(orig_path, cropped_results)
 
-        raw_output = response.output.choices[0].message.content[0]['text']
-        
-        cleaned_json = clean_json_for_object(raw_output)
-        parsed = json.loads(cleaned_json)
+        # 在保存到数据库前，处理公式
+        for parsed in parsed_list:
+            parsed['question_text'] = fix_latex_for_frontend(parsed['question_text'])
+            parsed["correct_answer"] = fix_latex_for_frontend(parsed["correct_answer"])
+            parsed['analysis_steps'] = [fix_latex_for_frontend(step) for step in parsed.get('analysis_steps', [])]
 
-        # 保存到数据库
-        new_id = db_sqlite.insert_error(parsed)
-        saved = db_sqlite.get_error_by_id(new_id)
-        
-        # 返回前移除 'success' 字段避免重复
-        if isinstance(saved, dict) and 'success' in saved:
-            del saved['success']
-        
+        # 保存到数据库，同时附加对应裁剪图相对路径
+        saved_list = []
+        for parsed in parsed_list:
+            # 初始化 images 列表
+            parsed['images'] = []
+
+            # 获取 crop_indices, 可能是一个列表或单个值
+            crop_indices = parsed.get('crop_index', [])
+            if isinstance(crop_indices, int):  # 如果是单个值，则转换为列表
+                crop_indices = [crop_indices]
+
+            for crop_idx in crop_indices:
+                if 0 <= crop_idx < len(cropped_results):
+                    relative_path = cropped_results[crop_idx]['rel_path'].replace("\\", "/")
+                    if not relative_path.startswith("/"):
+                        relative_path = "/" + relative_path
+                    parsed['images'].append(relative_path)
+
+            # 插入数据到数据库
+            new_id = db_sqlite.insert_error(parsed)
+            saved = db_sqlite.get_error_by_id(new_id)
+            if isinstance(saved, dict) and 'success' in saved:
+                del saved['success']
+            saved['id'] = new_id
+            saved_list.append(saved)
+
         return jsonify({
             'success': True,
-            'question_text': saved.get('question_text'),
-            'subject': saved.get('subject'),
-            'type': saved.get('type'),
-            'tags': saved.get('tags'),
-            'user_answer': saved.get('user_answer'),
-            'correct_answer': saved.get('correct_answer'),
-            'analysis_steps': saved.get('analysis_steps'),
-            'difficulty': saved.get('difficulty'),
-            'created_at': saved.get('created_at'),
-            'id': new_id
+            'questions': saved_list
         })
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({
             'success': False,
-            'error': str(e),
-            'raw_output': raw_output if 'raw_output' in locals() else None
+            'error': str(e)
         }), 500
 
     finally:
+        # 无论成功或失败，都删除原始上传文件（保留裁剪后的图片）
         try:
-            os.remove(temp_path)
-        except OSError:
-            pass
+            if os.path.exists(orig_path):
+                os.remove(orig_path)
+                print(f"Removed original upload in finally: {orig_path}")
+        except Exception as e:
+            print(f"Failed to remove original upload in finally: {e}")
 
 
 @error_bp.route('/list', methods=['GET'])
@@ -207,89 +307,135 @@ def delete_error_route(error_id):
 def redo_error():
     data = request.json
     error_id = data.get('id')
-    redo_answer = data.get('redo_answer', '')
+    redo_image = data.get("redo_answer", "")
     
     if not error_id:
         return jsonify({'success': False, 'error': 'Missing id'}), 400
     
+    if not redo_image:
+        return jsonify({"success": False, "error": "Missing image"}), 400
+    
+    # 保存临时图片（用完就删）
+    temp_path = os.path.join(UPLOAD_FOLDER, f"temp_{int(time.time()*1000)}.png")
+
     try:
-        error_id = int(error_id)
-    except ValueError:
-        return jsonify({'success': False, 'error': 'Invalid id format'}), 400
-    
-    # 获取原错题信息
-    error = db_sqlite.get_error_by_id(error_id)
-    if not error:
-        return jsonify({'success': False, 'error': 'Error not found'}), 404
-    
-    # 更新重做记录
-    success = db_sqlite.update_error_redo(error_id, redo_answer)
-    if success:
+        b64 = redo_image.split(",")[-1]
+        with open(temp_path, "wb") as f:
+            f.write(base64.b64decode(b64))
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Invalid image data: {str(e)}"}), 400
+        
+    try:
+        
+        error = db_sqlite.get_error_by_id(int(error_id))
+        if not error:
+            return jsonify({"success": False, "error": "Error record not found"}), 404
+
+       
+        question_text = error.get("question_text", "")
+        correct_answer = error.get("correct_answer", "")
+        if not question_text.strip():
+            return jsonify({"success": False, "error": "empty"}), 400
+
+
+
+        # 使用 AI 服务判断重做答案
+        result = ai_service.judge_redo_answer_with_image(question_text, correct_answer, temp_path)
+        new_answer = result['user_answer']
+        is_correct = result['is_correct']
+
+        # 通过 db_sqlite 更新 redo 结果
+        success = db_sqlite.update_error_redo(int(error_id), new_answer)
+
+        if not success:
+            return jsonify({"success": False, "error": "Database update failed"}), 500
+
+        # 如果 AI 判断正确，标记 reviewed=1
+        if is_correct:
+            db_sqlite.update_error_reviewed(int(error_id), 1)  
+
         return jsonify({
-            'success': True,
-            'message': 'Redo recorded successfully',
-            'correct_answer': error.get('correct_answer', '')
+            "success": True,
+            "is_correct": is_correct,
+            "new_answer": new_answer,
+            "correct_answer": correct_answer
         })
-    else:
-        return jsonify({'success': False, 'error': 'Failed to update redo'}), 500
+
+    except Exception as e:
+        print("Redo failed:", e)
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+    finally:
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
 
 # ===== 路由：生成相似练习题 =====
 @error_bp.route('/practice/generate-similar', methods=['POST'])
 def generate_similar_exercises():
     data = request.json
+    error_id = data.get("id")
     question_text = data.get("question_text", "").strip()
     count = int(data.get("count", 3))
+    force = data.get("force", False) 
+    
+    if not error_id:
+        return jsonify({'success': False, 'error': 'Missing error_id'}), 400
+
     if not question_text:
         return jsonify({"success": False, "error": "Missing question_text"}), 400
     count = max(1, min(count, 5))  # 限制 1~5 题
 
-    prompt = f"""
-你是一位资深中学教师，任务是根据以下原题生成 {count} 道“同类型、同知识点、同难度”的相似练习题，并为每道题提供标准答案。
-
-⚠️ 严格要求：
-- 题目必须相似但不重复（改变数字、情境、表达方式）
-- 保持相同题型、科目、知识点
-- 每道题包含：题目（question）和标准答案（answer）
-- 只输出一个 JSON 数组，不要任何解释、注释或 Markdown
-- 数组长度必须等于 {count}
-
-输出格式示例：
-[
-  {{"question": "题1内容", "answer": "题1答案"}},
-  {{"question": "题2内容", "answer": "题2答案"}}
-]
-
-原题如下：
-=====================
-{question_text}
-=====================
-"""
-
     try:
-        response = Generation.call(
-            model="qwen-max",
-            api_key=DASHSCOPE_API_KEY,
-            prompt=prompt,
-            result_format="message"
-        )
+        # ===== 先查询数据库是否已有对应练习题 =====
+        existing_practice = db_sqlite.list_practice_by_error_id(error_id=error_id)
+        if existing_practice and len(existing_practice) >= count and not force:
+            print(f"Found existing {len(existing_practice)} practice questions for error_id={error_id}")
+            return jsonify({
+                "success": True,
+                "data": {"similar_problems": existing_practice[:count]}
+            })
 
-        if response.status_code != 200:
-            raise Exception(f"Qwen API Error {response.code}: {response.message}")
+        # ===== 获取学生的 grade 信息 =====
+        grade = None
+        try:
+            error_record = db_sqlite.get_error_by_id(error_id)
+            if error_record and error_record.get('user_id'):
+                user_settings = db_sqlite.get_user_settings(error_record['user_id'])
+                if user_settings and user_settings.get('success'):
+                    grade = user_settings.get('grade')
+                    print(f"Found user grade: {grade} for user_id={error_record['user_id']}")
+        except Exception as e:
+            print(f"Failed to fetch user grade: {e}")
+            # Continue without grade (graceful degradation)
 
-        raw = response.output.choices[0].message.content.strip()
-        print("Raw Qwen output:", repr(raw))
+        
 
-        cleaned = clean_json_for_array(raw)
-        similar_list = json.loads(cleaned)
+        # 使用 AI 服务生成相似题目（传入 grade 信息）
+        similar_list = ai_service.generate_similar_questions(question_text, count, grade=grade)
 
-        # 补齐或截断到指定数量
-        similar_list = similar_list[:count]
-        while len(similar_list) < count:
-            similar_list.append({"question": "（生成失败）", "answer": ""})
+        # 统一处理 LaTeX，保证前端可渲染
+        for q in similar_list:
+            q['question_text'] = fix_latex_for_frontend(q.get('question_text', ''))
+            q["correct_answer"] = fix_latex_for_frontend(q.get("correct_answer", ''))
+            q['analysis_steps'] = [fix_latex_for_frontend(step) for step in q.get('analysis_steps', [])]
+
+        # ===== 存入数据库 =====
+        saved_list = []
+        for parsed in similar_list:
+            parsed["error_id"] = error_id
+            new_id = db_sqlite.insert_practice(parsed)
+            saved = db_sqlite.get_practice_by_id(new_id)
+            saved_list.append(saved)
 
         return jsonify({
             "success": True,
-            "data": {"similar_problems": similar_list}
+            "data": {"similar_problems": saved_list}
         })
 
     except Exception as e:
@@ -297,8 +443,7 @@ def generate_similar_exercises():
         traceback.print_exc()
         return jsonify({
             "success": False,
-            "error": "LLM generation or JSON parsing failed",
-            "raw_output": raw if 'raw' in locals() else str(e)
+            "error": str(e)
         }), 500
 
 
@@ -311,3 +456,214 @@ def practice_page():
     if not os.path.exists(html_path):
         return jsonify({"error": "Frontend file not found"}), 404
     return send_from_directory(frontend_dir, 'error-practice.html')
+
+@error_bp.route('/redo_text', methods=['POST'])
+def redo_text():
+    data = request.json
+    error_id = data.get('id')
+    user_answer = (data.get('user_answer') or '').strip()
+
+    if not error_id or not user_answer:
+        return jsonify({'success': False, 'error': 'Missing id or answer'}), 400
+
+    try:
+        error_id = int(error_id)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid id format'}), 400
+
+    # 取原题
+    error = db_sqlite.get_error_by_id(error_id)
+    if not error:
+        return jsonify({'success': False, 'error': 'Error not found'}), 404
+
+    question_text = error.get("question_text", "")
+    if not question_text.strip():
+        return jsonify({'success': False, 'error': 'empty'}), 400
+
+    # 使用 AI 服务判定答案
+    try:
+        correct_answer = error.get("correct_answer", "")
+        result = ai_service.judge_text_answer(
+            question_text=question_text,
+            user_answer=user_answer,
+            correct_answer=correct_answer
+        )
+        is_correct = result['is_correct']
+        ai_reason = result['reason']
+    except Exception as e:
+        print(f"AI judge failed: {e}")
+        traceback.print_exc()
+        is_correct = False
+        ai_reason = "AI 判定失败，默认判错"
+
+    # ===== 更新数据库 =====
+    db_sqlite.update_error_redo(error_id, user_answer)
+    if is_correct:
+        db_sqlite.update_error_reviewed(error_id, 1)
+
+    # ===== 返回前端 =====
+    return jsonify({
+        "success": True,
+        "correct": is_correct,
+        "new_answer": user_answer,
+        "ai_reason": ai_reason
+    })
+
+# ===== 文本作答接口 =====
+@error_bp.route('/practice/do_text', methods=['POST'])
+def do_text_practice():
+    data = request.json
+    practice_id = data.get("practice_id")
+    user_answer_text = (data.get("user_answer_text") or "").strip()
+    correct_answer=data.get("correct_answer")
+
+    if not practice_id or not user_answer_text:
+        return jsonify({"success": False, "error": "Missing practice_id or answer"}), 400
+
+    try:
+        practice_id = int(practice_id)
+        practice = db_sqlite.get_practice_by_id(practice_id)
+        if not practice:
+            return jsonify({"success": False, "error": "Practice question not found"}), 404
+
+        question_text = practice.get("question_text", "").strip()
+        if not question_text:
+            return jsonify({"success": False, "error": "Original question is empty"}), 400
+
+        # 使用 AI 服务判定
+        try:
+            result = ai_service.judge_text_answer(
+                question_text=question_text,
+                user_answer=user_answer_text,
+                correct_answer=correct_answer
+            )
+            is_correct = result['is_correct']
+            ai_reason = result['reason']
+        except Exception as e:
+            print(f"AI judge failed: {e}")
+            traceback.print_exc()
+            is_correct = False
+            ai_reason = "AI 判定失败，默认判错"
+
+        # ===== 更新用户作答 =====
+        db_sqlite.update_practice_user_answer(practice_id, user_answer_text)
+
+        return jsonify({
+            "success": True,
+            "practice_id": practice_id,
+            "correct": is_correct,
+            "user_answer": user_answer_text,
+            "ai_reason": ai_reason
+        })
+
+    except Exception as e:
+        print(f"do_text_practice failed: {e}")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ===== 图片作答接口 =====
+@error_bp.route('/practice/do_image', methods=['POST'])
+def do_image_practice():
+    data = request.json
+    practice_id = data.get("practice_id")
+    redo_image = data.get("redo_answer", "")
+
+    if not practice_id or not redo_image:
+        return jsonify({"success": False, "error": "Missing practice_id or image"}), 400
+
+    try:
+        practice_id = int(practice_id)
+        practice = db_sqlite.get_practice_by_id(practice_id)
+        if not practice:
+            return jsonify({"success": False, "error": "Practice question not found"}), 404
+
+        question_text = practice.get("question_text", "").strip()
+        correct_answer = practice.get("correct_answer", "")
+
+        # 保存临时图片（用完就删）
+        temp_path = os.path.join(UPLOAD_FOLDER, f"temp_{int(time.time()*1000)}.png")
+        b64 = redo_image.split(",")[-1]
+        with open(temp_path, "wb") as f:
+            f.write(base64.b64decode(b64))
+
+        # ===== AI 判定 =====
+        try:
+            result = ai_service.judge_practice_answer_with_image(question_text, correct_answer, temp_path)
+            new_answer = result['user_answer']
+            is_correct = result['is_correct']
+        except Exception as e:
+            print("AI judge failed:", e)
+            new_answer = ""
+            is_correct = False
+
+        # ===== 更新数据库，只保存用户作答 =====
+        db_sqlite.update_practice_user_answer(practice_id, new_answer or temp_path)
+
+        return jsonify({
+            "success": True,
+            "practice_id": practice_id,
+            "is_correct": is_correct,
+            "user_answer": new_answer,
+            "correct_answer": correct_answer
+        })
+
+    except Exception as e:
+        print("do_image_practice failed:", e)
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    finally:
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
+
+
+
+@error_bp.route('/practice/favorite', methods=['POST'])
+def favorite_practice():
+    """
+    将指定练习记录收藏进错题本
+    请求 JSON:
+    {
+        "practice_id": 123
+    }
+    """
+    data = request.json
+    practice_id = data.get("practice_id")
+    if not practice_id:
+        return jsonify({"success": False, "error": "Missing practice_id"}), 400
+
+    try:
+        practice_id = int(practice_id)
+        # 获取 practice 记录
+        practice = db_sqlite.get_practice_by_id(practice_id)
+        if not practice:
+            return jsonify({"success": False, "error": "Practice record not found"}), 404
+
+        # 准备插入 error_book 的数据
+        error_data = {
+            "user_id": practice.get("user_id", 1),
+            "subject": practice.get("subject", ""),
+            "type": practice.get("type", ""),
+            "tags": practice.get("tags") or [],
+            "question_text": practice.get("question") or practice.get("question_text", ""),
+            "user_answer": practice.get("user_answer", ""),
+            "correct_answer": practice.get("correct_answer", ""),
+            "analysis_steps": practice.get("analysis_steps") or [],
+            "images": [],          # 可以根据需求传 practice 的图片
+            "difficulty": practice.get("difficulty", "medium")
+        }
+
+        # 插入 error_book
+        new_error_id = db_sqlite.insert_error(error_data)
+        # 同步更新 practice 状态字段 
+        db_sqlite.mark_practice_favorited(practice_id)
+
+        return jsonify({"success": True, "error_id": new_error_id})
+
+    except Exception as e:
+        print("favorite_practice failed:", e)
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500

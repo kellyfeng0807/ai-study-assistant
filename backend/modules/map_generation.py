@@ -22,14 +22,10 @@ map_bp = Blueprint('map_generation', __name__, url_prefix='/api/map')
 print(f"[MAP_INIT] db_sqlite.DB_PATH: {db_sqlite.DB_PATH}", file=sys.stderr)
 print(f"[MAP_INIT] DB file exists: {os.path.exists(db_sqlite.DB_PATH)}", file=sys.stderr)
 
-# 配置上传路径
+# 文件上传配置
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'mindmaps')
 ALLOWED_EXTENSIONS = {'pdf', 'ppt', 'pptx', 'doc', 'docx', 'txt', 'mp3', 'wav', 'mp4', 'm4a'}
-DATA_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'data')
-
-# 确保目录存在
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(DATA_FOLDER, exist_ok=True)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS

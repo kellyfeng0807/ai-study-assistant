@@ -1,10 +1,40 @@
 /* error-practice.css */
 
+/* 小图标按钮（用于内联） */
+.icon-button-small {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--background));
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 0;
+    vertical-align: middle;
+}
+
+.icon-button-small:hover:not(:disabled) {
+    background: hsl(var(--foreground) / 0.05);
+    color: hsl(var(--foreground));
+}
+
+.icon-button-small:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.icon-button-small i {
+    font-size: 12px;
+}
+
 body {
   font-family: Arial, sans-serif;
-  padding: 20px;
-  background: #f9f9f9;
   margin: 0;
+  padding: 0;
 }
 
 .container {
@@ -91,14 +121,28 @@ h1 {
   line-height: 1.5;
 }
 
-/*  全局样式优化 */
-body {
-  font-family: "Helvetica Neue", Arial, sans-serif;
-  background: #f9f9f9;
-  margin: 0;
-  padding: 20px 0;
+/* 文本输入框样式（统一使用 map 样式） */
+.context-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  transition: var(--transition);
+  box-sizing: border-box;
 }
 
+.context-textarea:focus {
+  outline: none;
+  border-color: hsl(var(--foreground));
+  box-shadow: 0 0 0 3px hsl(var(--foreground) / 0.1);
+}
+
+/*  全局样式优化 - 移除所有多余的 padding */
 .container {
   max-width: 800px;
   margin: 0 auto;
@@ -135,4 +179,186 @@ h1 {
 
 .back-btn:hover {
   background: #e0e0e0;
+}
+
+
+/* 收藏按钮 */
+.favorite-practice-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #ffc107; /* 修改边框颜色为黄色 */
+  background: white;
+  color: #ffc107; /* 修改文字颜色为黄色 */
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+/* 鼠标悬停时的样式 */
+.favorite-practice-btn:hover {
+  background: #ffc107; /* 悬停时背景颜色变为指定的黄色 */
+  color: white; /* 悬停时文字颜色变为白色 */
+  border-color: #ffc107; /* 悬停时边框颜色也变为相同的黄色 */
+}
+.favorite-practice-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* 收藏状态文字 */
+.favorite-status {
+  margin-left: 8px;
+  font-weight: bold;
+  color: green;
+}
+
+/* 用户作答区 */
+.user-answer-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border-color, #ccc);
+}
+
+/* 作答切换按钮 */
+.answer-actions {
+  margin-bottom: 8px;
+}
+
+.answer-actions .button-outline {
+  margin-right: 6px;
+}
+
+/* 文字输入区 */
+.text-answer-section {
+  display: none;
+  margin-bottom: 12px;
+}
+
+.text-answer-section .text-answer {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 60px;
+  margin-bottom: 6px;
+}
+
+/* 主要按钮样式（统一为黑色） */
+.button-primary {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: none;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.button-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.button-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 图片上传区 */
+.image-answer-section {
+  display: none;
+  margin-bottom: 12px;
+}
+
+.answer-image-input {
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.image-preview {
+  display: none;
+  margin-top: 8px;
+}
+
+.image-preview img {
+  max-width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.image-preview button {
+  margin-top: 5px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #1e90ff;
+  background: white;
+  color: #1e90ff;
+  cursor: pointer;
+  font-size: 14px;
+  margin-right: 4px;
+}
+
+/* 答案区 */
+.answer-section {
+  display: none;
+  margin-top: 12px;
+}
+
+.answer-section .answer {
+  margin-top: 8px;
+  padding: 12px;
+  background-color: #f0f8ff;
+  border-left: 3px solid #1e90ff;
+  border-radius: 0 4px 4px 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+
+/* 自定义上传按钮 */
+.custom-file-btn {
+  display: inline-block;
+  padding: 6px 12px;
+  background-color: white; /* 背景颜色为白色 */
+  color: black; /* 文字颜色为黑色 */
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  border: 1px solid black; /* 边框颜色为黑色 */
+  transition: background 0.2s, color 0.2s; /* 添加颜色过渡效果 */
+}
+
+.custom-file-btn:hover {
+  background-color: black; /* 鼠标悬停时背景颜色变为黑色 */
+  color: white; /* 鼠标悬停时文字颜色变为白色 */
+}
+
+/* 隐藏原生文件输入框 */
+.answer-image-input {
+  display: none;
+}
+
+
+.spinner {
+  border: 2px solid #f3f3f3; 
+  border-top: 2px solid #1e90ff; 
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: middle;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

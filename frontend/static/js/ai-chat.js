@@ -346,8 +346,12 @@ class AIChatFloat {
     }
     
     renderMath() {
-        if (window.MathJax) {
-            MathJax.typesetPromise().catch((err) => console.log('MathJax error:', err));
+        // 优化：只渲染聊天容器，不是整个页面
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            const chatContainer = document.querySelector('.chat-messages');
+            if (chatContainer) {
+                MathJax.typesetPromise([chatContainer]).catch((err) => console.log('MathJax error:', err));
+            }
         }
     }
     
