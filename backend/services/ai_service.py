@@ -967,5 +967,404 @@ Student's submitted answer:
             'is_correct': parsed.get("is_correct", False)
         }
 
+    def generate_note_from_text(self, text, subject='General'):
+        """
+        从文本生成结构化笔记
+        
+        Args:
+            text: 输入文本（语音转文字或手动输入）
+            subject: 科目名称
+            
+        Returns:
+            dict: 包含 title, summary, key_points, examples, detailed_notes, tags
+        """
+        subject_instruction = f'Subject is: {subject}' if subject else 'Please identify the subject'
+        
+        prompt = f"""你是一名资深教师。请根据以下学习内容，生成一份结构化的学习笔记。
+
+学习内容：
+{text}
+
+{subject_instruction}
+
+请严格输出 JSON 格式，包含以下字段：
+{{
+  "title": "笔记标题（简洁明了）",
+  "summary": "内容摘要（50-100字）",
+  "key_points": ["关键点1", "关键点2", "关键点3"],
+  "examples": ["示例1", "示例2"],
+  "detailed_notes": "详细笔记内容（Markdown格式，包含标题、列表、重点等）",
+  "tags": ["标签1", "标签2"]
+}}
+
+注意：
+1. key_points 应提取最核心的3-5个要点
+2. examples 如果有，提取1-3个代表性示例，如果没有可以为空数组
+3. detailed_notes 使用 Markdown 格式，清晰分段
+4. tags 应包含相关的知识点标签
+5. 只输出 JSON，不要其他解释"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": prompt}],
+                stream=False,
+                temperature=0.7,
+                max_tokens=2000
+            )
+            
+            raw_output = response.choices[0].message.content.strip()
+            
+            # 清理 Markdown 代码块
+            if raw_output.startswith('```json'):
+                raw_output = raw_output.replace('```json', '').replace('```', '').strip()
+            elif raw_output.startswith('```'):
+                raw_output = raw_output.replace('```', '').strip()
+            
+            parsed = json.loads(raw_output)
+            
+            return {
+                'title': parsed.get('title', 'Untitled Note'),
+                'summary': parsed.get('summary', ''),
+                'key_points': parsed.get('key_points', []),
+                'examples': parsed.get('examples', []),
+                'detailed_notes': parsed.get('detailed_notes', text),
+                'tags': parsed.get('tags', [])
+            }
+            
+        except Exception as e:
+            print(f"Error generating note: {e}")
+            # 返回降级版本
+            return self._fallback_note(text, subject)
+    
+    def _fallback_note(self, text, subject):
+        """生成降级版笔记"""
+        sentences = [s.strip() for s in text.split('。') if s.strip()]
+        key_points = sentences[:min(3, len(sentences))]
+        title = sentences[0][:15] + "..." if sentences else "Note"
+        summary = text[:100] + "..." if len(text) > 100 else text
+        
+        return {
+            'title': title,
+            'summary': summary,
+            'key_points': key_points,
+            'examples': [],
+            'detailed_notes': text,
+            'tags': [subject, 'study note'] if subject and subject != 'General' else ['study note']
+        }
+    
+    def ocr_image(self, image_path):
+        """
+        使用 Qwen-VL 识别图片中的文字
+        
+        Args:
+            image_path: 图片文件绝对路径
+            
+        Returns:
+            tuple: (text, error_message)
+                - text: 识别出的文字内容，失败时为 None
+                - error_message: 错误信息，成功时为 None
+        """
+        try:
+            prompt = (
+                "请仔细识别这张图片中的所有文字内容。\n"
+                "要求：\n"
+                "1. 完整提取所有可见文字\n"
+                "2. 保持原有的段落结构\n"
+                "3. 如果有标题、列表等，请保留格式\n"
+                "4. 只输出识别到的文字内容，不要添加任何解释\n"
+            )
+            messages = [{
+                "role": "user",
+                "content": [
+                    {"image": f"file://{os.path.abspath(image_path)}"},
+                    {"text": prompt}
+                ]
+            }]
+            
+            response = MultiModalConversation.call(
+                model='qwen-vl-plus',
+                messages=messages,
+                api_key=self.dashscope_api_key,
+                result_format='message'
+            )
+            
+            if response.status_code != 200:
+                return None, f"OCR API Error {response.code}: {response.message}"
+            
+            text = response.output.choices[0].message.content[0]['text']
+            return text.strip(), None
+            
+        except Exception as e:
+            print(f"OCR failed: {e}")
+            return None, f"图片OCR失败: {str(e)}"
+    
+    def speech_to_text(self, audio_data, language='auto'):
+        """
+        Speech to text using Xfyun ASR
+        
+        Args:
+            audio_data: Raw PCM audio data (16kHz, mono, 16-bit)
+            language: 'zh_cn' (Chinese), 'en_us' (English), or 'auto' (detect automatically)
+        
+        Returns:
+            tuple: (recognized_text, error)
+        """
+        import logging
+        
+        # Auto-detection: try both languages and select best result
+        if language == 'auto':
+            logging.debug('Auto-detection mode: trying Chinese recognition...')
+            text_zh, error_zh = self._recognize_xfyun(audio_data, 'zh_cn')
+            zh_len = len(text_zh) if text_zh else 0
+            logging.debug(f'Chinese result: {zh_len} characters')
+            
+            logging.debug('Trying English recognition...')
+            text_en, error_en = self._recognize_xfyun(audio_data, 'en_us')
+            en_len = len(text_en) if text_en else 0
+            logging.debug(f'English result: {en_len} characters')
+            
+            if text_zh and text_en:
+                # Calculate language confidence based on character composition
+                en_letter_count = sum(1 for c in text_en if c.isalpha())
+                en_ratio = en_letter_count / len(text_en) if text_en else 0
+                
+                zh_char_count = sum(1 for c in text_zh if '\u4e00' <= c <= '\u9fff')
+                zh_ratio = zh_char_count / len(text_zh) if text_zh else 0
+                
+                logging.debug(f'Chinese ratio: {zh_ratio*100:.1f}%, English ratio: {en_ratio*100:.1f}%')
+                
+                if en_ratio > 0.6 and en_len > zh_len * 0.5:
+                    logging.debug('Selecting English result')
+                    return text_en, None
+                else:
+                    logging.debug('Selecting Chinese result')
+                    return text_zh, None
+            
+            elif text_en:
+                return text_en, None
+            elif text_zh:
+                return text_zh, None
+            else:
+                return None, error_zh or error_en or "Recognition failed"
+        
+        # Single language mode
+        return self._recognize_xfyun(audio_data, language)
+    
+    def _recognize_xfyun(self, audio_data, language='zh_cn'):
+        """Internal method: Recognize audio using Xfyun ASR."""
+        import os
+        
+        # Get credentials from environment
+        XFYUN_APPID = os.getenv('XFYUN_APPID', 'f047ebc8')
+        XFYUN_API_SECRET = os.getenv('XFYUN_API_SECRET', 'M2MxZmM2MDdiYmYwNjlhYzFkNDdmOWZi')
+        XFYUN_API_KEY = os.getenv('XFYUN_API_KEY', '014159c78a774f99e8e49946b4757daa')
+        
+        asr = _XfyunASRClient(audio_data, language, XFYUN_APPID, XFYUN_API_KEY, XFYUN_API_SECRET)
+        return asr.recognize()
+
+
+# Xfyun WebSocket ASR Client (Internal Class)
+class _XfyunASRClient:
+    """Xfyun WebSocket ASR Client - Internal implementation."""
+
+    def __init__(self, audio_data, language, appid, api_key, api_secret):
+        self.audio_data = audio_data
+        self.language = language
+        self.appid = appid
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.result = []
+        self.is_finished = False
+        self.error = None
+
+    def on_message(self, ws, message):
+        import json
+        try:
+            data = json.loads(message)
+            code = data.get("code")
+
+            if code != 0:
+                self.error = f"Xfyun Error {code}: {data.get('message', 'Unknown error')}"
+                self.is_finished = True
+                ws.close()
+                return
+
+            result_data = data.get("data", {})
+            result = result_data.get("result", {})
+
+            pgs = result.get("pgs", "")
+            rg = result.get("rg", [])
+
+            ws_list = result.get("ws", [])
+            current_text = ""
+            for ws_item in ws_list:
+                cw_list = ws_item.get("cw", [])
+                for cw in cw_list:
+                    word = cw.get("w", "")
+                    if word:
+                        current_text += word
+
+            if pgs == "rpl" and len(rg) == 2:
+                start_idx = rg[0]
+                end_idx = rg[1]
+                if start_idx < len(self.result):
+                    self.result = self.result[:start_idx]
+                if current_text:
+                    self.result.append(current_text)
+            elif pgs == "apd" or not pgs:
+                if current_text:
+                    self.result.append(current_text)
+
+            status = result_data.get("status")
+            if status == 2:
+                self.is_finished = True
+                ws.close()
+
+        except Exception as e:
+            self.error = str(e)
+            self.is_finished = True
+            ws.close()
+
+    def on_error(self, ws, error):
+        self.error = str(error)
+        self.is_finished = True
+
+    def on_close(self, ws, close_status_code, close_msg):
+        self.is_finished = True
+
+    def on_open(self, ws):
+        import threading
+        import time
+        import json
+        import base64
+        
+        def send_audio():
+            try:
+                frame_size = 1280
+                interval = 0.04
+
+                status = 0
+                offset = 0
+                total_len = len(self.audio_data)
+
+                while offset < total_len:
+                    end = min(offset + frame_size, total_len)
+                    chunk = self.audio_data[offset:end]
+
+                    if offset == 0:
+                        status = 0
+                    elif end >= total_len:
+                        status = 2
+                    else:
+                        status = 1
+
+                    audio_base64 = base64.b64encode(chunk).decode('utf-8')
+
+                    if status == 0:
+                        message = {
+                            "common": {"app_id": self.appid},
+                            "business": {
+                                "language": self.language,
+                                "domain": "iat",
+                                "accent": "mandarin",
+                                "vad_eos": 3000,
+                                "ptt": 1
+                            },
+                            "data": {
+                                "status": status,
+                                "format": "audio/L16;rate=16000",
+                                "encoding": "raw",
+                                "audio": audio_base64
+                            }
+                        }
+                    else:
+                        message = {
+                            "data": {
+                                "status": status,
+                                "format": "audio/L16;rate=16000",
+                                "encoding": "raw",
+                                "audio": audio_base64
+                            }
+                        }
+
+                    ws.send(json.dumps(message))
+                    offset = end
+
+                    if status != 2:
+                        time.sleep(interval)
+
+            except Exception as e:
+                self.error = str(e)
+                ws.close()
+
+        threading.Thread(target=send_audio).start()
+
+    def recognize(self):
+        import websocket
+        import time
+        
+        try:
+            url = self._create_auth_url()
+
+            ws = websocket.WebSocketApp(
+                url,
+                on_message=self.on_message,
+                on_error=self.on_error,
+                on_close=self.on_close,
+                on_open=self.on_open
+            )
+
+            ws.run_forever()
+
+            timeout = 60
+            start_time = time.time()
+            while not self.is_finished and (time.time() - start_time) < timeout:
+                time.sleep(0.1)
+
+            if self.error:
+                return None, self.error
+
+            return ''.join(self.result), None
+
+        except Exception as e:
+            return None, str(e)
+    
+    def _create_auth_url(self):
+        """Create Xfyun WebSocket authentication URL."""
+        import base64
+        import hmac
+        import hashlib
+        from datetime import datetime
+        from time import mktime
+        from wsgiref.handlers import format_date_time
+        from urllib.parse import urlencode
+
+        now = datetime.now()
+        date = format_date_time(mktime(now.timetuple()))
+
+        signature_origin = f"host: ws-api.xfyun.cn\ndate: {date}\nGET /v2/iat HTTP/1.1"
+
+        signature_sha = hmac.new(
+            self.api_secret.encode('utf-8'),
+            signature_origin.encode('utf-8'),
+            digestmod=hashlib.sha256
+        ).digest()
+
+        signature_sha_base64 = base64.b64encode(signature_sha).decode('utf-8')
+
+        authorization_origin = f'api_key="{self.api_key}", algorithm="hmac-sha256", headers="host date request-line", signature="{signature_sha_base64}"'
+        authorization = base64.b64encode(authorization_origin.encode('utf-8')).decode('utf-8')
+
+        params = {
+            "authorization": authorization,
+            "date": date,
+            "host": "ws-api.xfyun.cn"
+        }
+
+        url = f"wss://ws-api.xfyun.cn/v2/iat?{urlencode(params)}"
+        return url
+
+
 # 创建单例实例
 ai_service = AIService()

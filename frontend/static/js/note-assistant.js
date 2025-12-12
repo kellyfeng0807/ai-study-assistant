@@ -3,46 +3,8 @@
  * 保留原有的文字生成笔记功能
  * 修改：录音后上传到后端使用百度API进行语音识别
  * 新增：View All 显示所有笔记
+ * Time tracking now handled by module-tracker.js
  */
-
-// ========== 时间追踪（查看笔记时） ==========
-let noteViewStartTime = null;
-let noteViewSubject = "General";
-
-function startNoteViewTimer(subject = "General") {
-    noteViewStartTime = Date.now();
-    noteViewSubject = subject || "General";
-    console.log(`Started viewing note: ${noteViewSubject}`);
-}
-
-async function trackNoteViewTime() {
-    if (!noteViewStartTime) return;
-    
-    const seconds = Math.floor((Date.now() - noteViewStartTime) / 1000);
-    noteViewStartTime = null; // 重置
-    
-    if (seconds < 5 || seconds > 7200) return; // 忽略太短或太长的时间
-    
-    try {
-        await fetch('/api/track_time', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                seconds: seconds,
-                mode: 'review',
-                subject: noteViewSubject,
-                is_correct: 1
-            })
-        });
-        console.log(` Tracked ${seconds}s for viewing note (${noteViewSubject})`);
-    } catch (err) {
-        console.warn('Failed to track note view time:', err);
-    }
-}
-
-// 页面离开时追踪时间
-window.addEventListener('beforeunload', () => trackNoteViewTime());
-window.addEventListener('pagehide', () => trackNoteViewTime());
 
 class NoteAssistantManager {
     constructor() {
@@ -56,7 +18,7 @@ class NoteAssistantManager {
         this.audioFileName = null;  
         this.currentEditingNoteId = null;
         this.allNotesData = null;  // 存储所有笔记数据，用于筛选
-
+        this.uploadedFile = null;
         this.init();
     }
     
@@ -180,7 +142,196 @@ class NoteAssistantManager {
                 this.showAllNotesModal();
             });
         }
+
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const removeFileBtn = document.getElementById('removeFileBtn');
+        const fileGenerateBtn = document.getElementById('fileGenerateBtn');
+        
+        // 文件上传区域点击
+        if (fileUploadArea) {
+            fileUploadArea.addEventListener('click', (e) => {
+                if (e.target.closest('.remove-file-btn')) return;
+                fileInput?.click();
+            });
+            
+            // 拖拽上传
+            fileUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.add('drag-over');
+            });
+            
+            fileUploadArea.addEventListener('dragleave', () => {
+                fileUploadArea.classList.remove('drag-over');
+            });
+            
+            fileUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.remove('drag-over');
+                const files = Array.from(e.dataTransfer.files);
+                if (files.length > 0) {
+                    this.handleFileUpload(files[0]);
+                }
+            });
+        }
+        
+        // 文件选择
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    this.handleFileUpload(file);
+                }
+            });
+        }
+        
+        // 移除文件
+        if (removeFileBtn) {
+            removeFileBtn.addEventListener('click', () => {
+                this.clearUploadedFile();
+            });
+        }
+        
+        // 生成笔记按钮
+        if (fileGenerateBtn) {
+            fileGenerateBtn.addEventListener('click', () => this.generateNoteFromFile());
+        }
     }
+    
+    // ========== 文件上传相关方法 (NEW) ==========
+    handleFileUpload(file) {
+        // 验证文件类型
+        const allowedTypes = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'txt', 'md'];
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        
+        if (!allowedTypes.includes(fileExt)) {
+            window.messageModal?.toast(`Unsupported file type: ${fileExt}. Allowed: ${allowedTypes.join(', ')}`, 'error', 3000);
+            return;
+        }
+        
+        // 验证文件大小 (最大 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            window.messageModal?.toast('File too large. Maximum size is 10MB.', 'error', 3000);
+            return;
+        }
+        
+        this.uploadedFile = file;
+        
+        // 更新UI显示
+        const filePlaceholder = document.getElementById('filePlaceholder');
+        const filePreview = document.getElementById('filePreview');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileTypeIcon = document.getElementById('fileTypeIcon');
+        const fileGenerateBtn = document.getElementById('fileGenerateBtn');
+        
+        if (filePlaceholder) filePlaceholder.style.display = 'none';
+        if (filePreview) filePreview.style.display = 'flex';
+        if (fileName) fileName.textContent = file.name;
+        if (fileSize) fileSize.textContent = this.formatFileSize(file.size);
+        
+        // 根据文件类型设置图标
+        if (fileTypeIcon) {
+            const iconMap = {
+                'pdf': 'fa-file-pdf',
+                'png': 'fa-file-image',
+                'jpg': 'fa-file-image',
+                'jpeg': 'fa-file-image',
+                'gif': 'fa-file-image',
+                'bmp': 'fa-file-image',
+                'txt': 'fa-file-alt',
+                'md': 'fa-file-alt'
+            };
+            fileTypeIcon.className = `fas ${iconMap[fileExt] || 'fa-file'}`;
+        }
+        
+        // 启用生成按钮
+        if (fileGenerateBtn) {
+            fileGenerateBtn.disabled = false;
+        }
+        
+        console.log(`File selected: ${file.name} (${this.formatFileSize(file.size)})`);
+    }
+    
+    clearUploadedFile() {
+        this.uploadedFile = null;
+        
+        // 重置UI
+        const filePlaceholder = document.getElementById('filePlaceholder');
+        const filePreview = document.getElementById('filePreview');
+        const fileInput = document.getElementById('fileInput');
+        const fileGenerateBtn = document.getElementById('fileGenerateBtn');
+        
+        if (filePlaceholder) filePlaceholder.style.display = 'flex';
+        if (filePreview) filePreview.style.display = 'none';
+        if (fileInput) fileInput.value = '';
+        if (fileGenerateBtn) fileGenerateBtn.disabled = true;
+        
+        console.log('Uploaded file cleared');
+    }
+    
+    async generateNoteFromFile() {
+        if (!this.uploadedFile) {
+            window.messageModal?.toast('Please upload a file first', 'warning', 3000);
+            return;
+        }
+        
+        const fileGenerateBtn = document.getElementById('fileGenerateBtn');
+        const subject = document.getElementById('fileSubjectSelect')?.value || '';
+        
+        try {
+            // 显示加载状态
+            if (fileGenerateBtn) {
+                fileGenerateBtn.disabled = true;
+                fileGenerateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            }
+            
+            window.messageModal?.toast('Extracting text and generating notes...', 'info', 5000);
+            
+            // 准备表单数据
+            const formData = new FormData();
+            formData.append('file', this.uploadedFile);
+            if (subject) {
+                formData.append('subject', subject);
+            }
+            
+            // 发送请求
+            const response = await fetch(window.getApiUrl('/api/note/upload-file'), {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                window.messageModal?.toast('Note generated successfully!', 'success', 3000);
+                
+                // 显示生成的笔记
+                if (result.note) {
+                    this.showNoteDetailModal(result.note);
+                }
+                
+                // 刷新笔记列表
+                this.loadRecentNotes();
+                
+                // 清除上传的文件
+                this.clearUploadedFile();
+            } else {
+                throw new Error(result.error || 'Failed to generate note');
+            }
+            
+        } catch (error) {
+            console.error('File upload note generation failed:', error);
+            window.messageModal?.toast('Generation failed: ' + error.message, 'error', 4000);
+        } finally {
+            // 恢复按钮状态
+            if (fileGenerateBtn) {
+                fileGenerateBtn.disabled = !this.uploadedFile;
+                fileGenerateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Note from File';
+            }
+        }
+    }
+    
     
     handleAudioFile(file = null) {
         if (file) {
@@ -707,6 +858,11 @@ class NoteAssistantManager {
         });
     }
     
+    showNoteDetailModal(note) {
+        const noteData = note.content || note;
+        this.displayGeneratedNote(noteData);
+    }
+
     async loadRecentNotes() {
         try {
             const response = await fetch(window.getApiUrl('/api/note/list?limit=10'));
@@ -805,35 +961,50 @@ class NoteAssistantManager {
     
     formatDate(dateString) {
         const date = new Date(dateString);
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const month = months[date.getMonth()];
-        const day = date.getDate();
-        const year = date.getFullYear();
-        return `${month} ${day}, ${year}`;
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        if (date.toDateString() === today.toDateString()) {
+            return 'Today';
+        } else if (date.toDateString() === yesterday.toDateString()) {
+            return 'Yesterday';
+        } else {
+            return date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric',
+                year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+            });
+        }
     }
     
+    showEmptyState() {
+        const notesGrid = document.querySelector('.notes-grid');
+        if (notesGrid) {
+            notesGrid.innerHTML = `
+                <div class="empty-state" style="grid-column: 1/-1; text-align: center; padding: 40px 20px;">
+                    <i class="fas fa-file-alt" style="font-size: 48px; color: hsl(var(--muted-foreground)); margin-bottom: 16px;"></i>
+                    <h3 style="color: hsl(var(--foreground)); margin-bottom: 8px;">No Notes Yet</h3>
+                    <p style="color: hsl(var(--muted-foreground));">Start by recording audio or entering text to generate your first note!</p>
+                </div>
+            `;
+        }
+    }
+    
+
     async viewNoteDetail(noteId) {
         try {
-            // 先追踪之前查看的笔记时间（如果有）
-            await trackNoteViewTime();
-            
-            console.log('Viewing note details:', noteId);
-            
             const response = await fetch(window.getApiUrl(`/api/note/${noteId}`));
             const data = await response.json();
             
             if (data.success && data.note) {
                 this.displayGeneratedNote(data.note.content);
-                
-                // 开始计时新的笔记查看
-                const subject = data.note.subject || data.note.content?.subject || "General";
-                startNoteViewTimer(subject);
             } else {
-                Utils.showNotification('Failed to load note details', 'error');
+                Utils.showNotification('Failed to load note', 'error');
             }
         } catch (error) {
-            console.error('Failed to load note details:', error);
-            Utils.showNotification('Load failed: ' + error.message, 'error');
+            console.error('Failed to load note:', error);
+            Utils.showNotification('Failed to load note: ' + error.message, 'error');
         }
     }
     
@@ -841,209 +1012,146 @@ class NoteAssistantManager {
     // 显示所有笔记的模态框（带学科筛选）
     async showAllNotesModal() {
         try {
-            const response = await fetch(window.getApiUrl('/api/note/list?limit=1000'));
+            // Fetch all notes
+            const response = await fetch(window.getApiUrl('/api/note/list?limit=100'));
             const data = await response.json();
             
-            if (data.success && data.notes && data.notes.length > 0) {
-                this.allNotesData = data.notes;  // 保存所有笔记数据
-                this.renderAllNotesModal(data.notes);
-            } else {
-                Utils.showNotification('No notes found', 'info');
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to fetch notes');
             }
-        } catch (error) {
-            console.error('Failed to load all notes:', error);
-            Utils.showNotification('Load failed', 'error');
-        }
-    }
-    
-    // 获取所有科目列表
-    getSubjectList(notes) {
-        const subjects = new Set();
-        notes.forEach(note => {
-            if (note.subject) {
-                subjects.add(note.subject);
-            }
-        });
-        return Array.from(subjects).sort();
-    }
-    
-    // 根据科目筛选笔记
-    filterNotesBySubject(subject) {
-        const notesContainer = document.getElementById('allNotesContainer');
-        const modal = document.querySelector('.all-notes-modal');
-        if (!notesContainer || !this.allNotesData) return;
-        
-        let filteredNotes = this.allNotesData;
-        if (subject && subject !== 'all') {
-            filteredNotes = this.allNotesData.filter(note => note.subject === subject);
-        }
-        
-        // 更新标题显示数量
-        const titleEl = document.getElementById('allNotesTitle');
-        if (titleEl) {
-            if (subject && subject !== 'all') {
-                titleEl.textContent = `${subject} (${filteredNotes.length})`;
-            } else {
-                titleEl.textContent = `All Notes (${filteredNotes.length})`;
-            }
-        }
-        
-        // 更新笔记列表
-        if (filteredNotes.length > 0) {
-            notesContainer.innerHTML = filteredNotes.map(note => this.createCompactNoteCardHTML(note)).join('');
             
-            // 重新绑定所有按钮事件
-            if (modal) {
-                this.bindAllNotesModalEvents(modal);
-            }
-        } else {
-            notesContainer.innerHTML = `
-                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: hsl(var(--muted-foreground));">
-                    <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i>
-                    <p style="font-size: 16px; margin: 0;">No notes in this subject</p>
-                </div>
-            `;
-        }
-    }
-    
-    // 渲染所有笔记的模态框
-    renderAllNotesModal(notes) {
-        // 获取所有科目
-        const subjects = this.getSubjectList(notes);
-        
-        const modal = document.createElement('div');
-        modal.className = 'note-modal all-notes-modal';
-        modal.style.zIndex = '10000';
-        
-        modal.innerHTML = `
-            <div class="note-modal-content" style="max-width: 900px; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column;">
-                <div class="note-modal-header" style="flex-shrink: 0;">
-                    <h3 id="allNotesTitle">All Notes (${notes.length})</h3>
-                    <button class="close-button" onclick="this.closest('.note-modal').remove()">×</button>
-                </div>
-                
-                <!-- 科目筛选 -->
-                <div style="padding: 12px 20px; border-bottom: 1px solid hsl(var(--border)); display: flex; align-items: center; gap: 12px;">
-                    <label style="font-size: 14px; color: hsl(var(--muted-foreground));">
-                        <i class="fas fa-filter"></i> Filter by Subject:
-                    </label>
-                    <select id="subjectFilter" style="
-                        padding: 8px 12px;
-                        border: 1px solid hsl(var(--border));
-                        border-radius: 6px;
-                        background: hsl(var(--background));
-                        color: hsl(var(--foreground));
-                        font-size: 14px;
-                        min-width: 150px;
-                        cursor: pointer;
-                    ">
-                        <option value="all">All Subjects</option>
-                        ${subjects.map(s => `<option value="${s}">${s}</option>`).join('')}
-                    </select>
-                    <span id="subjectCount" style="font-size: 12px; color: hsl(var(--muted-foreground));">
-                        ${subjects.length} subjects
-                    </span>
-                </div>
-                
-                <div class="note-modal-body" style="flex: 1; overflow-y: auto; padding: 20px;">
-                    <div id="allNotesContainer" class="all-notes-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
-                        ${notes.map(note => this.createCompactNoteCardHTML(note)).join('')}
+            this.allNotesData = data.notes || [];
+            
+            // Create modal
+            const modal = document.createElement('div');
+            modal.className = 'note-modal all-notes-modal';
+            modal.innerHTML = `
+                <div class="note-modal-content" style="max-width: 900px; max-height: 85vh;">
+                    <div class="note-modal-header">
+                        <h3>All Notes (${this.allNotesData.length})</h3>
+                        <button class="close-button" onclick="this.closest('.note-modal').remove()">×</button>
+                    </div>
+                    <div class="notes-filter" style="padding: 16px 24px; border-bottom: 1px solid hsl(var(--border)); display: flex; gap: 12px; flex-wrap: wrap;">
+                        <select id="subjectFilter" style="padding: 8px 12px; border-radius: 6px; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); color: hsl(var(--foreground));">
+                            <option value="">All Subjects</option>
+                        </select>
+                        <input type="text" id="searchFilter" placeholder="Search notes..." style="flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 6px; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); color: hsl(var(--foreground));">
+                    </div>
+                    <div class="note-modal-body" style="max-height: 60vh; overflow-y: auto; padding: 16px 24px;">
+                        <div class="all-notes-grid" id="allNotesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+                            <!-- Notes will be rendered here -->
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        // 点击背景关闭
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.remove();
-            }
-        });
-        
-        // 绑定筛选事件
-        const filterSelect = document.getElementById('subjectFilter');
-        if (filterSelect) {
-            filterSelect.addEventListener('change', (e) => {
-                this.filterNotesBySubject(e.target.value);
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Populate subject filter
+            const subjects = [...new Set(this.allNotesData.map(n => n.subject).filter(Boolean))];
+            const subjectFilter = modal.querySelector('#subjectFilter');
+            subjects.forEach(subject => {
+                const option = document.createElement('option');
+                option.value = subject;
+                option.textContent = subject;
+                subjectFilter.appendChild(option);
             });
+            
+            // Render notes
+            this.renderAllNotesInModal(this.allNotesData, modal);
+            
+            // Add filter event listeners
+            subjectFilter.addEventListener('change', () => this.filterNotes(modal));
+            modal.querySelector('#searchFilter').addEventListener('input', () => this.filterNotes(modal));
+            
+            // Close on backdrop click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+            
+        } catch (error) {
+            console.error('Failed to show all notes:', error);
+            Utils.showNotification('Failed to load notes: ' + error.message, 'error');
         }
-        
-        // 绑定所有按钮事件
-        this.bindAllNotesModalEvents(modal);
     }
     
-    // 绑定 View All 模态框中的按钮事件
-    bindAllNotesModalEvents(modal) {
-        // 查看按钮
-        modal.querySelectorAll('.view-note-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
+    filterNotes(modal) {
+        const subjectFilter = modal.querySelector('#subjectFilter').value;
+        const searchFilter = modal.querySelector('#searchFilter').value.toLowerCase();
+        
+        let filtered = this.allNotesData;
+        
+        if (subjectFilter) {
+            filtered = filtered.filter(n => n.subject === subjectFilter);
+        }
+        
+        if (searchFilter) {
+            filtered = filtered.filter(n => 
+                (n.title || '').toLowerCase().includes(searchFilter) ||
+                (n.preview || '').toLowerCase().includes(searchFilter)
+            );
+        }
+        
+        this.renderAllNotesInModal(filtered, modal);
+    }
+    
+    renderAllNotesInModal(notes, modal) {
+        const grid = modal.querySelector('#allNotesGrid');
+        
+        if (notes.length === 0) {
+            grid.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: hsl(var(--muted-foreground));">
+                    <i class="fas fa-search" style="font-size: 32px; margin-bottom: 12px;"></i>
+                    <p>No notes found</p>
+                </div>
+            `;
+            return;
+        }
+        
+        grid.innerHTML = notes.map(note => this.createAllNotesCardHTML(note)).join('');
+        
+        // Add click events
+        grid.querySelectorAll('.view-note-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
                 const noteId = btn.dataset.id;
                 modal.remove();
                 this.viewNoteDetail(noteId);
             });
         });
         
-        // 编辑按钮
-        modal.querySelectorAll('.edit-note-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
+        grid.querySelectorAll('.edit-note-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
                 const noteId = btn.dataset.id;
                 modal.remove();
                 this.editNote(noteId);
             });
         });
         
-        // 删除按钮
-        modal.querySelectorAll('.delete-note-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
+        grid.querySelectorAll('.delete-note-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
                 const noteId = btn.dataset.id;
-                if (confirm('Are you sure you want to delete this note?')) {
-                    await this.deleteNote(noteId);
-                    // 刷新模态框中的笔记列表
-                    const card = btn.closest('.compact-note-card');
-                    if (card) {
-                        card.remove();
-                    }
-                    // 更新标题中的数量
-                    const remaining = modal.querySelectorAll('.compact-note-card').length;
-                    const titleEl = document.getElementById('allNotesTitle');
-                    if (titleEl) {
-                        titleEl.textContent = `All Notes (${remaining})`;
-                    }
-                }
+                await this.deleteNote(noteId);
+                // Refresh modal
+                modal.remove();
+                this.showAllNotesModal();
             });
         });
     }
     
-    // 紧凑型笔记卡片 HTML
-    createCompactNoteCardHTML(note) {
+    createAllNotesCardHTML(note) {
         const date = note.date || new Date().toISOString().split('T')[0];
         const formattedDate = this.formatDate(date);
-        const keyPointsCount = note.content?.key_points?.length || 0;
-        
+        const keyPointsCount = note.key_points_count || 0;
+
         return `
-            <div class="compact-note-card" data-note-id="${note.id}" style="
-                background: hsl(var(--card));
-                border: 1px solid hsl(var(--border));
-                border-radius: 8px;
-                padding: 16px;
-                transition: all 0.2s;
-            ">
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-                    <span style="background: hsl(var(--primary)); color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">
-                        ${note.subject || 'General'}
-                    </span>
-                    <span style="font-size: 12px; color: hsl(var(--muted-foreground));">
-                        ${formattedDate}
-                    </span>
+            <div class="note-card" style="background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 12px; color: hsl(var(--primary)); font-weight: 500;">${note.subject || 'General'}</span>
+                    <span style="font-size: 12px; color: hsl(var(--muted-foreground));">${formattedDate}</span>
                 </div>
-                <h4 style="font-size: 15px; font-weight: 600; margin: 8px 0; color: hsl(var(--foreground)); line-height: 1.4;">
-                    ${note.title || 'Untitled Note'}
-                </h4>
+                <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 8px; color: hsl(var(--foreground));">${note.title || 'Untitled Note'}</h4>
                 <p style="font-size: 13px; color: hsl(var(--muted-foreground)); margin: 8px 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
                     ${note.preview || 'No preview available'}
                 </p>

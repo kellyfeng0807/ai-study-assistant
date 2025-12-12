@@ -146,22 +146,18 @@ def init_db():
     ''')
     conn.commit()
     
-    # Create study_progress table
+    # Create module_usage table for tracking module usage time
     cur.execute('''
-    CREATE TABLE IF NOT EXISTS study_progress (
+    CREATE TABLE IF NOT EXISTS module_usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER DEFAULT 1,
         date TEXT NOT NULL,
-        subject TEXT NOT NULL,
-        reviewed_questions INTEGER DEFAULT 0,
-        review_correct_questions INTEGER DEFAULT 0,
-        review_time_minutes INTEGER DEFAULT 0,
-        practice_questions INTEGER DEFAULT 0,
-        practice_correct_questions INTEGER DEFAULT 0,
-        practice_time_minutes INTEGER DEFAULT 0,
+        module TEXT NOT NULL,
+        duration_seconds INTEGER DEFAULT 0,
+        session_count INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, date, subject)
+        UNIQUE(user_id, date, module)
     )
     ''')
     conn.commit()
@@ -280,7 +276,7 @@ def insert_note(note):
         note.get('original_text'),
         key_points,
         examples,
-    note.get('content', {}).get('summary', ''),
+        note.get('content', {}).get('summary', ''),
         note.get('subject'),
         note.get('source', 'manual'),
         now,
@@ -309,7 +305,7 @@ def update_note(note_id, note):
         note.get('content', {}).get('summary', ''),
         note.get('subject'),
         note.get('source', 'manual'),
-    tags,
+        tags,
         now,
         note_id
     ))
@@ -464,53 +460,6 @@ def get_study_progress(user_id, date, subject):
     row = cur.fetchone()
     conn.close()
     return row
-
-
-def insert_study_progress(user_id, date, subject):
-    """Insert a new study progress record."""
-    conn = get_conn()
-    cur = conn.cursor()
-    now = datetime.now().isoformat()
-    cur.execute('''
-        INSERT INTO study_progress(
-            user_id, date, subject,
-            reviewed_questions, review_correct_questions, review_time_minutes,
-            practice_questions, practice_correct_questions, practice_time_minutes,
-            created_at, updated_at
-        ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, ?, ?)
-    ''', (user_id, date, subject, now, now))
-    conn.commit()
-    new_id = cur.lastrowid
-    conn.close()
-    return new_id
-
-
-def update_study_progress_review(row_id, reviewed, correct_review, review_time_minutes):
-    """Update review-related fields in study progress."""
-    conn = get_conn()
-    cur = conn.cursor()
-    now = datetime.now().isoformat()
-    cur.execute('''
-        UPDATE study_progress
-        SET reviewed_questions=?, review_correct_questions=?, review_time_minutes=?, updated_at=?
-        WHERE id=?
-    ''', (reviewed, correct_review, review_time_minutes, now, row_id))
-    conn.commit()
-    conn.close()
-
-
-def update_study_progress_practice(row_id, practice_count, correct_practice, practice_time_minutes):
-    """Update practice-related fields in study progress."""
-    conn = get_conn()
-    cur = conn.cursor()
-    now = datetime.now().isoformat()
-    cur.execute('''
-        UPDATE study_progress
-        SET practice_questions=?, practice_correct_questions=?, practice_time_minutes=?, updated_at=?
-        WHERE id=?
-    ''', (practice_count, correct_practice, practice_time_minutes, now, row_id))
-    conn.commit()
-    conn.close()
 
 
 # ========== Error Book Functions ==========
@@ -1377,3 +1326,100 @@ def get_students_by_parent(parent_id):
         })
     return students
 
+def track_module_usage(user_id, date, module, duration_seconds):
+    """
+    Track time spent on a module.
+    If record exists for this user/date/module, add to the duration.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    # Try to update existing record
+    cur.execute('''
+        UPDATE module_usage 
+        SET duration_seconds = duration_seconds + ?,
+            session_count = session_count + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ? AND date = ? AND module = ?
+    ''', (duration_seconds, user_id, date, module))
+    
+    if cur.rowcount == 0:
+        # Insert new record
+        cur.execute('''
+            INSERT INTO module_usage (user_id, date, module, duration_seconds, session_count)
+            VALUES (?, ?, ?, ?, 1)
+        ''', (user_id, date, module, duration_seconds))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_module_usage_stats(user_id=1, start_date=None, end_date=None):
+    """
+    Get module usage statistics for a date range.
+    Returns aggregated time per module.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    if start_date and end_date:
+        cur.execute('''
+            SELECT module, 
+                   SUM(duration_seconds) as total_seconds,
+                   SUM(session_count) as total_sessions
+            FROM module_usage
+            WHERE user_id = ? AND date >= ? AND date <= ?
+            GROUP BY module
+            ORDER BY total_seconds DESC
+        ''', (user_id, start_date, end_date))
+    elif start_date:
+        cur.execute('''
+            SELECT module, 
+                   SUM(duration_seconds) as total_seconds,
+                   SUM(session_count) as total_sessions
+            FROM module_usage
+            WHERE user_id = ? AND date >= ?
+            GROUP BY module
+            ORDER BY total_seconds DESC
+        ''', (user_id, start_date))
+    else:
+        cur.execute('''
+            SELECT module, 
+                   SUM(duration_seconds) as total_seconds,
+                   SUM(session_count) as total_sessions
+            FROM module_usage
+            WHERE user_id = ?
+            GROUP BY module
+            ORDER BY total_seconds DESC
+        ''', (user_id,))
+    
+    rows = cur.fetchall()
+    conn.close()
+    
+    return [{'module': row[0], 'total_seconds': row[1], 'total_sessions': row[2]} for row in rows]
+
+
+def get_module_usage_daily(user_id=1, start_date=None, days=7):
+    """
+    Get daily module usage for the last N days.
+    Returns data suitable for charts.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    if not start_date:
+        from datetime import datetime, timedelta
+        start_date = (datetime.now() - timedelta(days=days-1)).strftime('%Y-%m-%d')
+    
+    cur.execute('''
+        SELECT date, module, duration_seconds
+        FROM module_usage
+        WHERE user_id = ? AND date >= ?
+        ORDER BY date, module
+    ''', (user_id, start_date))
+    
+    rows = cur.fetchall()
+    conn.close()
+    
+    return [{'date': row[0], 'module': row[1], 'duration_seconds': row[2]} for row in rows]

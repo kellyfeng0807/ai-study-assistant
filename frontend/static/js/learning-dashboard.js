@@ -44,7 +44,7 @@ class LearningDashboard {
             console.log('Loading dashboard data...');
             
             // 并行加载所有数据
-            const [stats, subjects, chartData, reviewData, analysis, schedule, heatmap, aiSuggestions] = await Promise.all([
+            const [stats, subjects, chartData, reviewData, analysis, schedule, heatmap, aiSuggestions, todayModules] = await Promise.all([
                 this.fetchData('/stats', { period: this.currentPeriod }),
                 this.fetchData('/subjects'),
                 this.fetchData('/chart-data', { type: 'time', period: this.currentPeriod }),
@@ -52,7 +52,8 @@ class LearningDashboard {
                 this.fetchData('/analysis'),
                 this.fetchData('/schedule'),
                 this.fetchData('/heatmap'),
-                this.fetchData('/ai-suggestions')
+                this.fetchData('/ai-suggestions'),
+                this.fetchData('/today-modules')
             ]);
 
             // 更新UI
@@ -63,12 +64,20 @@ class LearningDashboard {
             }
             if (chartData.success) this.renderTimeChart(chartData.chartData);
             if (reviewData.success) this.renderReviewStats(reviewData.chartData);
-            if (analysis.success) this.renderAnalysis(analysis);
+            if (analysis.success) {
+                this.renderAnalysis(analysis);
+                // Store goal stats for metric card
+                if (analysis.goal_stats) {
+                    this.currentGoalStats = analysis.goal_stats;
+                    this.updateGoalProgress(analysis.goal_stats);
+                }
+            }
             if (schedule.success) this.renderSchedule(schedule.schedule);
             if (heatmap.success) this.renderHeatmap(heatmap.heatmap, heatmap.stats);
             if (aiSuggestions.success) this.renderAISuggestions(aiSuggestions);
+            if (todayModules.success) this.renderTodayModules(todayModules.modules);
 
-            console.log(' Dashboard loaded successfully');
+            console.log('✓ Dashboard loaded successfully');
 
         } catch (error) {
             console.error('Failed to load dashboard:', error);
@@ -94,14 +103,20 @@ class LearningDashboard {
         // 学习时长
         const metricCards = document.querySelectorAll('.metric-card');
         if (metricCards.length >= 4) {
-            // Study Time
+            // Study Time with Goal Progress (in minutes)
             const studyTimeValue = metricCards[0].querySelector('.metric-value');
             const studyTimeTrend = metricCards[0].querySelector('.metric-trend');
             if (studyTimeValue) {
-                studyTimeValue.textContent = `${stats.study_time.total_hours}h`;
+                const totalMinutes = stats.study_time.total_minutes || Math.round(stats.study_time.total_hours * 60);
+                studyTimeValue.textContent = `${totalMinutes} min`;
             }
             if (studyTimeTrend) {
                 this.updateTrendElement(studyTimeTrend, stats.study_time.trend, stats.study_time.trend_value, true);
+            }
+            
+            // Update goal progress if goal_stats exists
+            if (this.currentGoalStats) {
+                this.updateGoalProgress(this.currentGoalStats, stats.study_time.total_minutes);
             }
 
             // Notes Created
@@ -148,6 +163,36 @@ class LearningDashboard {
             ${prefix}${Math.abs(value)}${suffix}
         `;
     }
+    
+    updateGoalProgress(goalStats, currentMinutes) {
+        const goalProgress = document.getElementById('goalProgress');
+        const goalValue = document.getElementById('goalValue');
+        const goalBar = document.getElementById('goalBar');
+        
+        if (!goalProgress || !goalStats) return;
+        
+        const todayMinutes = currentMinutes || Math.round(goalStats.week_minutes / 7);
+        const dailyGoal = goalStats.daily_goal;
+        const percentage = Math.min(100, Math.round((todayMinutes / dailyGoal) * 100));
+        
+        // Show the progress section
+        goalProgress.style.display = 'block';
+        
+        // Update goal value: "Current / Goal min (percentage%)"
+        goalValue.innerHTML = `Goal: <strong>${todayMinutes} / ${dailyGoal} min</strong> (${percentage}%)`;
+        
+        // Update progress bar
+        goalBar.style.width = `${percentage}%`;
+        
+        // Change color based on progress
+        if (percentage >= 100) {
+            goalBar.style.background = 'hsl(142.1, 76.2%, 36.3%)'; // green
+        } else if (percentage >= 70) {
+            goalBar.style.background = 'hsl(45, 93%, 47%)'; // yellow
+        } else {
+            goalBar.style.background = 'hsl(0, 84.2%, 60.2%)'; // red
+        }
+    }
 
     // ============ 渲染图表 ============
 
@@ -158,13 +203,27 @@ class LearningDashboard {
         console.log('[DEBUG] renderTimeChart received:', chartData);
 
         const { labels, data } = chartData;
+        
+        // 数据验证和清理
+        if (!Array.isArray(labels) || !Array.isArray(data) || labels.length !== data.length) {
+            console.error('[ERROR] Invalid chart data structure', { labels, data });
+            return;
+        }
+        
         const maxValue = Math.max(...data);
         const sum = data.reduce((a, b) => a + b, 0);
         const dayCount = data.length;
         
         console.log(`[DEBUG] Chart: labels=${labels.length}, maxValue=${maxValue}, sum=${sum}, dayCount=${dayCount}`);
         
+        // 清空容器，确保不会重复渲染
         container.innerHTML = '';
+        container.style.display = 'flex';
+        container.style.gap = '4px';
+        container.style.alignItems = 'flex-end';
+        container.style.justifyContent = 'center';
+        container.style.height = '220px';
+        container.style.padding = '20px 10px';
         
         // 如果所有数据都是0，显示提示
         if (sum === 0) {
@@ -208,7 +267,7 @@ class LearningDashboard {
 
             const bar = document.createElement('div');
             bar.className = 'bar';
-            bar.setAttribute('data-value', `${value}min`);
+            // Don't set data-value to avoid duplicate labels from CSS ::after
             
             if (value === 0) {
                 // 0分钟：完全透明，不显示任何东西
@@ -281,7 +340,7 @@ class LearningDashboard {
     }
 
     renderSubjectPieChart(subjects) {
-        const container = document.querySelector('.progress-list');
+        const container = document.getElementById('subjectDistribution');
         if (!container) return;
 
         // 如果没有数据
@@ -576,6 +635,90 @@ class LearningDashboard {
                 ${suggestionsHtml}
             </div>
         `;
+    }
+
+    // ============ Today's Module Usage (Pie Chart) ============
+
+    renderTodayModules(modules) {
+        const container = document.getElementById('moduleTodayContainer');
+        if (!container) {
+            console.error('[ERROR] Module today container not found');
+            return;
+        }
+
+        console.log('[DEBUG] renderTodayModules called with:', modules);
+
+        if (!modules || modules.length === 0) {
+            console.log('[INFO] No module data, showing empty state');
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: hsl(var(--muted-foreground));">
+                    <i class="fas fa-clock" style="font-size: 32px; opacity: 0.5;"></i>
+                    <p style="margin-top: 10px;">No module usage today</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Calculate total time and prepare data
+        const totalMinutes = modules.reduce((sum, m) => sum + m.minutes, 0);
+        
+        // Assign colors (red, yellow, green cycle)
+        const colors = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7'];
+        
+        // Generate pie chart segments
+        let currentAngle = 0;
+        const segments = modules.map((module, index) => {
+            const percentage = (module.minutes / totalMinutes) * 100;
+            const angle = (module.minutes / totalMinutes) * 360;
+            const segment = {
+                ...module,
+                percentage: percentage,
+                startAngle: currentAngle,
+                endAngle: currentAngle + angle,
+                color: colors[index % colors.length]
+            };
+            currentAngle += angle;
+            return segment;
+        });
+
+        // Build conic-gradient
+        let gradientStops = [];
+        let angle = 0;
+        segments.forEach(seg => {
+            const endAngle = angle + (seg.minutes / totalMinutes) * 360;
+            gradientStops.push(`${seg.color} ${angle}deg ${endAngle}deg`);
+            angle = endAngle;
+        });
+        const gradientString = `conic-gradient(${gradientStops.join(', ')})`;
+
+        // Render pie chart with legend (vertical layout for compact width)
+        const legendHTML = segments.map(seg => `
+            <div class="progress-item">
+                <div class="progress-label" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <span class="pie-legend-dot" style="background: ${seg.color};"></span>
+                        ${seg.display_name}
+                    </span>
+                    <span class="pie-legend-value" style="padding-left: 20px; font-size: 0.85em; opacity: 0.8;">${Math.round(seg.minutes)}min (${seg.percentage.toFixed(0)}%)</span>
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = `
+            <div class="pie-chart-container">
+                <div class="pie-chart" style="background: ${gradientString};">
+                    <div class="pie-chart-center">
+                        <div class="pie-total">${Math.round(totalMinutes)}</div>
+                        <div class="pie-label">minutes</div>
+                    </div>
+                </div>
+                <div class="pie-legend">
+                    ${legendHTML}
+                </div>
+            </div>
+        `;
+        
+        console.log('[SUCCESS] Today\'s modules pie chart rendered:', modules.length, 'modules');
     }
 
     // ============ 导出报告 ============

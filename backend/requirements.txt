@@ -9,6 +9,7 @@ openai>=1.0.0
 baidu-aip==2.2.13
 dashscope==1.25.2
 pydub==0.25.1
+PyPDF2==3.0.1
 # 数据处理
 numpy==1.26.2
 pandas==2.1.4

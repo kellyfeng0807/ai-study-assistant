@@ -116,13 +116,78 @@
 
             <div class="content-body">
                 <div class="metrics-grid">
-                    <!-- Metrics will be loaded dynamically via JS -->
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="metric-info">
+                            <div class="metric-value" id="totalStudyTime">0 min</div>
+                            <div class="metric-label">Study Time</div>
+                            <div class="metric-progress" id="goalProgress" style="display: none; margin-top: 8px; width: 100%;">
+                                <div style="font-size: 0.75em; margin-bottom: 2px; color: var(--muted-foreground);">
+                                    <span id="goalValue">0 / 0 min</span>
+                                </div>
+                                <div style="background: hsl(var(--muted) / 0.3); height: 4px; border-radius: 2px; overflow: hidden;">
+                                    <div id="goalBar" style="background: hsl(142.1, 76.2%, 36.3%); height: 100%; width: 0%; transition: width 0.3s, background 0.3s;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-trend positive">
+                            <i class="fas fa-arrow-up"></i>
+                            <span id="studyTimeTrend">0%</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <div class="metric-info">
+                            <div class="metric-value" id="notesCount">0</div>
+                            <div class="metric-label">Notes Created</div>
+                        </div>
+                        <div class="metric-trend positive">
+                            <i class="fas fa-arrow-up"></i>
+                            <span id="notesTrend">0%</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <div class="metric-info">
+                            <div class="metric-value" id="accuracyRate">0%</div>
+                            <div class="metric-label">Accuracy Rate</div>
+                        </div>
+                        <div class="metric-trend positive">
+                            <i class="fas fa-arrow-up"></i>
+                            <span id="accuracyTrend">0%</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <div class="metric-info">
+                            <div class="metric-value" id="dayStreak">0</div>
+                            <div class="metric-label">Day Streak</div>
+                        </div>
+                        <div class="metric-trend positive">
+                            <i class="fas fa-arrow-up"></i>
+                            <span id="streakTrend">0</span>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="charts-grid">
-                    <div class="chart-card large">
+                <div class="charts-grid charts-grid-three">
+                    <div class="chart-card">
                         <div class="chart-header">
-                            <h3 class="chart-title">Study Time Trend</h3>
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-line"></i>
+                                Study Time Trend (Last 7 Days)
+                            </h3>
                             <div class="chart-legend">
                                 <span class="legend-item">
                                     <span class="legend-dot" style="background: hsl(221.2 83.2% 53.3%);"></span>
@@ -131,7 +196,7 @@
                             </div>
                         </div>
                         <div class="chart-container">
-                            <div class="bar-chart">
+                            <div class="bar-chart" id="dailyTrendChart">
                                 <!-- Chart will be loaded dynamically via JS -->
                             </div>
                         </div>
@@ -139,10 +204,30 @@
 
                     <div class="chart-card">
                         <div class="chart-header">
-                            <h3 class="chart-title">Subject Distribution</h3>
+                            <h3 class="chart-title">
+                                <i class="fas fa-clock"></i>
+                                Today's Module Usage
+                            </h3>
                         </div>
                         <div class="chart-container">
-                            <div class="progress-list">
+                            <div class="progress-list" id="moduleTodayContainer">
+                                <div class="loading-placeholder">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <span>Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-pie"></i>
+                                Subject Distribution
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <div class="progress-list" id="subjectDistribution">
                                 <!-- Subject distribution will be loaded dynamically -->
                             </div>
                         </div>

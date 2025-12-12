@@ -88,24 +88,24 @@
                 <!-- Quick Stats - Using existing metric-card style -->
                 <div class="metrics-grid" id="statsGrid">
                     <div class="metric-card">
-                        <div class="metric-icon"><i class="fas fa-file-alt"></i></div>
+                        <div class="metric-icon"><i class="fas fa-clock"></i></div>
                         <div class="metric-info">
-                            <div class="metric-value" id="statNotes">-</div>
-                            <div class="metric-label">Total Notes</div>
+                            <div class="metric-value" id="statTodayTime">-</div>
+                            <div class="metric-label">Today's Study Time</div>
                         </div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-icon"><i class="fas fa-times-circle"></i></div>
+                        <div class="metric-icon"><i class="fas fa-calendar-week"></i></div>
                         <div class="metric-info">
-                            <div class="metric-value" id="statErrors">-</div>
-                            <div class="metric-label">Error Problems</div>
+                            <div class="metric-value" id="statWeekTime">-</div>
+                            <div class="metric-label">This Week</div>
                         </div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-icon"><i class="fas fa-check-double"></i></div>
+                        <div class="metric-icon"><i class="fas fa-bullseye"></i></div>
                         <div class="metric-info">
-                            <div class="metric-value" id="statReviewRate">-</div>
-                            <div class="metric-label">Review Rate</div>
+                            <div class="metric-value" id="statGoalProgress">-</div>
+                            <div class="metric-label">Daily Goal Progress</div>
                         </div>
                     </div>
                     <div class="metric-card">
@@ -191,10 +191,11 @@
             banner.querySelector('.status-title').textContent = status.title;
             banner.querySelector('.status-message').textContent = data.summary.message;
 
-            // Stats
-            document.getElementById('statNotes').textContent = data.summary.total_notes;
-            document.getElementById('statErrors').textContent = data.summary.total_errors;
-            document.getElementById('statReviewRate').textContent = data.summary.review_rate + '%';
+            // Stats - Time focused
+            const timeStats = data.summary.time_stats || {};
+            document.getElementById('statTodayTime').textContent = (timeStats.today_minutes || 0) + 'min';
+            document.getElementById('statWeekTime').textContent = (timeStats.week_minutes || 0) + 'min';
+            document.getElementById('statGoalProgress').textContent = (timeStats.today_progress || 0) + '%';
             document.getElementById('statStreak').textContent = data.summary.current_streak + 'd';
 
             // Concerns

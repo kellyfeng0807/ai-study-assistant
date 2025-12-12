@@ -20,6 +20,7 @@ from modules.learning_dashboard import dashboard_bp
 from modules.chat import chat_bp
 from modules.settings import settings_bp
 from modules.notifications import notifications_bp
+from modules.track import track_bp
 from modules.auth import auth_bp
 
 def create_app(config_name='development'):
@@ -47,6 +48,7 @@ def create_app(config_name='development'):
     app.register_blueprint(chat_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(notifications_bp)
+    app.register_blueprint(track_bp)
     app.register_blueprint(auth_bp)
     
     # 静态文件路由

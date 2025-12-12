@@ -5,37 +5,29 @@ This is a safe replacement for the previously corrupted `note_assistant.py`.
 from flask import Blueprint, request, jsonify
 import os
 import json
-import tempfile
 import traceback
 from datetime import datetime
 import requests
 import db_sqlite
 from werkzeug.utils import secure_filename
+from services.ai_service import ai_service
 
 import logging
-import base64
-import threading
-import time
-import websocket
-import hmac
-import hashlib
-from urllib.parse import urlencode
-
 
 
 bp = Blueprint('note_assistant', __name__, url_prefix='/api/note')
 
-DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
-DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1'
-XFYUN_APPID = 'f047ebc8'
-XFYUN_API_SECRET = 'M2MxZmM2MDdiYmYwNjlhYzFkNDdmOWZi'
-XFYUN_API_KEY = '014159c78a774f99e8e49946b4757daa'
-
+# Audio processing constants
 SEGMENT_DURATION_SECONDS = 55
 SAMPLE_RATE = 16000
 SAMPLE_WIDTH = 2
 
 ALLOWED_AUDIO_EXTENSIONS = {'mp3', 'wav', 'pcm', 'webm', 'm4a', 'ogg'}
+ALLOWED_FILE_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'txt', 'md'}
+
+# Unified upload folder management (consistent with error_book and map_generation)
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'notes')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db_sqlite.init_db()
 
@@ -53,66 +45,12 @@ def allowed_audio_file(filename):
 
 
 def _fallback_notes(text, subject):
-    sentences = [s.strip() for s in text.split('。') if s.strip()]
-    key_points = sentences[:min(3, len(sentences))]
-    title = sentences[0][:15] + "..." if sentences else "note"
-    summary = text[:100] + "..." if len(text) > 100 else text
-
-    # 如果没有科目，默认使用 General
-    if not subject:
-        subject = 'General'
-        
-    fallback_notes = {
-        'title': title,
-        'subject': subject,
-        'key_points': key_points,
-        'examples': [],
-        'summary': summary,
-        'tags': [subject, 'study note']
-    }
-    return fallback_notes
-
-
-def recognize_audio_xfyun(audio_data, language='zh_cn'):
-    """Recognize audio using Xfyun ASR."""
-    asr = XfyunASR(audio_data, language)
-    return asr.recognize()
-
-
-def recognize_audio_segment(audio_data, format_param='pcm'):
-    """Segment audio and recognize using Xfyun."""
-    logging.debug('Attempting Chinese recognition...')
-    text_zh, error_zh = recognize_audio_xfyun(audio_data, 'zh_cn')
-    zh_len = len(text_zh) if text_zh else 0
-    logging.debug(f'Chinese result: {zh_len} characters')
-
-    logging.debug('Attempting English recognition...')
-    text_en, error_en = recognize_audio_xfyun(audio_data, 'en_us')
-    en_len = len(text_en) if text_en else 0
-    logging.debug(f'English result: {en_len} characters')
-
-    if text_zh and text_en:
-        en_letter_count = sum(1 for c in text_en if c.isalpha())
-        en_ratio = en_letter_count / len(text_en) if text_en else 0
-
-        zh_char_count = sum(1 for c in text_zh if '\u4e00' <= c <= '\u9fff')
-        zh_ratio = zh_char_count / len(text_zh) if text_zh else 0
-
-        logging.debug(f'Chinese ratio: {zh_ratio*100:.1f}%, English ratio: {en_ratio*100:.1f}%')
-
-        if en_ratio > 0.6 and en_len > zh_len * 0.5:
-            logging.debug('Selecting English result')
-            return text_en, None
-        else:
-            logging.debug('Selecting Chinese result')
-            return text_zh, None
-
-    elif text_en:
-        return text_en, None
-    elif text_zh:
-        return text_zh, None
-    else:
-        return None, error_zh or error_en or "Recognition failed"
+    """Wrapper for ai_service fallback method to maintain backward compatibility"""
+    result = ai_service._fallback_note(text, subject or 'General')
+    # Add 'subject' field for compatibility with old code
+    result['subject'] = subject or 'General'
+    result['examples'] = []  # Add empty examples for compatibility
+    return result
 
 
 def split_audio_to_segments(audio_data, segment_duration_seconds=55):
@@ -149,8 +87,9 @@ def transcribe_audio():
             return jsonify({'success': False, 'error': 'File name is empty'}), 400
 
         filename = secure_filename(audio_file.filename)
-        temp_dir = tempfile.gettempdir()
-        temp_path = os.path.join(temp_dir, filename)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        unique_filename = f"{timestamp}_{filename}"
+        temp_path = os.path.join(UPLOAD_FOLDER, unique_filename)
         audio_file.save(temp_path)
 
         file_size = os.path.getsize(temp_path)
@@ -171,8 +110,8 @@ def transcribe_audio():
         if not audio_data:
             return jsonify({'success': False, 'error': 'Unable to read audio data'}), 500
 
-        # Transcribe audio
-        transcribed_text, error = recognize_audio_segment(audio_data)
+        # Transcribe audio using centralized AI service (auto-detect language)
+        transcribed_text, error = ai_service.speech_to_text(audio_data, language='auto')
         if error:
             return jsonify({'success': False, 'error': f'Recognition failed: {error}'}), 500
 
@@ -192,67 +131,20 @@ def generate_note():
         if not text:
             return jsonify({'success': False, 'error': 'text is required'}), 400
 
-        if subject:
-            subject_instruction = f'Subject is specified as: {subject}'
-        else:
-            subject_instruction = 'Please identify the subject based on content. Use English subject names only (e.g., Mathematics, Physics, Chemistry, Biology, English, Chinese, History, Geography, Computer Science, Economics, Politics, Art, Music, etc.)'
-        
-        # Construct the prompt
-        prompt = f"""请将以下内容整理成结构化的学习笔记。
-
-原始内容：
-{text}
-
-{subject_instruction}
-
-请按照以下格式输出JSON：
-{{
-    "title": "笔记标题",
-    "subject": "Subject name in English",
-    "key_points": ["关键点1", "关键点2", "关键点3"],
-    "examples": ["示例1", "示例2"],
-    "summary": "内容总结（50-100字）",
-    "tags": ["标签1", "标签2"]
-}}
-
-要求：
-1. 提取3-5个关键知识点
-2. 如果有例子，提取1-3个代表性示例
-3. 生成简洁的总结
-4. 添加2-3个相关标签
-5. subject 字段必须使用英文学科名称（如 Mathematics, Physics, Chemistry, Biology, Chinese, English, History, Geography, Computer Science 等）
-6. 只返回JSON，不要其他文字"""
-
-        notes_data = None
-        if DEEPSEEK_API_KEY:
-            try:
-                headers = {'Authorization': f'Bearer {DEEPSEEK_API_KEY}', 'Content-Type': 'application/json'}
-                req = {'model': 'deepseek-chat', 'messages': [{'role': 'user', 'content': prompt}]}
-                r = requests.post(f"{DEEPSEEK_BASE_URL}/chat/completions", headers=headers, json=req, timeout=30)
-                if r.status_code == 200:
-                    raw = r.json()['choices'][0]['message']['content']
-                    if '```json' in raw:
-                        raw = raw.split('```json')[1].split('```')[0].strip()
-                    elif '```' in raw:
-                        raw = raw.split('```')[1].split('```')[0].strip()
-                    try:
-                        notes_data = json.loads(raw)
-                    except Exception:
-                        notes_data = None
-            except Exception:
-                notes_data = None
-
-        if not notes_data:
+        # Use centralized AI service (all prompt logic is in ai_service)
+        try:
+            notes_data = ai_service.generate_note_from_text(text, subject or 'General')
+        except Exception as e:
+            logging.error(f"AI service failed: {e}")
             notes_data = _fallback_notes(text, subject)
 
         rec = {
             'title': notes_data.get('title', 'Untitled'),
-            'subject': notes_data.get('subject', subject),
+            'subject': notes_data.get('subject', subject or 'General'),
             'content': notes_data,
             'original_text': text,
             'user_id': 1,
-            'source': 'generated',
-            'prompt': prompt  # Store the prompt in the database
+            'source': 'generated'
         }
         nid = db_sqlite.insert_note(rec)
         saved = db_sqlite.get_note_by_id(nid)
@@ -326,189 +218,117 @@ def health_check():
         return jsonify({'status': 'degraded', 'total_notes': 0})
 
 
-# Adding XfyunASR class from note version
-class XfyunASR:
-    """Xfyun WebSocket ASR Client."""
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_FILE_EXTENSIONS
 
-    def __init__(self, audio_data, language='zh_cn'):
-        self.audio_data = audio_data
-        self.language = language
-        self.result = []
-        self.is_finished = False
-        self.error = None
 
-    def on_message(self, ws, message):
-        try:
-            data = json.loads(message)
-            code = data.get("code")
+def extract_text_from_file(file_path, file_ext):
+    try:
+        if file_ext in ['txt', 'md']:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read(), None
+        if file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'pdf']:
+            return extract_text_with_ocr(file_path, file_ext)
+        return None, f"Unsupported file type: {file_ext}"
+    except Exception as e:
+        return None, str(e)
 
-            if code != 0:
-                self.error = f"Xfyun Error {code}: {data.get('message', 'Unknown error')}"
-                self.is_finished = True
-                ws.close()
-                return
 
-            result_data = data.get("data", {})
-            result = result_data.get("result", {})
-
-            pgs = result.get("pgs", "")
-            rg = result.get("rg", [])
-
-            ws_list = result.get("ws", [])
-            current_text = ""
-            for ws_item in ws_list:
-                cw_list = ws_item.get("cw", [])
-                for cw in cw_list:
-                    word = cw.get("w", "")
-                    if word:
-                        current_text += word
-
-            if pgs == "rpl" and len(rg) == 2:
-                start_idx = rg[0]
-                end_idx = rg[1]
-                if start_idx < len(self.result):
-                    self.result = self.result[:start_idx]
-                if current_text:
-                    self.result.append(current_text)
-            elif pgs == "apd" or not pgs:
-                if current_text:
-                    self.result.append(current_text)
-
-            status = result_data.get("status")
-            if status == 2:
-                self.is_finished = True
-                ws.close()
-
-        except Exception as e:
-            self.error = str(e)
-            self.is_finished = True
-            ws.close()
-
-    def on_error(self, ws, error):
-        self.error = str(error)
-        self.is_finished = True
-
-    def on_close(self, ws, close_status_code, close_msg):
-        self.is_finished = True
-
-    def on_open(self, ws):
-        def send_audio():
+def extract_text_with_ocr(file_path, file_ext):
+    """提取文本 - PDF用PyPDF2，图片用Qwen-VL OCR"""
+    try:
+        # PDF 文件：使用 PyPDF2 提取文本（Qwen-VL 不支持 PDF）
+        if file_ext == 'pdf':
             try:
-                frame_size = 1280
-                interval = 0.04
-
-                status = 0
-                offset = 0
-                total_len = len(self.audio_data)
-
-                while offset < total_len:
-                    end = min(offset + frame_size, total_len)
-                    chunk = self.audio_data[offset:end]
-
-                    if offset == 0:
-                        status = 0
-                    elif end >= total_len:
-                        status = 2
+                import PyPDF2
+                with open(file_path, 'rb') as f:
+                    reader = PyPDF2.PdfReader(f)
+                    text = ""
+                    for page in reader.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += page_text + "\n"
+                    if text.strip() and len(text.strip()) > 20:
+                        logging.info(f"PyPDF2 extracted {len(text)} characters from PDF")
+                        return text.strip(), None
                     else:
-                        status = 1
+                        return None, "PDF文本提取失败或内容太少。该PDF可能是扫描版，暂不支持OCR。"
+            except ImportError:
+                return None, "需要安装PyPDF2来处理PDF文件。请运行: pip install PyPDF2 --break-system-packages"
+            except Exception as pdf_error:
+                logging.warning(f"PyPDF2 extraction failed: {pdf_error}")
+                return None, f"PDF处理失败: {str(pdf_error)}"
+        
+        # 图片文件：使用 AI Service OCR
+        if file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp']:
+            text, error = ai_service.ocr_image(file_path)
+            if error:
+                return None, error
+            logging.info(f"OCR extracted {len(text)} characters from image")
+            return text, None
+        
+        return None, f"不支持的文件类型: {file_ext}"
+    except Exception as e:
+        logging.exception("Text extraction failed")
+        return None, str(e)
 
-                    audio_base64 = base64.b64encode(chunk).decode('utf-8')
 
-                    if status == 0:
-                        message = {
-                            "common": {"app_id": XFYUN_APPID},
-                            "business": {
-                                "language": self.language,
-                                "domain": "iat",
-                                "accent": "mandarin",
-                                "vad_eos": 3000,
-                                "ptt": 1
-                            },
-                            "data": {
-                                "status": status,
-                                "format": "audio/L16;rate=16000",
-                                "encoding": "raw",
-                                "audio": audio_base64
-                            }
-                        }
-                    else:
-                        message = {
-                            "data": {
-                                "status": status,
-                                "format": "audio/L16;rate=16000",
-                                "encoding": "raw",
-                                "audio": audio_base64
-                            }
-                        }
-
-                    ws.send(json.dumps(message))
-                    offset = end
-
-                    if status != 2:
-                        time.sleep(interval)
-
-            except Exception as e:
-                self.error = str(e)
-                ws.close()
-
-        threading.Thread(target=send_audio).start()
-
-    def recognize(self):
+@bp.route('/upload-file', methods=['POST'])
+def upload_file_generate_note():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    uploaded_file = request.files['file']
+    if uploaded_file.filename == '':
+        return jsonify({'success': False, 'error': 'Empty filename'}), 400
+    filename = secure_filename(uploaded_file.filename)
+    file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    if not allowed_file(filename):
+        return jsonify({
+            'success': False, 
+            'error': f'File type not supported. Allowed: {", ".join(ALLOWED_FILE_EXTENSIONS)}'
+        }), 400
+    subject = request.form.get('subject', '')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    unique_filename = f"{timestamp}_{filename}"
+    temp_path = os.path.join(UPLOAD_FOLDER, unique_filename)
+    try:
+        uploaded_file.save(temp_path)
+        logging.info(f"File saved to: {temp_path}")
+        extracted_text, error = extract_text_from_file(temp_path, file_ext)
+        if error:
+            return jsonify({'success': False, 'error': f'Text extraction failed: {error}'}), 500
+        if not extracted_text or len(extracted_text.strip()) < 10:
+            return jsonify({'success': False, 'error': 'Could not extract enough text from file'}), 400
+        
+        # Use centralized AI service (all prompt logic is in ai_service)
         try:
-            url = create_xfyun_auth_url()
-
-            ws = websocket.WebSocketApp(
-                url,
-                on_message=self.on_message,
-                on_error=self.on_error,
-                on_close=self.on_close,
-                on_open=self.on_open
-            )
-
-            ws.run_forever()
-
-            timeout = 60
-            start_time = time.time()
-            while not self.is_finished and (time.time() - start_time) < timeout:
-                time.sleep(0.1)
-
-            if self.error:
-                return None, self.error
-
-            return ''.join(self.result), None
-
+            notes_data = ai_service.generate_note_from_text(extracted_text, subject or 'General')
         except Exception as e:
-            return None, str(e)
-
-
-# Adding create_xfyun_auth_url function from note version
-def create_xfyun_auth_url():
-    """Create Xfyun WebSocket authentication URL."""
-    from datetime import datetime
-    from time import mktime
-    from wsgiref.handlers import format_date_time
-
-    now = datetime.now()
-    date = format_date_time(mktime(now.timetuple()))
-
-    signature_origin = f"host: ws-api.xfyun.cn\ndate: {date}\nGET /v2/iat HTTP/1.1"
-
-    signature_sha = hmac.new(
-        XFYUN_API_SECRET.encode('utf-8'),
-        signature_origin.encode('utf-8'),
-        digestmod=hashlib.sha256
-    ).digest()
-
-    signature_sha_base64 = base64.b64encode(signature_sha).decode('utf-8')
-
-    authorization_origin = f'api_key="{XFYUN_API_KEY}", algorithm="hmac-sha256", headers="host date request-line", signature="{signature_sha_base64}"'
-    authorization = base64.b64encode(authorization_origin.encode('utf-8')).decode('utf-8')
-
-    params = {
-        "authorization": authorization,
-        "date": date,
-        "host": "ws-api.xfyun.cn"
-    }
-
-    url = f"wss://ws-api.xfyun.cn/v2/iat?{urlencode(params)}"
-    return url
+            logging.error(f"AI service failed: {e}")
+            notes_data = _fallback_notes(extracted_text, subject)
+        rec = {
+            'title': notes_data.get('title', 'Untitled'),
+            'subject': notes_data.get('subject', subject or 'General'),
+            'content': notes_data,
+            'original_text': extracted_text,
+            'user_id': 1,
+            'source': 'file_upload'
+        }
+        nid = db_sqlite.insert_note(rec)
+        saved = db_sqlite.get_note_by_id(nid)
+        return jsonify({
+            'success': True,
+            'note_id': nid,
+            'note': saved,
+            'extracted_text': extracted_text[:500] + '...' if len(extracted_text) > 500 else extracted_text
+        })
+    except Exception as e:
+        logging.exception("File upload and note generation failed")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except OSError:
+            pass

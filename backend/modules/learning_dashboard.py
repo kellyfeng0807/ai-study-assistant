@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import random
 import os
 import sys
+import traceback
 
 # 导入数据库模块
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,31 +19,53 @@ dashboard_bp = Blueprint('learning_dashboard', __name__, url_prefix='/api/dashbo
 # 艾宾浩斯遗忘曲线复习时间点（天）
 EBBINGHAUS_INTERVALS = [1, 2, 4, 7, 15]
 
-# 科目颜色映射
+# 科目颜色映射 - 增强颜色多样性
 SUBJECT_COLORS = {
-    'Mathematics': 'hsl(221.2, 83.2%, 53.3%)',
-    '数学': 'hsl(221.2, 83.2%, 53.3%)',
-    'Physics': 'hsl(142.1, 76.2%, 36.3%)',
-    '物理': 'hsl(142.1, 76.2%, 36.3%)',
-    'English': 'hsl(262.1, 83.3%, 57.8%)',
-    '英语': 'hsl(262.1, 83.3%, 57.8%)',
-    'History': 'hsl(45, 93%, 47%)',
+    'Mathematics': 'hsl(221, 83%, 53%)',      # 蓝色
+    '数学': 'hsl(221, 83%, 53%)',
+    'Physics': 'hsl(142, 76%, 36%)',          # 绿色
+    '物理': 'hsl(142, 76%, 36%)',
+    'English': 'hsl(262, 83%, 58%)',          # 紫色
+    '英语': 'hsl(262, 83%, 58%)',
+    'History': 'hsl(45, 93%, 47%)',           # 黄色
     '历史': 'hsl(45, 93%, 47%)',
-    'Chemistry': 'hsl(0, 84.2%, 60.2%)',
-    '化学': 'hsl(0, 84.2%, 60.2%)',
-    'Biology': 'hsl(160, 60%, 45%)',
-    '生物': 'hsl(160, 60%, 45%)',
-    'Geography': 'hsl(200, 70%, 50%)',
-    '地理': 'hsl(200, 70%, 50%)',
-    'Computer Science': 'hsl(280, 65%, 55%)',
-    '计算机': 'hsl(280, 65%, 55%)',
-    'General': 'hsl(220, 15%, 55%)',
-    '通用': 'hsl(220, 15%, 55%)',
+    'Chemistry': 'hsl(0, 84%, 60%)',          # 红色
+    '化学': 'hsl(0, 84%, 60%)',
+    'Biology': 'hsl(160, 70%, 45%)',          # 青绿色
+    '生物': 'hsl(160, 70%, 45%)',
+    'Geography': 'hsl(200, 80%, 50%)',        # 天蓝色
+    '地理': 'hsl(200, 80%, 50%)',
+    'Computer Science': 'hsl(280, 75%, 55%)', # 深紫色
+    '计算机': 'hsl(280, 75%, 55%)',
+    'Literature': 'hsl(340, 82%, 52%)',       # 粉红色
+    '语文': 'hsl(340, 82%, 52%)',
+    'Politics': 'hsl(15, 86%, 53%)',          # 橙色
+    '政治': 'hsl(15, 86%, 53%)',
+    'General': 'hsl(240, 60%, 65%)',          # 淡紫蓝
+    '通用': 'hsl(240, 60%, 65%)',
 }
 
+# 备用颜色调色板（用于未定义科目）
+FALLBACK_COLORS = [
+    'hsl(221, 83%, 53%)',  # 蓝
+    'hsl(0, 84%, 60%)',    # 红
+    'hsl(142, 76%, 36%)',  # 绿
+    'hsl(45, 93%, 47%)',   # 黄
+    'hsl(262, 83%, 58%)',  # 紫
+    'hsl(200, 80%, 50%)',  # 天蓝
+    'hsl(15, 86%, 53%)',   # 橙
+    'hsl(340, 82%, 52%)',  # 粉红
+    'hsl(160, 70%, 45%)',  # 青绿
+    'hsl(280, 75%, 55%)',  # 深紫
+]
+
 def get_subject_color(subject):
-    """获取科目对应的颜色"""
-    return SUBJECT_COLORS.get(subject, 'hsl(220, 15%, 55%)')
+    """获取科目对应的颜色，使用hash确保相同科目总是相同颜色"""
+    if subject in SUBJECT_COLORS:
+        return SUBJECT_COLORS[subject]
+    # 使用hash选择备用颜色
+    color_index = hash(subject) % len(FALLBACK_COLORS)
+    return FALLBACK_COLORS[color_index]
 
 
 # ============ API端点 ============
@@ -93,16 +116,16 @@ def get_statistics():
         notes_trend_value = 100 if notes_count > 0 else 0
     notes_trend = 'up' if notes_count >= prev_notes_count else 'down'
     
-    # ========== 2. 学习时间（优先从 study_progress 读取真实数据） ==========
-    # 当前周期：先尝试从 study_progress 读取
+    # ========== 2. 学习时间（从 module_usage 读取真实追踪数据） ==========
+    # 当前周期：从 module_usage 读取（秒转分钟）
     cur.execute('''
-        SELECT COALESCE(SUM(review_time_minutes + practice_time_minutes), 0) 
-        FROM study_progress 
+        SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
+        FROM module_usage 
         WHERE date >= ?
     ''', (start_date_str,))
-    total_minutes = cur.fetchone()[0] or 0
+    total_minutes = int(cur.fetchone()[0] or 0)
     
-    # 如果 study_progress 没有数据，使用估算（笔记*15 + 错题*10）
+    # 如果 module_usage 没有数据，使用估算（笔记*15 + 错题*10）
     if total_minutes == 0:
         cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at >= ?', (start_date_str,))
         current_errors = cur.fetchone()[0]
@@ -110,11 +133,11 @@ def get_statistics():
     
     # 上个周期
     cur.execute('''
-        SELECT COALESCE(SUM(review_time_minutes + practice_time_minutes), 0) 
-        FROM study_progress 
+        SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
+        FROM module_usage 
         WHERE date >= ? AND date < ?
     ''', (prev_start_str, prev_end_str))
-    prev_minutes = cur.fetchone()[0] or 0
+    prev_minutes = int(cur.fetchone()[0] or 0)
     
     if prev_minutes == 0:
         cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at >= ? AND created_at < ?',
@@ -170,8 +193,8 @@ def get_statistics():
                     (date_pattern, date_pattern))
         has_error = cur.fetchone()[0] > 0
         
-        # 检查当天是否有 study_progress 记录
-        cur.execute('SELECT COUNT(*) FROM study_progress WHERE date = ?', (date_str,))
+        # 检查当天是否有 module_usage 记录
+        cur.execute('SELECT COUNT(*) FROM module_usage WHERE date = ?', (date_str,))
         has_progress = cur.fetchone()[0] > 0
         
         if has_note or has_error or has_progress:
@@ -257,9 +280,13 @@ def get_subjects():
     conn = db_sqlite.get_conn()
     cur = conn.cursor()
     
-    # 获取笔记按科目分组
+    # 获取笔记和错题按科目分组（合并统计）
     cur.execute('''
-        SELECT subject, COUNT(*) as count FROM note 
+        SELECT subject, SUM(count) as count FROM (
+            SELECT subject, COUNT(*) as count FROM note GROUP BY subject
+            UNION ALL
+            SELECT subject, COUNT(*) as count FROM error_book GROUP BY subject
+        )
         GROUP BY subject
         ORDER BY count DESC
     ''')
@@ -415,13 +442,13 @@ def get_chart_data():
             ''', (date_str + '%',))
             error_count = cur.fetchone()[0]
             
-            # 优先从 study_progress 获取真实时间
+            # 从 module_usage 获取真实追踪时间
             cur.execute('''
-                SELECT COALESCE(SUM(review_time_minutes + practice_time_minutes), 0) 
-                FROM study_progress 
+                SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
+                FROM module_usage 
                 WHERE date = ?
             ''', (date_str,))
-            study_time = cur.fetchone()[0] or 0
+            study_time = int(cur.fetchone()[0] or 0)
             
             # 如果没有记录，使用估算
             if study_time == 0:
@@ -477,6 +504,12 @@ def get_analysis():
     """
     conn = db_sqlite.get_conn()
     cur = conn.cursor()
+    
+    user_id = request.args.get('user_id', 'default')
+    
+    # 获取用户设置（包括daily_goal）
+    user_settings = db_sqlite.get_user_settings(user_id)
+    daily_goal_minutes = user_settings.get('daily_goal', 60) if user_settings else 60
     
     # ========== 从错题本分析强项和弱项 ==========
     cur.execute('''
@@ -572,6 +605,19 @@ def get_analysis():
     cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 1')
     reviewed_errors = cur.fetchone()[0]
     
+    # 获取最近7天学习时间统计
+    seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+    cur.execute('''
+        SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
+        FROM module_usage 
+        WHERE date >= ?
+    ''', (seven_days_ago,))
+    week_minutes = int(cur.fetchone()[0] or 0)
+    
+    # 计算目标完成度
+    weekly_goal = daily_goal_minutes * 7
+    goal_completion = round(week_minutes / weekly_goal * 100) if weekly_goal > 0 else 0
+    
     conn.close()
     
     # 处理最活跃时间
@@ -600,6 +646,27 @@ def get_analysis():
     consistency = round(active_days / first_note_days * 100) if first_note_days > 0 else 0
     consistency = min(100, consistency)
     
+    # 生成基于daily_goal的建议
+    goal_recommendations = []
+    if goal_completion < 50:
+        goal_recommendations.append({
+            'type': 'warning',
+            'title': 'Weekly Goal At Risk',
+            'message': f'You\'ve completed only {goal_completion}% of your weekly goal ({week_minutes}/{weekly_goal} minutes). Try to study {daily_goal_minutes} minutes daily.'
+        })
+    elif goal_completion >= 100:
+        goal_recommendations.append({
+            'type': 'success',
+            'title': 'Weekly Goal Achieved!',
+            'message': f'Excellent! You\'ve studied {week_minutes} minutes this week, exceeding your {weekly_goal}-minute goal.'
+        })
+    elif goal_completion >= 80:
+        goal_recommendations.append({
+            'type': 'info',
+            'title': 'Almost There',
+            'message': f'You\'re at {goal_completion}% of your weekly goal. Just {weekly_goal - week_minutes} more minutes to go!'
+        })
+    
     return jsonify({
         'success': True,
         'strengths': strengths[:5] if strengths else [],
@@ -611,6 +678,13 @@ def get_analysis():
             'consistency_score': consistency if active_days > 0 else 'No data',
             'best_day': best_day,
             'review_compliance': review_rate if total_errors > 0 else 'No data'
+        },
+        'goal_stats': {
+            'daily_goal': daily_goal_minutes,
+            'weekly_goal': weekly_goal,
+            'week_minutes': week_minutes,
+            'goal_completion': goal_completion,
+            'recommendations': goal_recommendations
         }
     })
 
@@ -625,6 +699,11 @@ def get_parent_report():
     cur = conn.cursor()
     
     today = datetime.now()
+    user_id = request.args.get('user_id', 'default')
+    
+    # 获取用户设置（包含daily_goal）
+    user_settings = db_sqlite.get_user_settings(user_id)
+    daily_goal_minutes = user_settings.get('daily_goal', 60) if user_settings else 60
     
     # ========== 收集所有数据 ==========
     
@@ -638,16 +717,61 @@ def get_parent_report():
     cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 1')
     reviewed_errors = cur.fetchone()[0]
     
+    cur.execute('SELECT COUNT(*) FROM mindmap')
+    total_mindmaps = cur.fetchone()[0]
+    
     # 2. 本周数据
     week_start = (today - timedelta(days=today.weekday())).strftime('%Y-%m-%d')
     cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ?', (week_start,))
     week_notes = cur.fetchone()[0]
+    
+    cur.execute('SELECT COUNT(*) FROM mindmap WHERE created_at >= ?', (week_start,))
+    week_mindmaps = cur.fetchone()[0]
     
     # 3. 上周数据（对比用）
     last_week_start = (today - timedelta(days=today.weekday() + 7)).strftime('%Y-%m-%d')
     cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ? AND created_at < ?', 
                 (last_week_start, week_start))
     last_week_notes = cur.fetchone()[0]
+    
+    cur.execute('SELECT COUNT(*) FROM mindmap WHERE created_at >= ? AND created_at < ?', 
+                (last_week_start, week_start))
+    last_week_mindmaps = cur.fetchone()[0]
+    
+    # 时间统计（从 module_usage 读取）
+    # 本周总学习时间
+    cur.execute('''
+        SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
+        FROM module_usage 
+        WHERE date >= ?
+    ''', (week_start,))
+    week_minutes = int(cur.fetchone()[0] or 0)
+    
+    # 上周总学习时间
+    cur.execute('''
+        SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
+        FROM module_usage 
+        WHERE date >= ? AND date < ?
+    ''', (last_week_start, week_start))
+    last_week_minutes = int(cur.fetchone()[0] or 0)
+    
+    # 今日学习时间
+    today_str = today.strftime('%Y-%m-%d')
+    cur.execute('''
+        SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
+        FROM module_usage 
+        WHERE date = ?
+    ''', (today_str,))
+    today_minutes = int(cur.fetchone()[0] or 0)
+    
+    # 最近30天总学习时间
+    thirty_days_ago = (today - timedelta(days=30)).strftime('%Y-%m-%d')
+    cur.execute('''
+        SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
+        FROM module_usage 
+        WHERE date >= ?
+    ''', (thirty_days_ago,))
+    total_minutes_30days = int(cur.fetchone()[0] or 0)
     
     # 4. 连续学习天数
     streak = 0
@@ -660,8 +784,10 @@ def get_parent_report():
         cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at LIKE ? OR updated_at LIKE ?', 
                     (date_pattern, date_pattern))
         has_error = cur.fetchone()[0] > 0
+        cur.execute('SELECT COUNT(*) FROM mindmap WHERE created_at LIKE ?', (date_pattern,))
+        has_mindmap = cur.fetchone()[0] > 0
         
-        if has_note or has_error:
+        if has_note or has_error or has_mindmap:
             streak += 1
             check_date -= timedelta(days=1)
         else:
@@ -673,18 +799,26 @@ def get_parent_report():
             break
     
     # 5. 最近30天活跃天数
+    thirty_days_ago = (today - timedelta(days=30)).strftime('%Y-%m-%d')
     cur.execute('''
-        SELECT COUNT(DISTINCT substr(created_at, 1, 10)) 
-        FROM note 
-        WHERE created_at >= ?
-    ''', ((today - timedelta(days=30)).strftime('%Y-%m-%d'),))
+        SELECT COUNT(DISTINCT date) FROM (
+            SELECT substr(created_at, 1, 10) as date FROM note WHERE created_at >= ?
+            UNION
+            SELECT substr(created_at, 1, 10) as date FROM error_book WHERE created_at >= ?
+            UNION
+            SELECT substr(created_at, 1, 10) as date FROM mindmap WHERE created_at >= ?
+        )
+    ''', (thirty_days_ago, thirty_days_ago, thirty_days_ago))
     active_days_30 = cur.fetchone()[0]
     
-    # 6. 科目分布
+    # 6. 科目分布（包含note和error_book，mindmap无subject字段）
     cur.execute('''
-        SELECT subject, COUNT(*) as count 
-        FROM note 
-        GROUP BY subject 
+        SELECT subject, SUM(count) as count FROM (
+            SELECT subject, COUNT(*) as count FROM note GROUP BY subject
+            UNION ALL
+            SELECT subject, COUNT(*) as count FROM error_book GROUP BY subject
+        )
+        GROUP BY subject
         ORDER BY count DESC
     ''')
     subjects = cur.fetchall()
@@ -708,8 +842,16 @@ def get_parent_report():
     ''')
     time_distribution = cur.fetchall()
     
-    # 9. 上次学习时间
-    cur.execute('SELECT MAX(created_at) FROM note')
+    # 9. 上次学习时间（检查所有表）
+    cur.execute('''
+        SELECT MAX(date) FROM (
+            SELECT created_at as date FROM note
+            UNION
+            SELECT created_at as date FROM error_book
+            UNION
+            SELECT created_at as date FROM mindmap
+        )
+    ''')
     last_study = cur.fetchone()[0]
     days_since_last = 0
     if last_study:
@@ -724,13 +866,56 @@ def get_parent_report():
     positives = []  # 做得好的方面
     recommendations = []  # 建议
     
+    # --- 分析每日目标达成情况 ---
+    if today_minutes >= daily_goal_minutes:
+        positives.append({
+            'icon': '<i class="fas fa-trophy"></i>',
+            'category': 'Daily Goal',
+            'title': 'Daily Goal Achieved',
+            'message': f'Your child has studied {today_minutes} minutes today, exceeding the daily goal of {daily_goal_minutes} minutes. Excellent!'
+        })
+    elif today_minutes >= daily_goal_minutes * 0.7:
+        positives.append({
+            'icon': '<i class="fas fa-check"></i>',
+            'category': 'Daily Goal',
+            'title': 'Good Progress',
+            'message': f'Your child has completed {today_minutes}/{daily_goal_minutes} minutes today ({round(today_minutes/daily_goal_minutes*100)}% of goal).'
+        })
+    elif today_minutes > 0:
+        concerns.append({
+            'icon': '<i class="fas fa-clock"></i>',
+            'category': 'Daily Goal',
+            'title': 'Below Daily Goal',
+            'message': f'Only {today_minutes} minutes studied today, which is {daily_goal_minutes - today_minutes} minutes short of the {daily_goal_minutes}-minute goal.',
+            'severity': 'medium'
+        })
+    
+    # 周学习时间分析
+    weekly_goal_minutes = daily_goal_minutes * 7
+    if week_minutes < weekly_goal_minutes * 0.5:
+        concerns.append({
+            'icon': '<i class="fas fa-hourglass-half"></i>',
+            'category': 'Weekly Time',
+            'title': 'Low Weekly Study Time',
+            'message': f'This week: {week_minutes} minutes (goal: {weekly_goal_minutes} minutes). Only {round(week_minutes/weekly_goal_minutes*100)}% completed. More study time is needed.',
+            'severity': 'high'
+        })
+    elif week_minutes >= weekly_goal_minutes:
+        positives.append({
+            'icon': '<i class="fas fa-star"></i>',
+            'category': 'Weekly Time',
+            'title': 'Weekly Goal Met',
+            'message': f'This week: {week_minutes} minutes, achieving the weekly goal of {weekly_goal_minutes} minutes!'
+        })
+    
     # --- 分析学习频率 ---
-    if total_notes == 0:
+    total_activities = total_notes + total_errors + total_mindmaps
+    if total_activities == 0:
         concerns.append({
             'icon': '<i class="fas fa-exclamation-triangle"></i>',
             'category': 'Activity',
             'title': 'No Learning Records',
-            'message': 'Your child has not created any study notes yet. This may indicate they haven\'t started using the system or need encouragement to begin.',
+            'message': f'Your child has not created any study materials yet ({total_notes} notes, {total_mindmaps} mind maps, {total_errors} errors logged). This may indicate they haven\'t started using the system or need encouragement to begin.',
             'severity': 'high'
         })
     elif active_days_30 < 7:
@@ -791,20 +976,22 @@ def get_parent_report():
         })
     
     # --- 分析周对比 ---
-    if last_week_notes > 0 and week_notes < last_week_notes * 0.5:
+    week_total = week_notes + week_mindmaps
+    last_week_total = last_week_notes + last_week_mindmaps
+    if last_week_total > 0 and week_total < last_week_total * 0.5:
         concerns.append({
             'icon': '<i class="fas fa-chart-line"></i>',
             'category': 'Trend',
             'title': 'Declining Activity',
-            'message': f'This week\'s activity ({week_notes} notes) is significantly lower than last week ({last_week_notes} notes). This downward trend needs attention.',
+            'message': f'This week\'s activity ({week_notes} notes, {week_mindmaps} maps) is significantly lower than last week ({last_week_notes} notes, {last_week_mindmaps} maps). This downward trend needs attention.',
             'severity': 'medium'
         })
-    elif week_notes > last_week_notes:
+    elif week_total > last_week_total:
         positives.append({
             'icon': '<i class="fas fa-trending-up"></i>',
             'category': 'Trend',
             'title': 'Improving Activity',
-            'message': f'This week ({week_notes} notes) shows improvement over last week ({last_week_notes} notes).'
+            'message': f'This week ({week_notes} notes, {week_mindmaps} maps) shows improvement over last week ({last_week_notes} notes, {last_week_mindmaps} maps).'
         })
     
     # --- 分析错题复习 ---
@@ -886,8 +1073,25 @@ def get_parent_report():
             'message': f'Your child is studying {len(subjects)} different subjects, showing good academic balance.'
         })
     
+    # --- 思维导图使用分析 ---
+    if total_mindmaps > 0 and total_notes > 0:
+        mindmap_ratio = total_mindmaps / (total_notes + total_mindmaps)
+        if mindmap_ratio >= 0.3:
+            positives.append({
+                'icon': '<i class="fas fa-project-diagram"></i>',
+                'category': 'Learning Tools',
+                'title': 'Active Mind Mapping',
+                'message': f'Your child has created {total_mindmaps} mind maps, showing good use of visual learning tools for organizing knowledge.'
+            })
+    elif total_notes >= 5 and total_mindmaps == 0:
+        recommendations.append({
+            'icon': '<i class="fas fa-sitemap"></i>',
+            'title': 'Try Mind Mapping',
+            'message': 'Encourage using the mind map feature to visualize concepts and connections. This can significantly improve understanding and recall.'
+        })
+    
     # --- 通用建议 ---
-    if total_notes > 0 and len(recommendations) < 2:
+    if total_activities > 0 and len(recommendations) < 2:
         if active_days_30 < 20:
             recommendations.append({
                 'icon': '<i class="fas fa-calendar-alt"></i>',
@@ -919,11 +1123,22 @@ def get_parent_report():
             'status': overall_status,
             'message': overall_message,
             'total_notes': total_notes,
+            'total_mindmaps': total_mindmaps,
             'total_errors': total_errors,
             'review_rate': round(reviewed_errors / total_errors * 100) if total_errors > 0 else 0,
             'active_days': active_days_30,
             'current_streak': streak,
-            'days_since_last': days_since_last
+            'days_since_last': days_since_last,
+            'time_stats': {
+                'today_minutes': today_minutes,
+                'daily_goal': daily_goal_minutes,
+                'today_progress': round(today_minutes / daily_goal_minutes * 100) if daily_goal_minutes > 0 else 0,
+                'week_minutes': week_minutes,
+                'last_week_minutes': last_week_minutes,
+                'week_change': week_minutes - last_week_minutes,
+                'total_30days_minutes': total_minutes_30days,
+                'avg_daily_30days': round(total_minutes_30days / 30) if total_minutes_30days > 0 else 0
+            }
         },
         'concerns': concerns,
         'positives': positives,
@@ -1002,45 +1217,53 @@ def get_heatmap():
         date = datetime.now() - timedelta(days=i)
         date_str = date.strftime('%Y-%m-%d')
         date_pattern = date_str + '%'
+            
+    
+        # 1. 优先从 module_usage 表获取真实追踪时间（秒转分钟）
+        try:
+            cur.execute('''
+                SELECT COALESCE(SUM(duration_seconds), 0) 
+                FROM module_usage WHERE date = ?
+            ''', (date_str,))
+            module_seconds = cur.fetchone()[0] or 0
+            module_minutes = module_seconds // 60
+        except:
+            module_minutes = 0
         
-        # 统计当天笔记数
+        # 2. 统计当天活动数量（用于估算和显示）
         cur.execute('SELECT COUNT(*) FROM note WHERE created_at LIKE ?', (date_pattern,))
         note_count = cur.fetchone()[0]
         
-        # 统计当天思维导图数
         cur.execute('SELECT COUNT(*) FROM mindmap WHERE created_at LIKE ?', (date_pattern,))
         mindmap_count = cur.fetchone()[0]
         
-        # 统计当天错题活动
         cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at LIKE ? OR updated_at LIKE ?', 
                     (date_pattern, date_pattern))
         error_count = cur.fetchone()[0]
         
-        # 统计当天真实学习时间（分钟）
-        cur.execute('''
-            SELECT COALESCE(SUM(review_time_minutes + practice_time_minutes), 0) 
-            FROM study_progress WHERE date = ?
-        ''', (date_str,))
-        study_minutes = cur.fetchone()[0] or 0
-        
-        # 如果没有 study_progress 数据，使用估算
-        if study_minutes == 0:
-            study_minutes = note_count * 15 + mindmap_count * 20 + error_count * 10
-        
-        # 计算总活动数（包括mindmap）
         total_activity = note_count + mindmap_count + error_count
         
-        # 计算学习强度（0-4级）- 基于活动数量和学习时间的综合
-        if total_activity == 0:
-            level = 0
-        elif study_minutes <= 15 or total_activity == 1:
-            level = 1  # 少量活动或很短时间
-        elif study_minutes <= 30 or total_activity <= 2:
-            level = 2  # 中等活动
-        elif study_minutes <= 60 or total_activity <= 4:
-            level = 3  # 较多活动
+        # 3. 确定最终学习时间
+        # 优先级: module_usage > 估算
+        if module_minutes > 0:
+            study_minutes = module_minutes
+        elif total_activity > 0:
+            # 估算时间：笔记×5 + 导图×5 + 错题×7
+            study_minutes = note_count * 5 + mindmap_count * 5 + error_count * 7
         else:
-            level = 4  # 大量活动或长时间学习
+            study_minutes = 0
+        
+        # 5. 计算学习强度等级（0-4级）- 纯粹基于学习时间
+        if study_minutes == 0:
+            level = 0
+        elif study_minutes <= 10:
+            level = 1  # ≤10分钟
+        elif study_minutes <= 30:
+            level = 2  # 10-30分钟
+        elif study_minutes <= 60:
+            level = 3  # 30-60分钟
+        else:
+            level = 4  # >60分钟
         
         heatmap_data.append({
             'date': date_str,
@@ -1058,6 +1281,7 @@ def get_heatmap():
     # 计算统计信息
     active_days = sum(1 for d in heatmap_data if d['level'] > 0)
     total_activities = sum(d['count'] for d in heatmap_data)
+    total_minutes = sum(d['minutes'] for d in heatmap_data)
     
     return jsonify({
         'success': True,
@@ -1066,9 +1290,84 @@ def get_heatmap():
             'active_days': active_days,
             'total_days': days,
             'total_activities': total_activities,
+            'total_minutes': total_minutes,
             'active_rate': round(active_days / days * 100)
         }
     })
+
+
+@dashboard_bp.route('/today-modules', methods=['GET'])
+def get_today_modules():
+    """
+    获取今日各模块使用时长
+    GET /api/dashboard/today-modules
+    Returns: [{"module": "note-assistant", "minutes": 15, "icon": "📝"}, ...]
+    """
+    try:
+        conn = db_sqlite.get_conn()
+        cur = conn.cursor()
+        
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Query module usage for today (using correct column names: module, date)
+        cur.execute('''
+            SELECT module, SUM(duration_seconds) as total_seconds
+            FROM module_usage
+            WHERE date = ?
+            GROUP BY module
+            ORDER BY total_seconds DESC
+        ''', (today,))
+        
+        rows = cur.fetchall()
+        
+        # Module icon mapping
+        module_icons = {
+            'note-assistant': '📝',
+            'error-book': '📕',
+            'error-practice': '✏️',
+            'error-review': '🔄',
+            'map-generation': '🗺️'
+        }
+        
+        # Module display name mapping
+        module_names = {
+            'note-assistant': 'Note Assistant',
+            'error-book': 'Error Book',
+            'error-practice': 'Error Practice',
+            'error-review': 'Error Review',
+            'map-generation': 'Mind Map'
+        }
+        
+        modules = []
+        for row in rows:
+            module_name = row[0]
+            total_seconds = row[1] or 0
+            minutes = round(total_seconds / 60.0, 1)
+            
+            if minutes > 0:  # Only include modules with actual usage
+                modules.append({
+                    'module': module_name,
+                    'display_name': module_names.get(module_name, module_name),
+                    'minutes': minutes,
+                    'icon': module_icons.get(module_name, '📌')
+                })
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'modules': modules,
+            'total': len(modules)
+        })
+    
+    except Exception as e:
+        print(f"Error in get_today_modules: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'modules': []
+        }), 500
 
 
 @dashboard_bp.route('/ai-suggestions', methods=['GET'])
@@ -1417,11 +1716,11 @@ def get_notifications():
     # 3. 检查本周学习时间
     week_start = (today - timedelta(days=today.weekday())).strftime('%Y-%m-%d')
     cur.execute('''
-        SELECT COALESCE(SUM(review_time_minutes + practice_time_minutes), 0) 
-        FROM study_progress 
+        SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
+        FROM module_usage 
         WHERE date >= ?
     ''', (week_start,))
-    week_minutes = cur.fetchone()[0] or 0
+    week_minutes = int(cur.fetchone()[0] or 0)
     
     if week_minutes >= 60:
         hours = round(week_minutes / 60, 1)
