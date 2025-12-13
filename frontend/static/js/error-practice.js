@@ -341,6 +341,7 @@ if (e.target.closest('.submit-text-answer')) {
         card.appendChild(resultDiv);
       }
       resultDiv.textContent = data.correct ? "Correct" : "Incorrect";
+      resultDiv.style.color = data.correct ? "green" : "red";
 
     } catch (err) {
       console.error(err);
@@ -459,7 +460,7 @@ container.addEventListener('change', async (e) => {
         resultDiv.style.fontWeight = "bold";
         card.appendChild(resultDiv);
       }
-      resultDiv.textContent = data.is_correct ? "✓ Correct" : "✗ Incorrect";
+      resultDiv.textContent = data.is_correct ? "Correct" : "Incorrect";
       resultDiv.style.color = data.is_correct ? "green" : "red";
     } catch (err) {
       console.error(err);

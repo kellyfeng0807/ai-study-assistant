@@ -628,8 +628,9 @@ Be friendly, clear, and concise in your responses. Use LaTeX notation for mathem
                     {"role": "user", "content": prompt}
                 ],
                 stream=False,
-                temperature=0.0,  # 数学/代码类任务需要精确性
-                max_tokens=2000
+                temperature=0.3,  # 数学/代码类任务需要精确性
+                max_tokens=8000,
+                response_format={"type": "json_object"}
             )
             
             raw_output = response.choices[0].message.content.strip()
@@ -744,23 +745,27 @@ Student's submitted answer:
             }
 
     def _clean_json_for_object(self, text: str) -> str:
-        """从文本中提取 JSON（对象或数组）"""
+        """从文本中提取 JSON（对象或数组），并修复 LaTeX 导致的非法转义"""
         text = text.strip()
         text = re.sub(r'^```(?:json)?\s*', '', text)
         text = re.sub(r'\s*```$', '', text)
-        
+
         # 尝试提取数组
         start = text.find('[')
         end = text.rfind(']')
         if start != -1 and end > start:
-            return text[start:end + 1]
-        
+            extracted = text[start:end + 1]
+            # 关键修复：将所有 \ 转义为 \\，使 JSON 合法
+            return extracted.replace('\\', '\\\\')
+
         # 尝试提取对象
         start = text.find('{')
         end = text.rfind('}')
         if start != -1 and end > start:
-            return text[start:end + 1]
-        
+            extracted = text[start:end + 1]
+            # 同样修复
+            return extracted.replace('\\', '\\\\')
+
         raise ValueError("No valid JSON found")
 
     def ocr_and_parse_question(self, orig_path, cropped_results):
@@ -936,10 +941,11 @@ Student's submitted answer:
 已知题目如下：
 {question_text}
 
-请识别用户上传图片中的答案，并判断是否正确。
+请自己做一次题目，给出对应的过程和答案，然后识别用户上传图片中的答案，并判断是否正确。
 
 输出 JSON:
 {{
+"correct_answer_and_analyse":"...",
     "user_answer": "...",
     "is_correct": true 或 false
 }}

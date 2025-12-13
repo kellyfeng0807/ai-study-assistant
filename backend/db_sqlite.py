@@ -120,10 +120,32 @@ def init_db():
         reviewed INTEGER DEFAULT 0,
         redo_answer TEXT,
         redo_time DATETIME,
-        images TEXT DEFAULT '[]'
+        images TEXT DEFAULT '[]',
+        answer_images TEXT DEFAULT '[]',
+        redo_images TEXT DEFAULT '[]',
+        source_practice_id INTEGER DEFAULT -1
     )
     ''')
     conn.commit()
+    
+    # Migrate error_book: add missing columns
+    try:
+        cur.execute("PRAGMA table_info(error_book)")
+        error_cols = [c[1] for c in cur.fetchall()]
+        if 'source_practice_id' not in error_cols:
+            cur.execute("ALTER TABLE error_book ADD COLUMN source_practice_id INTEGER DEFAULT -1")
+            conn.commit()
+        if 'images' not in error_cols:
+            cur.execute("ALTER TABLE error_book ADD COLUMN images TEXT DEFAULT '[]'")
+            conn.commit()
+        if 'answer_images' not in error_cols:
+            cur.execute("ALTER TABLE error_book ADD COLUMN answer_images TEXT DEFAULT '[]'")
+            conn.commit()
+        if 'redo_images' not in error_cols:
+            cur.execute("ALTER TABLE error_book ADD COLUMN redo_images TEXT DEFAULT '[]'")
+            conn.commit()
+    except Exception as e:
+        print(f"Migration note for error_book columns: {e}")
     
     # Create practice_record table
     cur.execute('''
@@ -140,11 +162,22 @@ def init_db():
         analysis_steps TEXT,
         user_answer TEXT,
         in_error_book INTEGER DEFAULT 0,
+        practice_images TEXT DEFAULT '[]',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
     ''')
     conn.commit()
+    
+    # Migrate practice_record: add practice_images if missing
+    try:
+        cur.execute("PRAGMA table_info(practice_record)")
+        practice_cols = [c[1] for c in cur.fetchall()]
+        if 'practice_images' not in practice_cols:
+            cur.execute("ALTER TABLE practice_record ADD COLUMN practice_images TEXT DEFAULT '[]'")
+            conn.commit()
+    except Exception as e:
+        print(f"Migration note for practice_record.practice_images: {e}")
     
     # Create module_usage table for tracking module usage time
     cur.execute('''
@@ -481,6 +514,13 @@ def _row_to_error_dict(row):
             pass
         return []
     
+    # Safely get source_practice_id
+    source_practice_id = -1
+    if 'source_practice_id' in row.keys():
+        source_practice_id = row['source_practice_id']
+        if source_practice_id is None:
+            source_practice_id = -1
+        
     return {
         'id': row['id'],
         'user_id': row['user_id'],
@@ -498,6 +538,9 @@ def _row_to_error_dict(row):
         'reviewed': bool(row['reviewed']),
         'redo_answer': row['redo_answer'],
         'redo_time': row['redo_time'],
+        'source_practice_id': source_practice_id,
+        'redo_images': _parse_json_field(row['redo_images']) if 'redo_images' in row.keys() else [],
+        'answer_images':_parse_json_field(row['answer_images']) if 'answer_images' in row.keys() else [],
         'success': True
     }
 
@@ -510,10 +553,13 @@ def insert_error(error):
     tags = json.dumps(error.get('tags', []), ensure_ascii=False)
     analysis_steps = json.dumps(error.get('analysis_steps', []), ensure_ascii=False)
     images = json.dumps(error.get('images', []), ensure_ascii=False)  # 新增
+    source_practice_id = error.get('source_practice_id', -1)
+    redo_images = json.dumps(error.get('redo_images', []), ensure_ascii=False)
+    answer_images = json.dumps(error.get('answer_images', []), ensure_ascii=False)
 
     cur.execute('''
-        INSERT INTO error_book (user_id, subject, type, tags, question, user_answer, correct_answer, analysis_steps, images, created_at, updated_at, difficulty, reviewed)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO error_book (user_id, subject, type, tags, question, user_answer, correct_answer, analysis_steps, images, created_at, updated_at, difficulty, reviewed,source_practice_id, redo_images,answer_images)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)
     ''', (
         error.get('user_id', 1),
         error.get('subject', ''),
@@ -527,7 +573,10 @@ def insert_error(error):
         now,
         now,
         error.get('difficulty', 'medium'),
-        0
+        0,
+        source_practice_id,
+        redo_images,
+        answer_images
     ))
     conn.commit()
     new_id = cur.lastrowid
@@ -566,25 +615,35 @@ def update_error(error_id, error):
 
 
 def delete_error(error_id):
-    """Delete an error record by id and reset practice record flags."""
+    """Delete error and reset its source practice_record's in_error_book flag."""
     conn = get_conn()
     cur = conn.cursor()
-    
-    # Delete the error record
-    cur.execute('DELETE FROM error_book WHERE id=?', (error_id,))
-    changes = cur.rowcount
-    
-    # Reset in_error_book flag for all practice records that reference this error
-    # This ensures practice page buttons show as "available" again
-    cur.execute('''
-        UPDATE practice_record 
-        SET in_error_book = 0 
-        WHERE error_id = ?
-    ''', (error_id,))
-    
-    conn.commit()
+
+    # Step 1: Get source_practice_id
+    cur.execute('SELECT source_practice_id FROM error_book WHERE id = ?', (error_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return False
+
+    source_pid = row[0]
+    if source_pid is None:
+        source_pid = -1
+
+    # Step 2: Delete the error
+    cur.execute('DELETE FROM error_book WHERE id = ?', (error_id,))
+
+    # Step 3: If from practice_record, reset its flag IN THE SAME TRANSACTION
+    if source_pid != -1:
+        cur.execute('''
+            UPDATE practice_record 
+            SET in_error_book = 0 
+            WHERE id = ?
+        ''', (source_pid,))
+
+    conn.commit()  # 一次性提交：删错题 + 改练习状态
     conn.close()
-    return changes > 0
+    return True
 
 
 def get_error_by_id(error_id):
@@ -642,16 +701,28 @@ def count_errors(subject=None, user_id=None):
     return count
 
 
-def update_error_redo(error_id, redo_answer):
-    """Update error with redo answer."""
+def update_error_redo(error_id, redo_answer, redo_images=None):
+    """Update error with redo answer and optional redo images."""
     conn = get_conn()
     cur = conn.cursor()
     now = datetime.now().isoformat()
 
-    cur.execute('''
-        UPDATE error_book SET redo_answer=?, redo_time=?, updated_at=?
-        WHERE id=?
-    ''', (redo_answer, now, now, error_id))
+    if redo_images is not None:
+        # 如果传了 redo_images，就一起更新
+        redo_images_json = json.dumps(redo_images, ensure_ascii=False)
+        cur.execute('''
+            UPDATE error_book 
+            SET redo_answer=?, redo_time=?, redo_images=?, updated_at=?
+            WHERE id=?
+        ''', (redo_answer, now, redo_images_json, now, error_id))
+    else:
+        # 如果没传，只更新 answer 和 time（兼容旧调用）
+        cur.execute('''
+            UPDATE error_book 
+            SET redo_answer=?, redo_time=?, updated_at=?
+            WHERE id=?
+        ''', (redo_answer, now, now, error_id))
+
     conn.commit()
     changes = cur.rowcount
     conn.close()
@@ -716,6 +787,7 @@ def _row_to_practice_dict(row):
 
         'created_at': row['created_at'],
         'updated_at': row['updated_at'],
+        'practice_images': _parse_json_field(row['practice_images']) if 'practice_images' in row.keys() else [],
         'success': True
     }
 
@@ -727,13 +799,14 @@ def insert_practice(practice):
     now = datetime.now().isoformat()
     tags = json.dumps(practice.get('tags', []), ensure_ascii=False)
     analysis_steps = json.dumps(practice.get('analysis_steps', []), ensure_ascii=False)
+    practice_images = json.dumps(practice.get('practice_images', []), ensure_ascii=False)
 
     cur.execute('''
         INSERT INTO practice_record
         (user_id, error_id, subject, type, tags, difficulty,
-         question, user_answer, correct_answer, analysis_steps,
+         question, user_answer, correct_answer, analysis_steps,practice_images,
          created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
     ''', (
         practice.get('user_id', 1),
         practice.get('error_id'),
@@ -745,6 +818,7 @@ def insert_practice(practice):
         practice.get('user_answer', ''),
         practice.get('correct_answer', ''),
         analysis_steps,
+        practice_images,
         now,
         now
     ))
@@ -763,24 +837,24 @@ def update_practice(practice_id, practice):
     now = datetime.now().isoformat()
     tags = json.dumps(practice.get('tags', []), ensure_ascii=False)
     analysis_steps = json.dumps(practice.get('analysis_steps', []), ensure_ascii=False)
+    practice_images = json.dumps(practice.get('practice_images', []), ensure_ascii=False)  # ✅ 新增
 
     cur.execute('''
         UPDATE practice_record
         SET subject=?, type=?, tags=?, difficulty=?,
             question=?, user_answer=?, correct_answer=?, analysis_steps=?,
-            updated_at=?
+            practice_images=?, updated_at=?
         WHERE id=?
     ''', (
         practice.get('subject', ''),
         practice.get('type', ''),
         tags,
         practice.get('difficulty', 'medium'),
-
         practice.get('question_text', ''),
         practice.get('user_answer', ''),
         practice.get('correct_answer', ''),
         analysis_steps,
-
+        practice_images,  
         now,
         practice_id
     ))
@@ -879,7 +953,7 @@ def count_practice(subject=None, user_id=None):
     conn.close()
     return count
 
-def update_practice_user_answer(practice_id, user_answer):
+def update_practice_user_answer(practice_id, user_answer, practice_images=None):
     """
     更新 practice_record 表中用户作答（文字或图片路径）。
     保持风格与 insert_practice 类似。
@@ -889,15 +963,21 @@ def update_practice_user_answer(practice_id, user_answer):
 
     now = datetime.now().isoformat()
 
-    cur.execute('''
-        UPDATE practice_record
-        SET user_answer = ?, updated_at = ?
-        WHERE id = ?
-    ''', (
-        user_answer,
-        now,
-        practice_id
-    ))
+    if practice_images is not None:
+        # 同时更新 user_answer 和 practice_images
+        practice_images_json = json.dumps(practice_images, ensure_ascii=False)
+        cur.execute('''
+            UPDATE practice_record
+            SET user_answer = ?, practice_images = ?, updated_at = ?
+            WHERE id = ?
+        ''', (user_answer, practice_images_json, now, practice_id))
+    else:
+        # 仅更新 user_answer（兼容旧调用）
+        cur.execute('''
+            UPDATE practice_record
+            SET user_answer = ?, updated_at = ?
+            WHERE id = ?
+        ''', (user_answer, now, practice_id))
 
     conn.commit()
     conn.close()

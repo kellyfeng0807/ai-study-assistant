@@ -22,7 +22,9 @@ import numpy as np
 import db_sqlite
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from services.ai_service import ai_service
-
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # ===== 配置 =====
 error_bp = Blueprint('error_book', __name__, url_prefix='/api/error')
@@ -164,6 +166,7 @@ def fix_latex_for_frontend(text):
 
     text = re.sub(r'\$.*?\$', repl, text, flags=re.DOTALL)
     text = re.sub(r'\$\$.*?\$\$', repl, text, flags=re.DOTALL)
+
     return text
 
 
@@ -188,6 +191,11 @@ def upload_question():
     uploaded_file.save(orig_path)
 
     try:
+        # 获取原图的相对路径
+        orig_rel_path = os.path.relpath(orig_path, start=os.getcwd()).replace("\\", "/")
+        if not orig_rel_path.startswith("/"):
+            orig_rel_path = "/" + orig_rel_path
+
         # 裁剪图片
         cropped_results = crop_images_from_image(orig_path, output_dir=UPLOAD_FOLDER)
 
@@ -206,6 +214,9 @@ def upload_question():
             parsed['question_text'] = fix_latex_for_frontend(parsed['question_text'])
             parsed["correct_answer"] = fix_latex_for_frontend(parsed["correct_answer"])
             parsed['analysis_steps'] = [fix_latex_for_frontend(step) for step in parsed.get('analysis_steps', [])]
+
+            # 添加原图相对路径到 answer_images
+            parsed['answer_images'] = [orig_rel_path]
 
         # 保存到数据库，同时附加对应裁剪图相对路径
         saved_list = []
@@ -244,15 +255,6 @@ def upload_question():
             'success': False,
             'error': str(e)
         }), 500
-
-    finally:
-        # 无论成功或失败，都删除原始上传文件（保留裁剪后的图片）
-        try:
-            if os.path.exists(orig_path):
-                os.remove(orig_path)
-                print(f"Removed original upload in finally: {orig_path}")
-        except Exception as e:
-            print(f"Failed to remove original upload in finally: {e}")
 
 
 @error_bp.route('/list', methods=['GET'])
@@ -303,56 +305,64 @@ def delete_error_route(error_id):
 
 
 # ===== 路由：重做错题 =====
+# ===== 路由：重做错题 =====
 @error_bp.route('/redo', methods=['POST'])
 def redo_error():
     data = request.json
     error_id = data.get('id')
     redo_image = data.get("redo_answer", "")
-    
+
     if not error_id:
         return jsonify({'success': False, 'error': 'Missing id'}), 400
-    
+
     if not redo_image:
         return jsonify({"success": False, "error": "Missing image"}), 400
-    
-    # 保存临时图片（用完就删）
-    temp_path = os.path.join(UPLOAD_FOLDER, f"temp_{int(time.time()*1000)}.png")
+
+    # 保存用户上传的原图（这次要保留，不删！）
+    timestamp = int(time.time() * 1000)
+    filename = f"redo_{timestamp}.png"
+    saved_image_path = os.path.join(UPLOAD_FOLDER, filename)
 
     try:
         b64 = redo_image.split(",")[-1]
-        with open(temp_path, "wb") as f:
+        with open(saved_image_path, "wb") as f:
             f.write(base64.b64decode(b64))
     except Exception as e:
         return jsonify({"success": False, "error": f"Invalid image data: {str(e)}"}), 400
-        
+
     try:
-        
         error = db_sqlite.get_error_by_id(int(error_id))
         if not error:
             return jsonify({"success": False, "error": "Error record not found"}), 404
 
-       
         question_text = error.get("question_text", "")
         correct_answer = error.get("correct_answer", "")
         if not question_text.strip():
             return jsonify({"success": False, "error": "empty"}), 400
 
+        # ===== 不再裁剪！直接使用原图路径 =====
+        rel_path = os.path.relpath(saved_image_path, start=os.getcwd()).replace("\\", "/")
+        if not rel_path.startswith("/"):
+            rel_path = "/" + rel_path
+        redo_images_paths = [rel_path]  # 单图数组
 
-
-        # 使用 AI 服务判断重做答案
-        result = ai_service.judge_redo_answer_with_image(question_text, correct_answer, temp_path)
+        # 使用 AI 服务判断重做答案（传原图路径）
+        result = ai_service.judge_redo_answer_with_image(question_text, correct_answer, saved_image_path)
         new_answer = result['user_answer']
         is_correct = result['is_correct']
 
-        # 通过 db_sqlite 更新 redo 结果
-        success = db_sqlite.update_error_redo(int(error_id), new_answer)
+        # 更新数据库：存 new_answer + redo_images=[原图路径]
+        success = db_sqlite.update_error_redo(
+            int(error_id),
+            new_answer,
+            redo_images=redo_images_paths
+        )
 
         if not success:
             return jsonify({"success": False, "error": "Database update failed"}), 500
 
-        # 如果 AI 判断正确，标记 reviewed=1
         if is_correct:
-            db_sqlite.update_error_reviewed(int(error_id), 1)  
+            db_sqlite.update_error_reviewed(int(error_id), 1)
 
         return jsonify({
             "success": True,
@@ -364,16 +374,20 @@ def redo_error():
     except Exception as e:
         print("Redo failed:", e)
         traceback.print_exc()
+        # 出错时删除已保存的图（可选）
+        try:
+            if os.path.exists(saved_image_path):
+                os.remove(saved_image_path)
+        except OSError:
+            pass
         return jsonify({
             "success": False,
             "error": str(e)
         }), 500
 
-    finally:
-        try:
-            os.remove(temp_path)
-        except OSError:
-            pass
+    # 注意：成功时不删 saved_image_path！因为要留着给前端访问
+    # 所以 finally 里不再删除
+
 
 # ===== 路由：生成相似练习题 =====
 @error_bp.route('/practice/generate-similar', methods=['POST'])
@@ -497,7 +511,7 @@ def redo_text():
         ai_reason = "AI 判定失败，默认判错"
 
     # ===== 更新数据库 =====
-    db_sqlite.update_error_redo(error_id, user_answer)
+    db_sqlite.update_error_redo(error_id, user_answer, redo_images=[])
     if is_correct:
         db_sqlite.update_error_reviewed(error_id, 1)
 
@@ -563,6 +577,14 @@ def do_text_practice():
 
 
 # ===== 图片作答接口 =====
+from flask import request, jsonify
+import os
+import base64
+import time
+import traceback
+
+# 假设这是你的蓝图定义
+
 @error_bp.route('/practice/do_image', methods=['POST'])
 def do_image_practice():
     data = request.json
@@ -581,15 +603,24 @@ def do_image_practice():
         question_text = practice.get("question_text", "").strip()
         correct_answer = practice.get("correct_answer", "")
 
-        # 保存临时图片（用完就删）
-        temp_path = os.path.join(UPLOAD_FOLDER, f"temp_{int(time.time()*1000)}.png")
+        # 使用与redo_error相同的命名策略生成唯一的图片名
+        timestamp = int(time.time() * 1000)
+        filename = f"redo_{timestamp}.png"
+        saved_image_path = os.path.join(UPLOAD_FOLDER, filename)
+
+        # 解码并保存用户作答图片
         b64 = redo_image.split(",")[-1]
-        with open(temp_path, "wb") as f:
+        with open(saved_image_path, "wb") as f:
             f.write(base64.b64decode(b64))
 
-        # ===== AI 判定 =====
+        # 获取相对路径
+        rel_path = os.path.relpath(saved_image_path, start=os.getcwd()).replace("\\", "/")
+        if not rel_path.startswith("/"):
+            rel_path = "/" + rel_path
+
+        # AI判定逻辑
         try:
-            result = ai_service.judge_practice_answer_with_image(question_text, correct_answer, temp_path)
+            result = ai_service.judge_practice_answer_with_image(question_text, correct_answer, saved_image_path)
             new_answer = result['user_answer']
             is_correct = result['is_correct']
         except Exception as e:
@@ -597,8 +628,9 @@ def do_image_practice():
             new_answer = ""
             is_correct = False
 
-        # ===== 更新数据库，只保存用户作答 =====
-        db_sqlite.update_practice_user_answer(practice_id, new_answer or temp_path)
+        # 更新数据库，保存用户作答和图片路径
+        practice_images = [rel_path]  # 假设仅保存一个图片路径
+        db_sqlite.update_practice_user_answer(practice_id, new_answer, practice_images)
 
         return jsonify({
             "success": True,
@@ -613,11 +645,7 @@ def do_image_practice():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
-    finally:
-        try:
-            os.remove(temp_path)
-        except OSError:
-            pass
+    # 注意：这里没有删除图片的逻辑，因为现在我们使用的是"redo_"前缀，并且可能需要保留这些图片
 
 
 
@@ -652,8 +680,9 @@ def favorite_practice():
             "user_answer": practice.get("user_answer", ""),
             "correct_answer": practice.get("correct_answer", ""),
             "analysis_steps": practice.get("analysis_steps") or [],
-            "images": [],          # 可以根据需求传 practice 的图片
-            "difficulty": practice.get("difficulty", "medium")
+            "answer_images": practice.get("practice_images") or [],          # 可以根据需求传 practice 的图片
+            "difficulty": practice.get("difficulty", "medium"),
+            "source_practice_id": practice_id
         }
 
         # 插入 error_book

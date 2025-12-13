@@ -396,9 +396,8 @@ class ErrorBookManager {
         
         errorCards.sort((a, b) => {
             if (sortBy === 'date') {
-                const dateA = new Date(a.querySelector('.error-date').textContent);
-                const dateB = new Date(b.querySelector('.error-date').textContent);
-                return dateB - dateA;
+                // 用 errorId 排倒序
+                return parseInt(b.dataset.errorId) - parseInt(a.dataset.errorId);
             } else if (sortBy === 'subject') {
                 const subjectA = a.querySelector('.error-subject').textContent;
                 const subjectB = b.querySelector('.error-subject').textContent;

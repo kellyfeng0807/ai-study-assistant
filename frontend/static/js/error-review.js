@@ -142,18 +142,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // --- 原图展示（answer_images）---
+const originalImageSection = document.getElementById('originalImageSection');
+const originalImageContainer = document.getElementById('originalImageContainer');
+
+if (originalImageSection && originalImageContainer) {
+    if (Array.isArray(card.answer_images) && card.answer_images.length > 0) {
+        const imageHtmls = card.answer_images.map(path =>
+    `<img src="${path}" alt="Original image" style="max-width: 300px; max-height: 300px; width: auto; height: auto; margin-top: 8px; display: block;">`
+).join('');
+        originalImageContainer.innerHTML = imageHtmls;
+        originalImageSection.style.display = 'block';
+    } else {
+        originalImageSection.style.display = 'none';
+    }
+}
+
     /* ---------------------- 上次重做信息（redo_answer + redo_time） ---------------------- */
-    function updateRedoSection(cardData) {
-        const redoSection = document.getElementById('lastRedoSection');
-        const redoTimeDisplay = document.getElementById('redoTimeDisplay');
-        const lastRedoAnswerEl = document.getElementById('lastRedoAnswer');
 
-        if (redoSection && redoTimeDisplay && lastRedoAnswerEl) {
-            if (cardData.redo_answer != null && cardData.redo_answer.trim() !== '' && cardData.redo_time) {
-                // 显示重做板块
-                redoSection.style.display = 'block';
+    /* ---------------------- 上次重做信息（redo_answer + redo_time） ---------------------- */
+function updateRedoSection(cardData) {
+    const redoSection = document.getElementById('lastRedoSection');
+    const redoTimeDisplay = document.getElementById('redoTimeDisplay');
+    const lastRedoAnswerEl = document.getElementById('lastRedoAnswer');
 
-                // 格式化时间
+    if (redoSection && redoTimeDisplay && lastRedoAnswerEl) {
+        // 判断是否有 redo_answer（非空字符串）
+        //const hasRedoAnswer = cardData.redo_answer != null && cardData.redo_answer.trim() !== '';
+        const hasRedoAnswer = cardData.redo_answer != null && cardData.redo_answer.trim() !== '';
+        const hasRedoImages = Array.isArray(cardData.redo_images) && cardData.redo_images.length > 0;
+        const hasRedoContent = hasRedoAnswer || hasRedoImages;
+        if (hasRedoContent) {
+            // 显示重做板块
+            redoSection.style.display = 'block';
+
+            // 格式化时间（即使没有 redo_time 也显示答案）
+            if (cardData.redo_time) {
                 const redoDate = new Date(cardData.redo_time);
                 redoTimeDisplay.textContent = redoDate.toLocaleString('zh-CN', {
                     year: 'numeric',
@@ -163,17 +187,60 @@ document.addEventListener('DOMContentLoaded', async () => {
                     minute: '2-digit',
                     hour12: false
                 });
-
-                // 渲染答案（支持 LaTeX）
-                const cleaned = cleanLatexForMathJax(cardData.redo_answer.trim());
-                lastRedoAnswerEl.innerHTML = cleaned;
-                safeRenderMath(lastRedoAnswerEl);
+                redoTimeDisplay.style.display = 'inline'; // 确保时间可见
             } else {
-                // 隐藏板块
-                redoSection.style.display = 'none';
+                redoTimeDisplay.style.display = 'none'; // 没时间就不显示
             }
+
+            // ===== 渲染 redo_answer =====
+            // ===== 渲染 redo_answer =====
+let answerHtml = '';
+const redoAnswer = cardData.redo_answer;
+
+if (typeof redoAnswer === 'string' && redoAnswer.startsWith('data:image/')) {
+    answerHtml = `<img src="${redoAnswer}" style="max-width: 100%; display: block;">`;
+} else if (redoAnswer) {
+    // 是字符串但不是 data URL，当作 LaTeX/文本处理
+    const cleaned = cleanLatexForMathJax(redoAnswer.trim());
+    answerHtml = cleaned.replace(/\n/g, '<br>');
+} else {
+    // redo_answer 为 null、undefined、空字符串等，不渲染任何内容
+    answerHtml = ''; // 或者显示占位提示，如 '<em>未作答</em>'
+}
+
+            // ===== 检查并追加 redo_images（裁剪图） =====
+if (cardData.redo_images && Array.isArray(cardData.redo_images) && cardData.redo_images.length > 0) {
+    const imageHtmls = cardData.redo_images.map(path => {
+        // 确保路径不是 null 或 undefined
+        if (typeof path === 'string') {
+            return `<img src="${path}" alt="Redo crop" style="max-width: 100%; margin-top: 8px; display: block;">`;
+        } else {
+            console.warn("Invalid image path:", path);
+            return ''; // 或者返回一个默认的占位符
+        }
+    }).filter(html => html !== ''); // 过滤掉无效的 HTML
+
+    answerHtml += imageHtmls.join('');
+} else {
+    // 可选：如果没有任何图片，可以在这里添加一些提示信息
+    answerHtml += '<div class="text-muted">无相关图片</div>';
+}
+
+            // 设置最终 HTML
+            lastRedoAnswerEl.innerHTML = answerHtml;
+
+            // 如果是 LaTeX 内容（非图片），才需要渲染 MathJax
+            // 假设 updateRedoSection 函数中包含如下代码段
+if (cardData.redo_answer && typeof cardData.redo_answer === 'string' && !cardData.redo_answer.startsWith('data:image/')) {
+    safeRenderMath(lastRedoAnswerEl);
+}
+        } else {
+            // 隐藏整个重做板块
+            redoSection.style.display = 'none';
         }
     }
+}
+
 
     // 初始加载
     updateRedoSection(card);
@@ -328,6 +395,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         redoResultEl.textContent = 'Incorrect ';
                         redoResultEl.className = 'redo-result err';
                     }
+
 
                     // 自动刷新 redo 区域
                     try {
