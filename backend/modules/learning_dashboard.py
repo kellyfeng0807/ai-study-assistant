@@ -19,53 +19,92 @@ dashboard_bp = Blueprint('learning_dashboard', __name__, url_prefix='/api/dashbo
 # 艾宾浩斯遗忘曲线复习时间点（天）
 EBBINGHAUS_INTERVALS = [1, 2, 4, 7, 15]
 
-# 科目颜色映射 - 增强颜色多样性
-SUBJECT_COLORS = {
-    'Mathematics': 'hsl(221, 83%, 53%)',      # 蓝色
-    '数学': 'hsl(221, 83%, 53%)',
-    'Physics': 'hsl(142, 76%, 36%)',          # 绿色
-    '物理': 'hsl(142, 76%, 36%)',
-    'English': 'hsl(262, 83%, 58%)',          # 紫色
-    '英语': 'hsl(262, 83%, 58%)',
-    'History': 'hsl(45, 93%, 47%)',           # 黄色
-    '历史': 'hsl(45, 93%, 47%)',
-    'Chemistry': 'hsl(0, 84%, 60%)',          # 红色
-    '化学': 'hsl(0, 84%, 60%)',
-    'Biology': 'hsl(160, 70%, 45%)',          # 青绿色
-    '生物': 'hsl(160, 70%, 45%)',
-    'Geography': 'hsl(200, 80%, 50%)',        # 天蓝色
-    '地理': 'hsl(200, 80%, 50%)',
-    'Computer Science': 'hsl(280, 75%, 55%)', # 深紫色
-    '计算机': 'hsl(280, 75%, 55%)',
-    'Literature': 'hsl(340, 82%, 52%)',       # 粉红色
-    '语文': 'hsl(340, 82%, 52%)',
-    'Politics': 'hsl(15, 86%, 53%)',          # 橙色
-    '政治': 'hsl(15, 86%, 53%)',
-    'General': 'hsl(240, 60%, 65%)',          # 淡紫蓝
-    '通用': 'hsl(240, 60%, 65%)',
+# 丰富的颜色调色板（用于所有科目）
+COLOR_PALETTE = [
+    'hsl(221, 83%, 53%)',   # 蓝色
+    'hsl(0, 84%, 60%)',     # 红色
+    'hsl(142, 76%, 36%)',   # 绿色
+    'hsl(45, 93%, 47%)',    # 黄色
+    'hsl(262, 83%, 58%)',   # 紫色
+    'hsl(200, 80%, 50%)',   # 天蓝色
+    'hsl(15, 86%, 53%)',    # 橙色
+    'hsl(340, 82%, 52%)',   # 粉红色
+    'hsl(160, 70%, 45%)',   # 青绿色
+    'hsl(280, 75%, 55%)',   # 深紫色
+    'hsl(190, 90%, 40%)',   # 青色
+    'hsl(330, 80%, 50%)',   # 玫红色
+    'hsl(120, 70%, 40%)',   # 草绿色
+    'hsl(35, 85%, 55%)',    # 金橙色
+    'hsl(270, 70%, 60%)',   # 薰衣草紫
+]
+
+# 中英文科目映射（标准化）
+SUBJECT_NAME_MAP = {
+    '数学': 'Mathematics',
+    '物理': 'Physics',
+    '化学': 'Chemistry',
+    '生物': 'Biology',
+    '英语': 'English',
+    '语文': 'Literature',
+    '历史': 'History',
+    '地理': 'Geography',
+    '政治': 'Politics',
+    '计算机': 'Computer Science',
+    '通用': 'General',
 }
 
-# 备用颜色调色板（用于未定义科目）
-FALLBACK_COLORS = [
-    'hsl(221, 83%, 53%)',  # 蓝
-    'hsl(0, 84%, 60%)',    # 红
-    'hsl(142, 76%, 36%)',  # 绿
-    'hsl(45, 93%, 47%)',   # 黄
-    'hsl(262, 83%, 58%)',  # 紫
-    'hsl(200, 80%, 50%)',  # 天蓝
-    'hsl(15, 86%, 53%)',   # 橙
-    'hsl(340, 82%, 52%)',  # 粉红
-    'hsl(160, 70%, 45%)',  # 青绿
-    'hsl(280, 75%, 55%)',  # 深紫
-]
+def normalize_subject_name(subject):
+    """标准化科目名称（中文转英文）"""
+    if not subject:
+        return 'General'
+    return SUBJECT_NAME_MAP.get(subject, subject)
 
 def get_subject_color(subject):
     """获取科目对应的颜色，使用hash确保相同科目总是相同颜色"""
-    if subject in SUBJECT_COLORS:
-        return SUBJECT_COLORS[subject]
-    # 使用hash选择备用颜色
-    color_index = hash(subject) % len(FALLBACK_COLORS)
-    return FALLBACK_COLORS[color_index]
+    if not subject:
+        subject = 'General'
+    # 标准化科目名称
+    normalized = normalize_subject_name(subject)
+    # 使用hash选择颜色（确保相同科目总是相同颜色）
+    color_index = abs(hash(normalized)) % len(COLOR_PALETTE)
+    return COLOR_PALETTE[color_index]
+
+def get_hue_from_hsl(hsl_color):
+    """从HSL颜色字符串提取色相值"""
+    import re
+    match = re.match(r'hsl\((\d+),', hsl_color)
+    return int(match.group(1)) if match else 0
+
+def sort_subjects_by_color_contrast(subjects):
+    """对科目按颜色差异排序，避免相近颜色相邻"""
+    if len(subjects) <= 1:
+        return subjects
+    
+    # 获取每个科目的色相值
+    subjects_with_hue = [(s, get_hue_from_hsl(s['color'])) for s in subjects]
+    
+    # 使用贪心算法：每次选择与当前颜色差异最大的
+    sorted_subjects = [subjects_with_hue[0][0]]  # 从第一个开始
+    remaining = subjects_with_hue[1:]
+    current_hue = subjects_with_hue[0][1]
+    
+    while remaining:
+        # 找到与当前色相差异最大的科目
+        max_diff = -1
+        max_index = 0
+        for i, (subj, hue) in enumerate(remaining):
+            # 计算色相环上的最小距离
+            diff = min(abs(hue - current_hue), 360 - abs(hue - current_hue))
+            if diff > max_diff:
+                max_diff = diff
+                max_index = i
+        
+        # 添加差异最大的科目
+        next_subject, next_hue = remaining.pop(max_index)
+        sorted_subjects.append(next_subject)
+        current_hue = next_hue
+    
+    return sorted_subjects
 
 
 # ============ API端点 ============
@@ -340,6 +379,9 @@ def get_subjects():
             {'name': 'English', 'percentage': 22, 'time_spent': 280, 'mastery_level': 82, 'color': get_subject_color('English')},
             {'name': 'History', 'percentage': 15, 'time_spent': 180, 'mastery_level': 71, 'color': get_subject_color('History')}
         ]
+    
+    # 按颜色对比度排序，避免相邻颜色相近
+    subjects = sort_subjects_by_color_contrast(subjects)
     
     return jsonify({
         'success': True,

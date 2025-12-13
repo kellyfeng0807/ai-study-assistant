@@ -121,20 +121,18 @@
                             <i class="fas fa-clock"></i>
                         </div>
                         <div class="metric-info">
-                            <div class="metric-value" id="totalStudyTime">0 min</div>
+                            <div class="metric-value"></div>
                             <div class="metric-label">Study Time</div>
-                            <div class="metric-progress" id="goalProgress" style="display: none; margin-top: 8px; width: 100%;">
-                                <div style="font-size: 0.75em; margin-bottom: 2px; color: var(--muted-foreground);">
-                                    <span id="goalValue">0 / 0 min</span>
-                                </div>
-                                <div style="background: hsl(var(--muted) / 0.3); height: 4px; border-radius: 2px; overflow: hidden;">
-                                    <div id="goalBar" style="background: hsl(142.1, 76.2%, 36.3%); height: 100%; width: 0%; transition: width 0.3s, background 0.3s;"></div>
-                                </div>
-                            </div>
                         </div>
-                        <div class="metric-trend positive">
-                            <i class="fas fa-arrow-up"></i>
-                            <span id="studyTimeTrend">0%</span>
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                            <div class="metric-trend" id="studyTimeTrendContainer">
+                                <i class="fas fa-arrow-up"></i>
+                                <span id="studyTimeTrend"></span>
+                            </div>
+                            <div class="metric-trend" id="studyTimeGoalContainer" style="font-size: 0.75em;">
+                                <i class="fas fa-arrow-up"></i>
+                                <span id="studyTimeGoalPercent"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -143,12 +141,12 @@
                             <i class="fas fa-file-alt"></i>
                         </div>
                         <div class="metric-info">
-                            <div class="metric-value" id="notesCount">0</div>
+                            <div class="metric-value"></div>
                             <div class="metric-label">Notes Created</div>
                         </div>
-                        <div class="metric-trend positive">
+                        <div class="metric-trend">
                             <i class="fas fa-arrow-up"></i>
-                            <span id="notesTrend">0%</span>
+                            <span></span>
                         </div>
                     </div>
 
@@ -157,12 +155,12 @@
                             <i class="fas fa-tasks"></i>
                         </div>
                         <div class="metric-info">
-                            <div class="metric-value" id="accuracyRate">0%</div>
+                            <div class="metric-value"></div>
                             <div class="metric-label">Accuracy Rate</div>
                         </div>
-                        <div class="metric-trend positive">
+                        <div class="metric-trend">
                             <i class="fas fa-arrow-up"></i>
-                            <span id="accuracyTrend">0%</span>
+                            <span></span>
                         </div>
                     </div>
 
@@ -171,12 +169,12 @@
                             <i class="fas fa-fire"></i>
                         </div>
                         <div class="metric-info">
-                            <div class="metric-value" id="dayStreak">0</div>
+                            <div class="metric-value"></div>
                             <div class="metric-label">Day Streak</div>
                         </div>
-                        <div class="metric-trend positive">
+                        <div class="metric-trend">
                             <i class="fas fa-arrow-up"></i>
-                            <span id="streakTrend">0</span>
+                            <span></span>
                         </div>
                     </div>
                 </div>

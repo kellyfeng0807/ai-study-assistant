@@ -56,7 +56,14 @@ class LearningDashboard {
                 this.fetchData('/today-modules')
             ]);
 
-            // 更新UI
+            // 更新UI - 先设置goal_stats再更新metrics
+            if (analysis.success) {
+                this.renderAnalysis(analysis);
+                // Store goal stats for metric card
+                if (analysis.goal_stats) {
+                    this.currentGoalStats = analysis.goal_stats;
+                }
+            }
             if (stats.success) this.updateMetrics(stats.stats);
             if (subjects.success) {
                 this.renderSubjectPieChart(subjects.subjects);
@@ -64,14 +71,6 @@ class LearningDashboard {
             }
             if (chartData.success) this.renderTimeChart(chartData.chartData);
             if (reviewData.success) this.renderReviewStats(reviewData.chartData);
-            if (analysis.success) {
-                this.renderAnalysis(analysis);
-                // Store goal stats for metric card
-                if (analysis.goal_stats) {
-                    this.currentGoalStats = analysis.goal_stats;
-                    this.updateGoalProgress(analysis.goal_stats);
-                }
-            }
             if (schedule.success) this.renderSchedule(schedule.schedule);
             if (heatmap.success) this.renderHeatmap(heatmap.heatmap, heatmap.stats);
             if (aiSuggestions.success) this.renderAISuggestions(aiSuggestions);
@@ -105,18 +104,59 @@ class LearningDashboard {
         if (metricCards.length >= 4) {
             // Study Time with Goal Progress (in minutes)
             const studyTimeValue = metricCards[0].querySelector('.metric-value');
-            const studyTimeTrend = metricCards[0].querySelector('.metric-trend');
-            if (studyTimeValue) {
-                const totalMinutes = stats.study_time.total_minutes || Math.round(stats.study_time.total_hours * 60);
-                studyTimeValue.textContent = `${totalMinutes} min`;
-            }
-            if (studyTimeTrend) {
-                this.updateTrendElement(studyTimeTrend, stats.study_time.trend, stats.study_time.trend_value, true);
+            const studyTimeTrendContainer = document.getElementById('studyTimeTrendContainer');
+            const studyTimeTrendSpan = document.getElementById('studyTimeTrend');
+            const studyTimeGoalContainer = document.getElementById('studyTimeGoalContainer');
+            const studyTimeGoalSpan = document.getElementById('studyTimeGoalPercent');
+            
+            const totalMinutes = stats.study_time.total_minutes || Math.round(stats.study_time.total_hours * 60);
+            
+            // Update study time value
+            if (this.currentGoalStats) {
+                const dailyGoal = this.currentGoalStats.daily_goal;
+                if (studyTimeValue) {
+                    studyTimeValue.innerHTML = `${totalMinutes} min / <br> ${dailyGoal} min`;
+                }
+                
+                // Goal progress with trend component style
+                if (studyTimeGoalContainer && studyTimeGoalSpan) {
+                    const percentage = Math.round((totalMinutes / dailyGoal) * 100);
+                    const goalIcon = studyTimeGoalContainer.querySelector('i');
+                    const isPositive = percentage >= 100;
+                    
+                    // Update icon and text
+                    if (goalIcon) {
+                        goalIcon.className = isPositive ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+                    }
+                    studyTimeGoalSpan.textContent = `${percentage}%`;
+                    
+                    // Use trend color logic
+                    studyTimeGoalContainer.className = isPositive ? 'metric-trend positive' : 'metric-trend negative';
+                    studyTimeGoalContainer.style.fontSize = '0.75em';
+                }
+            } else {
+                if (studyTimeValue) {
+                    studyTimeValue.textContent = `${totalMinutes} min`;
+                }
+                if (studyTimeGoalSpan) {
+                    studyTimeGoalSpan.textContent = '';
+                }
             }
             
-            // Update goal progress if goal_stats exists
-            if (this.currentGoalStats) {
-                this.updateGoalProgress(this.currentGoalStats, stats.study_time.total_minutes);
+            // Trend display (vs yesterday)
+            if (studyTimeTrendContainer && studyTimeTrendSpan) {
+                const trendIcon = studyTimeTrendContainer.querySelector('i');
+                const trendValue = stats.study_time.trend_value || 0;
+                const isPositive = stats.study_time.trend === 'up';
+                
+                // Update icon and text
+                if (trendIcon) {
+                    trendIcon.className = isPositive ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+                }
+                studyTimeTrendSpan.textContent = `${Math.abs(trendValue)}%`;
+                
+                // Use trend color logic
+                studyTimeTrendContainer.className = isPositive ? 'metric-trend positive' : 'metric-trend negative';
             }
 
             // Notes Created
@@ -164,36 +204,6 @@ class LearningDashboard {
         `;
     }
     
-    updateGoalProgress(goalStats, currentMinutes) {
-        const goalProgress = document.getElementById('goalProgress');
-        const goalValue = document.getElementById('goalValue');
-        const goalBar = document.getElementById('goalBar');
-        
-        if (!goalProgress || !goalStats) return;
-        
-        const todayMinutes = currentMinutes || Math.round(goalStats.week_minutes / 7);
-        const dailyGoal = goalStats.daily_goal;
-        const percentage = Math.min(100, Math.round((todayMinutes / dailyGoal) * 100));
-        
-        // Show the progress section
-        goalProgress.style.display = 'block';
-        
-        // Update goal value: "Current / Goal min (percentage%)"
-        goalValue.innerHTML = `Goal: <strong>${todayMinutes} / ${dailyGoal} min</strong> (${percentage}%)`;
-        
-        // Update progress bar
-        goalBar.style.width = `${percentage}%`;
-        
-        // Change color based on progress
-        if (percentage >= 100) {
-            goalBar.style.background = 'hsl(142.1, 76.2%, 36.3%)'; // green
-        } else if (percentage >= 70) {
-            goalBar.style.background = 'hsl(45, 93%, 47%)'; // yellow
-        } else {
-            goalBar.style.background = 'hsl(0, 84.2%, 60.2%)'; // red
-        }
-    }
-
     // ============ 渲染图表 ============
 
     renderTimeChart(chartData) {
