@@ -10,9 +10,10 @@
   <link rel="stylesheet" href="/static/css/main.css">
   <link rel="stylesheet" href="/static/css/error-book.css">
   <link rel="stylesheet" href="/static/css/error-practice.css">
+  <link rel="stylesheet" href="static/css/auth.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <!-- MathJax 配置：启用 $...$ -->
+  <!-- MathJax 配置：优化渲染速度 -->
   <script>
     window.MathJax = {
       tex: {
@@ -21,14 +22,28 @@
         processEscapes: true,
         processEnvironments: true
       },
+      startup: {
+        typeset: false,  // 禁止自动渲染
+        pageReady: () => {
+          return MathJax.startup.defaultPageReady();
+        }
+      },
       options: {
         ignoreHtmlClass: 'tex2jax_ignore',
-        processHtmlClass: 'tex2jax_process'
+        processHtmlClass: 'tex2jax_process',
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      },
+      chtml: {
+        scale: 1,
+        minScale: 0.5,
+        matchFontHeight: false,
+        mtextInheritFont: true
       }
     };
   </script>
+  <!-- 使用更快的 jsdelivr CDN 和更轻量的 tex-chtml -->
   <script id="MathJax-script" async
-    src="https://cdn.bootcdn.net/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js">
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js">
   </script>
 </head>
 <body>
@@ -47,7 +62,7 @@
           <i class="fas fa-file-text"></i>
           <span>Note Assistant</span>
         </a>
-        <a href="/error-book" class="nav-item">
+        <a href="/error-book" class="nav-item active">
           <i class="fas fa-book-open"></i>
           <span>Error Book</span>
         </a>
@@ -73,8 +88,8 @@
         <div class="user-profile">
           <div class="avatar">S</div>
           <div class="user-info">
-            <div class="user-name">Student</div>
-            <div class="user-email">student@example.com</div>
+            <div class="user-name"></div>
+            <div class="user-email"></div>
           </div>
         </div>
       </div>
@@ -84,7 +99,7 @@
     <main class="main-content">
       <header class="content-header">
         <div class="header-left">
-          <h2 class="page-title">Similar Practice Questions</h2>
+          <h2 class="page-title">Practice Questions</h2>
           <p class="page-subtitle">Generated based on your error</p>
         </div>
         <div class="header-right">
@@ -117,11 +132,9 @@
   </div>
 
   <!-- 全局 JS（确保 sidebar toggle 等功能正常） -->
-  <!-- MathJax 3.x -->
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-
   <script src="/static/js/main.js"></script>
   <script src="/static/js/message-modal.js"></script>
+  <script src="/static/js/module-tracker.js"></script>
   <script src="/static/js/notifications.js"></script>
   <script src="/static/js/error-practice.js"></script>
 </body>

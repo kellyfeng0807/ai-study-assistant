@@ -11,10 +11,10 @@
     <link rel="stylesheet" href="/static/css/error-book.css">
     <!--  补上 review 专用样式 -->
     <link rel="stylesheet" href="/static/css/error-review.css">
+    <link rel="stylesheet" href="static/css/auth.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- MathJax 配置：启用 $...$ -->
-    <!-- 推荐配置：支持动态渲染 + $...$ -->
+    <!-- MathJax 配置：优化渲染速度 -->
     <script>
         window.MathJax = {
             tex: {
@@ -24,26 +24,40 @@
                 processEnvironments: true
             },
             startup: {
-                typeset: false  // 禁止自动渲染，以便手动调用 typesetPromise
+                typeset: false,  // 禁止自动渲染
+                pageReady: () => {
+                    return MathJax.startup.defaultPageReady();
+                }
             },
             options: {
                 ignoreHtmlClass: 'tex2jax_ignore',
-                processHtmlClass: 'tex2jax_process'
+                processHtmlClass: 'tex2jax_process',
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                renderActions: {
+                    findScript: [10, (doc) => {
+                        for (const node of document.querySelectorAll('script[type^="math/tex"]')) {
+                            const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], false);
+                            const text = document.createTextNode('');
+                            node.parentNode.replaceChild(text, node);
+                            math.start = {node: text, delim: '', n: 0};
+                            math.end = {node: text, delim: '', n: 0};
+                            doc.math.push(math);
+                        }
+                    }, '']
+                }
+            },
+            chtml: {
+                scale: 1,
+                minScale: 0.5,
+                matchFontHeight: false,
+                mtextInheritFont: true
             }
         };
     </script>
-    <script>
-window.MathJax = {
-    tex: {
-        inlineMath: [['$', '$'], ['\\(', '\\)']]
-    },
-    svg: {
-        fontCache: 'global'
-    }
-};
-</script>
-<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
-
+    <!-- 使用更快的 jsdelivr CDN -->
+    <script id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js">
+    </script>
 
 </head>
 <body>
@@ -86,8 +100,8 @@ window.MathJax = {
                 <div class="user-profile">
                     <div class="avatar">S</div>
                     <div class="user-info">
-                        <div class="user-name">Student</div>
-                        <div class="user-email">student@example.com</div>
+                        <div class="user-name"></div>
+                        <div class="user-email"></div>
                     </div>
                 </div>
             </div>
@@ -133,6 +147,11 @@ window.MathJax = {
                                         <div class="answer-content tex2jax_process" id="userAnswer"></div>
                                     </div>
 
+                                    <div class="review-section" id="originalImageSection" style="display:none; margin-top:10px;">
+                                        <h5>Original Image:</h5>
+                                        <div id="originalImageContainer"></div>
+                                    </div>
+
                                     <div class="review-section">
                                         <h5>Correct Answer:</h5>
                                         <div class="answer-content tex2jax_process" id="theAnswer"></div>
@@ -142,12 +161,19 @@ window.MathJax = {
                                         <h5>Step-by-step Analysis:</h5>
                                         <div class="analysis-content tex2jax_process" id="analysisContent"></div>
                                     </div>
-                                    <!-- ✅ 新增：上次错题记录（与用户答案等一起折叠） -->
-                                    <!-- 改为：Last Redo Attempt -->
-<div class="review-section" id="lastRedoSection" style="display:none;">
-    <h5><i class="fas fa-redo"></i> Your Last Redo (<span id="redoTimeDisplay">—</span>)</h5>
-    <div class="answer-content tex2jax_process" id="lastRedoAnswer">—</div>
-</div>
+
+
+
+                                    <div class="review-section" id="lastRedoSection" style="display:none;">
+                                        <h5>
+                                            <button class="icon-button-small" id="refreshBtn" title="Refresh" style="margin-right: 8px; vertical-align: middle;">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </button>
+                                            Your Last Redo (<span id="redoTimeDisplay">—</span>)
+                                        </h5>
+                                        <div class="answer-content tex2jax_process" id="lastRedoAnswer">—</div>
+                                    </div>
+
                                 </div>
                             </div>
                             <div class="error-footer">
@@ -192,37 +218,34 @@ window.MathJax = {
                                 <div id="redoResult" class="redo-result" role="status"></div>
                             </div>
 
-
-
                             <div class="error-footer" style="margin-top:8px;">
                                 <small style="color:var(--text-muted)">Hint: If a question is judged as correct, it will be marked as mastered.</small>
                             </div>
                         </div>
-                        <!-- Text Answer Section -->
-<div class="error-card redo-card" id="textRedoCard">
-    <div class="error-content">
-        <h4 class="error-title">Type Your Answer</h4>
 
-        <textarea id="textAnswer"
-                  placeholder="Type your answer here..."
-                  rows="5"
-                  style="width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;resize:vertical;"></textarea>
+                        <div class="error-card redo-card" id="textRedoCard">
+                            <div class="error-content">
+                                <h4 class="error-title">Type Your Answer</h4>
 
-        <div style="margin-top:14px;display:flex;gap:12px;">
-            <button id="textRedoBtn" class="redo-btn">Submit Text Answer</button>
-            <button id="textRedoClearBtn" class="redo-clear-btn" type="button">Clear</button>
-        </div>
+                                <textarea id="textAnswer"
+                                        class="context-textarea"
+                                        placeholder="Type your answer here..."
+                                        rows="5"></textarea>
 
-        <div id="textRedoResult" class="redo-result" role="status"></div>
-    </div>
+                                <div style="margin-top:14px;display:flex;gap:12px;">
+                                    <button id="textRedoBtn" class="redo-btn">Submit Text Answer</button>
+                                    <button id="textRedoClearBtn" class="redo-clear-btn" type="button">Clear</button>
+                                </div>
 
-    <div class="error-footer" style="margin-top:8px;">
-        <small style="color:var(--text-muted)">
-            You can submit text answer directly if this is not an image question.
-        </small>
-    </div>
-</div>
+                                <div id="textRedoResult" class="redo-result" role="status"></div>
+                            </div>
 
+                            <div class="error-footer" style="margin-top:8px;">
+                                <small style="color:var(--text-muted)">
+                                    You can submit text answer directly if this is not an image question.
+                                </small>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -232,6 +255,7 @@ window.MathJax = {
     <!-- JS -->
     <script src="/static/js/main.js"></script>
     <script src="/static/js/message-modal.js"></script>
+    <script src="/static/js/module-tracker.js"></script>
     <script src="/static/js/notifications.js"></script>
     <script src="/static/js/error-review.js"></script>
 </body>

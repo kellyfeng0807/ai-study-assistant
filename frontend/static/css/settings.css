@@ -50,6 +50,18 @@
     margin: 0;
 }
 
+.setting-value {
+    min-width: 200px;
+}
+
+.display-text {
+    display: block;
+    font-size: 14px;
+    color: hsl(var(--foreground));
+    font-weight: 500;
+    padding: 10px 0;
+}
+
 .setting-input,
 .setting-select {
     min-width: 200px;

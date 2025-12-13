@@ -1,5 +1,43 @@
 // error-practice.js
 
+// 优化的 MathJax 渲染：批量渲染和防抖
+let renderQueue = [];
+let renderTimeout = null;
+
+// Check for practice button reset flag when returning to page
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden) {
+    const errorIdToReset = sessionStorage.getItem('resetPracticeButton');
+    if (errorIdToReset) {
+      console.log('Detected deleted error, reloading practice page data');
+      sessionStorage.removeItem('resetPracticeButton');
+      
+      // Reload the page to get fresh data from database
+      // This ensures in_error_book flags are up-to-date
+      window.location.reload();
+    }
+  }
+});
+
+function queueMathRender(element) {
+  if (!window.MathJax || !window.MathJax.typesetPromise) {
+    return;
+  }
+  
+  if (element && !renderQueue.includes(element)) {
+    renderQueue.push(element);
+  }
+  
+  clearTimeout(renderTimeout);
+  renderTimeout = setTimeout(() => {
+    if (renderQueue.length > 0) {
+      const elements = [...renderQueue];
+      renderQueue = [];
+      MathJax.typesetPromise(elements).catch(console.warn);
+    }
+  }, 100);
+}
+
 /**
  * 安全转义 HTML 字符串，防止 XSS
  */
@@ -27,8 +65,9 @@ problems.forEach((prob, idx) => {
   const isFav = prob.in_error_book === 1;
   html += `
     <div class="error-card practice-question" data-practice-id="${prob.id || idx}">
-    <!-- Favorite button 放右上角 -->
+    <!-- Favorite button right top-->
   <button class="button-outline favorite-practice-btn"
+          data-original-error-id="${prob.error_id || ''}"
           style="
             position: absolute;
             top: 8px;
@@ -53,34 +92,26 @@ problems.forEach((prob, idx) => {
           <button class="button-outline toggle-text-input">
             <i class="fas fa-keyboard"></i> Text Answer
           </button>
-          <button class="button-outline toggle-image-upload">
+          <input type="file" accept="image/*" class="answer-image-input" data-problem-index="${idx}" style="display:none;">
+          <button class="button-outline upload-image-trigger">
             <i class="fas fa-image"></i> Upload Image
+            <span class="spinner" style="display:none; margin-left:6px;"></span>
           </button>
         </div>
 
         <!-- Text Input -->
         <div class="text-answer-section" style="display:none; margin-top:10px;">
-          <textarea class="form-control text-answer" placeholder="Enter your answer..."
-                    data-problem-index="${idx}"></textarea>
-          <button type="button" class="submit-text-answer" style="margin-top:5px;">
+          <textarea class="context-textarea text-answer" placeholder="Enter your answer..."
+                    data-problem-index="${idx}" rows="4"></textarea>
+          <button type="button" class="submit-text-answer button-primary" style="margin-top:8px;">
             Submit Text Answer
             <span class="spinner" style="display:none; margin-left:6px;"></span>
           </button>
         </div>
 
-        <!-- Image Upload -->
-        <div class="image-answer-section" style="display:none; margin-top:10px;">
-          <input type="file" accept="image/*" class="answer-image-input" data-problem-index="${idx}">
-          <button type="button" class="custom-file-btn">Choose Image</button>
-
-          <div class="image-preview" style="display:none; margin-top:8px;">
-            <img src="" alt="Preview" style="max-width:200px; max-height:150px; border:1px solid #ddd; border-radius:4px;">
-            <button type="button" class="remove-image" style="margin-top:5px; font-size:14px;">×</button>
-            <button type="button" class="submit-image-answer" style="margin-top:5px; position:relative;">
-              Submit Image Answer
-              <span class="spinner" style="display:none; width:16px; height:16px; border:2px solid #ccc; border-top-color:#1e90ff; border-radius:50%; animation: spin 1s linear infinite; position:absolute; right:-24px; top:50%; transform:translateY(-50%);"></span>
-            </button>
-          </div>
+        <!-- Image Preview (hidden initially) -->
+        <div class="image-preview" style="display:none; margin-top:12px;">
+          <img src="" alt="Preview" style="max-width:200px; max-height:150px; border:1px solid #ddd; border-radius:4px;">
         </div>
       </div>
 
@@ -120,10 +151,8 @@ problems.forEach((prob, idx) => {
       if (isHidden) {
         answerEl.style.display = 'block';
         this.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Answer';
-        // 触发 MathJax 渲染新内容
-        if (window.MathJax) {
-          MathJax.typesetPromise([answerEl]).catch(console.warn);
-        }
+        // 使用优化的批量渲染
+        queueMathRender(answerEl);
       } else {
         answerEl.style.display = 'none';
         this.innerHTML = '<i class="fas fa-eye"></i> Show Answer';
@@ -131,10 +160,8 @@ problems.forEach((prob, idx) => {
     });
   });
 
-  // 渲染题目中的公式（初始内容）
-  if (window.MathJax) {
-    MathJax.typesetPromise([container]).catch(console.warn);
-  }
+  // 渲染题目中的公式（使用批量渲染）
+  queueMathRender(container);
 }
 
 async function initPracticePage() {
@@ -210,55 +237,39 @@ document.addEventListener('click', function(e) {
     const card = e.target.closest('.error-card');
     if (card) {
       card.querySelector('.text-answer-section').style.display = 'block';
-      card.querySelector('.image-answer-section').style.display = 'none';
+      card.querySelector('.image-preview').style.display = 'none';
     }
     return;
   }
 
-  // 2. 切换到图片上传
-  if (e.target.closest('.toggle-image-upload')) {
-    const card = e.target.closest('.error-card');
-    if (card) {
-      card.querySelector('.text-answer-section').style.display = 'none';
-      card.querySelector('.image-answer-section').style.display = 'block';
-    }
+  // 2. 点击上传图片按钮 - 直接触发文件选择
+  if (e.target.closest('.upload-image-trigger')) {
+    const btn = e.target.closest('.upload-image-trigger');
+    const card = btn.closest('.error-card');
+    const input = card.querySelector('.answer-image-input');
+    
+    // 隐藏文字输入区
+    card.querySelector('.text-answer-section').style.display = 'none';
+    
+    // 触发文件选择
+    if (input) input.click();
     return;
   }
 
   // 3. 移除图片预览
-  if (e.target.classList.contains('remove-image')) {
-    const previewDiv = e.target.closest('.image-preview');
+  if (e.target.closest('.remove-image')) {
+    const previewDiv = e.target.closest('.remove-image').parentElement;
     if (previewDiv) {
       previewDiv.style.display = 'none';
-      const input = previewDiv.previousElementSibling; // <input>
+      const card = previewDiv.closest('.error-card');
+      const input = card.querySelector('.answer-image-input');
       if (input) input.value = '';
     }
     return;
   }
 });
 
-// ===== 图片上传预览 =====
-document.addEventListener('change', function(e) {
-  if (e.target.classList.contains('answer-image-input')) {
-    const file = e.target.files[0];
-    const previewDiv = e.target.nextElementSibling; // 应该是 .image-preview
-
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const img = previewDiv.querySelector('img');
-        if (img) {
-          img.src = evt.target.result;
-          previewDiv.style.display = 'block';
-        }
-      };
-      reader.readAsDataURL(file);
-    } else {
-      if (previewDiv) previewDiv.style.display = 'none';
-      alert('Please select a valid image file (JPG, PNG, etc.).');
-    }
-  }
-});
+// ===== 移除旧的图片预览代码（已经在下面的container事件中处理） =====
 
 const container = document.getElementById('problemsContainer');
 
@@ -270,13 +281,7 @@ container.addEventListener('click', (e) => {
   const practiceId = card.dataset.practiceId;
 
 
-  // 点击自定义文件按钮
-if (e.target.classList.contains('custom-file-btn')) {
-  const card = e.target.closest('.error-card');
-  const input = card.querySelector('.answer-image-input');
-  if (input) input.click(); // 触发文件选择框
-  return;
-}
+
 
 
   // 切换文字作答
@@ -335,7 +340,8 @@ if (e.target.closest('.submit-text-answer')) {
         resultDiv.style.fontWeight = "bold";
         card.appendChild(resultDiv);
       }
-      resultDiv.textContent = data.correct ? "Correct ✅" : "Incorrect ❌";
+      resultDiv.textContent = data.correct ? "Correct" : "Incorrect";
+      resultDiv.style.color = data.correct ? "green" : "red";
 
     } catch (err) {
       console.error(err);
@@ -348,49 +354,7 @@ if (e.target.closest('.submit-text-answer')) {
   return;
 }
 
-  // 提交图片答案
-  // 提交图片答案
-if (e.target.closest('.submit-image-answer')) {
-  const btn = e.target.closest('.submit-image-answer');
-  const spinner = btn.querySelector('.spinner');
-  const input = card.querySelector('.answer-image-input');
-  const file = input.files[0];
-  if (!file) return alert('Please select an image first.');
 
-  spinner.style.display = 'inline-block';  // 显示旋转圈
-  btn.disabled = true;
-
-  const reader = new FileReader();
-  reader.onload = async (evt) => {
-    const base64Data = evt.target.result;
-    try {
-      const res = await fetch('/api/error/practice/do_image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ practice_id: practiceId, redo_answer: base64Data })
-      });
-      const data = await res.json();
-
-      let resultDiv = card.querySelector(".answer-result");
-      if (!resultDiv) {
-        resultDiv = document.createElement("div");
-        resultDiv.className = "answer-result";
-        resultDiv.style.marginTop = "8px";
-        resultDiv.style.fontWeight = "bold";
-        card.appendChild(resultDiv);
-      }
-      resultDiv.textContent = data.is_correct ? "Correct ✅" : "Incorrect ❌";
-    } catch (err) {
-      console.error(err);
-      alert('Network error, please try again.');
-    } finally {
-      spinner.style.display = 'none'; // 隐藏旋转圈
-      btn.disabled = false;
-    }
-  };
-  reader.readAsDataURL(file);
-  return;
-}
 
 
   // 收藏按钮
@@ -408,9 +372,21 @@ if (e.target.closest('.submit-image-answer')) {
       });
       const data = await res.json();
       if (data.success) {
-        btn.textContent = 'In Error Book';   // ✅ 文字变化
-        btn.style.background = '#ffc107';    // ✅ 颜色变化
+        btn.textContent = 'In Error Book';   // 文字变化
+        btn.style.background = '#ffc107';    //  颜色变化
         btn.style.color = 'white'; 
+        
+        // 通知 error-book 页面刷新列表（跨窗口）
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'refreshErrorList' }, '*');
+        }
+
+        // 在同一标签页返回时也能触发刷新：设置 sessionStorage 标记
+        try {
+          sessionStorage.setItem('refreshErrorList', '1');
+        } catch (e) {
+          console.warn('sessionStorage not available:', e);
+        }
       } else {
         btn.disabled = false;
         alert('Failed to add to Error Book');
@@ -425,22 +401,76 @@ if (e.target.closest('.submit-image-answer')) {
 
 });
 
-// ---------- 图片预览事件 ---------- //
-container.addEventListener('change', (e) => {
+// ---------- 图片选择后立即上传 ---------- //
+container.addEventListener('change', async (e) => {
   if (!e.target.classList.contains('answer-image-input')) return;
+  
   const file = e.target.files[0];
-  const previewDiv = e.target.closest('.image-answer-section').querySelector('.image-preview');
-  if (file && file.type.startsWith('image/')) {
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      previewDiv.querySelector('img').src = evt.target.result;
-      previewDiv.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
-  } else {
-    previewDiv.style.display = 'none';
+  if (!file) return;
+  
+  const card = e.target.closest('.error-card');
+  const practiceId = card.dataset.practiceId;
+  const btn = card.querySelector('.upload-image-trigger');
+  const spinner = btn.querySelector('.spinner');
+  const previewDiv = card.querySelector('.image-preview');
+  
+  if (!file.type.startsWith('image/')) {
     alert('Please select a valid image file.');
+    e.target.value = ''; // 清除无效文件
+    return;
   }
+  
+  // 清除之前的预览图（释放内存）
+  const oldImg = previewDiv.querySelector('img');
+  if (oldImg && oldImg.src && oldImg.src.startsWith('blob:')) {
+    URL.revokeObjectURL(oldImg.src);
+  }
+  
+  // 显示预览
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    previewDiv.querySelector('img').src = evt.target.result;
+    previewDiv.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+  
+  // 立即上传
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  
+  const formReader = new FileReader();
+  formReader.onload = async (evt) => {
+    try {
+      const res = await fetch('/api/error/practice/do_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          practice_id: practiceId,
+          redo_answer: evt.target.result
+        })
+      });
+      const data = await res.json();
+      
+      // 显示结果
+      let resultDiv = card.querySelector('.image-result');
+      if (!resultDiv) {
+        resultDiv = document.createElement('div');
+        resultDiv.className = 'image-result';
+        resultDiv.style.marginTop = "10px";
+        resultDiv.style.fontWeight = "bold";
+        card.appendChild(resultDiv);
+      }
+      resultDiv.textContent = data.is_correct ? "Correct" : "Incorrect";
+      resultDiv.style.color = data.is_correct ? "green" : "red";
+    } catch (err) {
+      console.error(err);
+      alert('Network error, please try again.');
+    } finally {
+      spinner.style.display = 'none';
+      btn.disabled = false;
+    }
+  };
+  formReader.readAsDataURL(file);
 });
 
 
@@ -449,7 +479,7 @@ document.getElementById('regenerateBtn')?.addEventListener('click', async () => 
   const urlParams = new URLSearchParams(window.location.search);
   const errorId = urlParams.get('id');
 
-  if (!errorId) return alert('缺少题目 ID');
+  if (!errorId) return alert('missing ID');
 
   const container = document.getElementById('problemsContainer');
   container.innerHTML = '<p>Regenerating problem…</p>';
@@ -457,17 +487,17 @@ document.getElementById('regenerateBtn')?.addEventListener('click', async () => 
   try {
     // 先获取原题文本
     const getRes = await fetch(window.getApiUrl(`/api/error/get?id=${encodeURIComponent(errorId)}`));
-    if (!getRes.ok) throw new Error('获取原题失败');
+    if (!getRes.ok) throw new Error('failed to fetch original question from database');
     const getData = await getRes.json();
     const originalCard = getData.error;
-    if (!originalCard) throw new Error('原题不存在');
+    if (!originalCard) throw new Error('original question not found');
 
     const res = await fetch('/api/error/practice/generate-similar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: errorId,
-        question_text: originalCard.question_text,  // ✅ 关键：传原题内容
+        question_text: originalCard.question_text,  // 传原题内容
         correct_answer:originalCard.correct_answer,
         count: 3,
         force: true
@@ -476,14 +506,14 @@ document.getElementById('regenerateBtn')?.addEventListener('click', async () => 
 
     const result = await res.json();
     if (!res.ok || !result.success) {
-      throw new Error(result.error || '生成失败');
+      throw new Error(result.error || 'failed to generate similar problems');
     }
 
     // 更新前端显示
     renderProblems(result.data?.similar_problems || []);
 
   } catch (err) {
-    console.error('重新生成错题失败:', err);
-    container.innerHTML = `<p style="color:red;">重新生成错题失败: ${err.message}</p>`;
+    console.error('fail to re-generate problems:', err);
+    container.innerHTML = `<p style="color:red;">fail to re-generate problems: ${err.message}</p>`;
   }
 });

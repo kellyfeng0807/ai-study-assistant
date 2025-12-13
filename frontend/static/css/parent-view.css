@@ -243,6 +243,15 @@
     to { transform: rotate(360deg); }
 }
 
+/* Dark Mode - Keep attention icons black */
+[data-theme="dark"] .status-banner.status-attention .status-icon,
+[data-theme="dark"] .report-card-header.concerns i,
+[data-theme="dark"] .fa-exclamation-triangle,
+[data-theme="dark"] .fa-exclamation-circle {
+    filter: none !important;
+    color: #1f2937 !important; /* Keep dark/black color in dark mode */
+}
+
 @media print {
     .sidebar { display: none !important; }
     .main-content { margin-left: 0 !important; }

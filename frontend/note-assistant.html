@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="static/css/note-assistant.css">
     <link rel="stylesheet" href="static/css/message-modal.css">
     <link rel="stylesheet" href="static/css/ai-chat.css">
+    <link rel="stylesheet" href="static/css/auth.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- DNS prefetch for faster navigation -->
@@ -57,8 +58,8 @@
                 <div class="user-profile">
                     <div class="avatar">S</div>
                     <div class="user-info">
-                        <div class="user-name">Student</div>
-                        <div class="user-email">student@example.com</div>
+                        <div class="user-name"></div>
+                        <div class="user-email"></div>
                     </div>
                 </div>
             </div>
@@ -73,7 +74,7 @@
                 <div class="header-right">
                     <button class="icon-button" id="notificationBtn">
                         <i class="fas fa-bell"></i>
-                        <span class="badge">3</span>
+                        <span class="badge" style="display: none;"></span>
                     </button>
                     <button class="icon-button theme-toggle">
                         <i class="fas fa-moon"></i>
@@ -93,6 +94,10 @@
                             <button class="tab-button" data-tab="audio-upload">
                                 <i class="fas fa-microphone"></i>
                                 Audio Recording
+                            </button>
+                            <button class="tab-button" data-tab="file-upload">
+                                <i class="fas fa-file-upload"></i>
+                                File Upload
                             </button>
                         </div>
 
@@ -185,6 +190,69 @@
                                 </button>
                             </div>
                         </div>
+
+                        <div class="tab-content" id="file-upload">
+                            <div class="advice-card">
+                                <div class="advice-row">
+                                    <i class="fas fa-info-circle"></i>
+                                    <div>
+                                        <strong>Note</strong>
+                                        <p>Upload a document or image. AI will extract text and generate structured notes automatically.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="file-upload-panel">
+                                <div class="upload-area" id="fileUploadArea">
+                                    <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.txt,.md" hidden>
+                                    <div class="upload-placeholder" id="filePlaceholder">
+                                        <i class="fas fa-cloud-upload-alt" style="font-size: 48px; color: hsl(var(--primary)); margin-bottom: 16px;"></i>
+                                        <p class="upload-title">Upload Document</p>
+                                        <p class="upload-subtitle">Drag & drop or click to choose a file</p>
+                                        <p class="upload-hint">Supports: PDF, Images (PNG, JPG, GIF, BMP), Text files (TXT, MD)</p>
+                                    </div>
+                                    <div class="upload-preview" id="filePreview" style="display: none;">
+                                        <div class="file-preview-content" style="display: flex; align-items: center; gap: 12px;">
+                                            <i class="fas fa-file-alt file-icon" id="fileTypeIcon" style="font-size: 36px; color: hsl(var(--primary));"></i>
+                                            <div class="file-info">
+                                                <span class="file-name" id="fileName" style="font-weight: 500; display: block;">filename.pdf</span>
+                                                <span class="file-size" id="fileSize" style="font-size: 12px; color: hsl(var(--muted-foreground));">1.2 MB</span>
+                                            </div>
+                                        </div>
+                                        <button class="remove-file-btn" id="removeFileBtn" title="Remove file">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Optional subject selection -->
+                                <div class="subject-select-row" style="margin-top: 16px;">
+                                    <label for="fileSubjectSelect" style="font-size: 14px; color: hsl(var(--foreground)); margin-right: 12px;">Subject (optional):</label>
+                                    <select id="fileSubjectSelect" style="padding: 8px 12px; border-radius: 6px; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 14px;">
+                                        <option value="">Auto-detect</option>
+                                        <option value="Mathematics">Mathematics</option>
+                                        <option value="Physics">Physics</option>
+                                        <option value="Chemistry">Chemistry</option>
+                                        <option value="Biology">Biology</option>
+                                        <option value="Chinese">Chinese</option>
+                                        <option value="English">English</option>
+                                        <option value="History">History</option>
+                                        <option value="Geography">Geography</option>
+                                        <option value="Computer Science">Computer Science</option>
+                                        <option value="Economics">Economics</option>
+                                        <option value="Politics">Politics</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="file-actions" style="margin-top: var(--spacing-lg);">
+                                <button class="button-primary" id="fileGenerateBtn" disabled>
+                                    <i class="fas fa-magic"></i>
+                                    Generate Note from File
+                                </button>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -207,18 +275,13 @@
             <button class="close-button">&times;</button>
         </div>
         <div class="notification-list">
-            <div class="notification-item unread">
-                <div class="notification-dot"></div>
-                <div class="notification-content">
-                    <div class="notification-title">Note Generation Complete</div>
-                    <div class="notification-time">5 minutes ago</div>
-                </div>
-            </div>
+            <!-- 由 notifications.js 动态渲染 -->
         </div>
     </div>
 
     <script src="static/js/main.js"></script>
     <script src="static/js/message-modal.js"></script>
+    <script src="static/js/module-tracker.js"></script>
     <script src="static/js/notifications.js"></script>
     <script src="static/js/ai-chat.js"></script>
     <script src="static/js/note-assistant.js"></script>

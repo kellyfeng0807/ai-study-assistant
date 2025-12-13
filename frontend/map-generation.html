@@ -11,22 +11,39 @@
     <link rel="stylesheet" href="static/css/map-generation.css">
     <link rel="stylesheet" href="static/css/ai-chat.css">
     <link rel="stylesheet" href="static/css/message-modal.css">
+    <link rel="stylesheet" href="static/css/auth.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- MathJax for LaTeX formula rendering -->
+    <!-- MathJax 配置：优化渲染速度 -->
     <script>
-        MathJax = {
+        window.MathJax = {
             tex: {
                 inlineMath: [['$', '$'], ['\\(', '\\)']],
                 displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                processEscapes: true
+                processEscapes: true,
+                processEnvironments: true
+            },
+            startup: {
+                typeset: false,
+                pageReady: () => {
+                    return MathJax.startup.defaultPageReady();
+                }
             },
             options: {
-                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            chtml: {
+                scale: 1,
+                minScale: 0.5,
+                matchFontHeight: false,
+                mtextInheritFont: true
             }
         };
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+    <!-- 使用更快的 CDN 和更轻量的版本 -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
     
     <!-- Mermaid for mind map rendering -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -76,8 +93,8 @@
                 <div class="user-profile">
                     <div class="avatar">S</div>
                     <div class="user-info">
-                        <div class="user-name">Student</div>
-                        <div class="user-email">student@example.com</div>
+                        <div class="user-name"></div>
+                        <div class="user-email"></div>
                     </div>
                 </div>
             </div>
@@ -92,7 +109,7 @@
                 <div class="header-right">
                     <button class="icon-button" id="notificationBtn">
                         <i class="fas fa-bell"></i>
-                        <span class="badge">3</span>
+                        <span class="badge" style="display: none;"></span>
                     </button>
                     <button class="icon-button theme-toggle">
                         <i class="fas fa-moon"></i>
@@ -455,18 +472,13 @@
             <button class="close-button">&times;</button>
         </div>
         <div class="notification-list">
-            <div class="notification-item unread">
-                <div class="notification-dot"></div>
-                <div class="notification-content">
-                    <div class="notification-title">Mind Map Generated</div>
-                    <div class="notification-time">5 minutes ago</div>
-                </div>
-            </div>
+            <!-- 由 notifications.js 动态渲染 -->
         </div>
     </div>
 
     <script src="static/js/main.js"></script>
     <script src="static/js/message-modal.js"></script>
+    <script src="static/js/module-tracker.js"></script>
     <script src="static/js/notifications.js"></script>
     <script src="static/js/ai-chat.js"></script>
     <script src="static/js/map-generation.js"></script>

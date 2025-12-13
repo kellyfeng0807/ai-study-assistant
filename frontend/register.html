@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - AI Study Assistant</title>
+    
+    <link rel="stylesheet" href="static/css/main.css">
+    <link rel="stylesheet" href="static/css/auth.css">
+    <link rel="stylesheet" href="static/css/message-modal.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="auth-page register-page">
+    <div class="auth-container register-container">
+        <div class="auth-card register-card">
+            <!-- Header -->
+            <div class="register-header">
+                <div class="auth-logo">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <h1 class="auth-title">Create Account</h1>
+                <p class="auth-subtitle">Start your learning journey</p>
+            </div>
+            
+            <form id="registerForm" class="auth-form">
+                <!-- Content: Two Columns -->
+                <div class="register-content">
+                    <div class="register-content-wrapper">
+                        <!-- Left: Parent Account -->
+                        <div class="register-section parent-section">
+                            <div class="register-section-header">
+                                <h3 class="register-section-title">
+                                    <i class="fas fa-user-tie"></i>
+                                    Parent Account
+                                </h3>
+                            </div>
+                        
+                        <div class="register-section-content">
+                            <div class="form-group">
+                                <label for="parentEmail">
+                                    <i class="fas fa-envelope"></i>
+                                    Email Address *
+                                </label>
+                                <input 
+                                    type="email" 
+                                    id="parentEmail" 
+                                    class="form-input" 
+                                    placeholder="parent@example.com"
+                                    required
+                                    autocomplete="email"
+                                >
+                                <small class="form-hint">This email will be used for login</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="parentUsername">
+                                    <i class="fas fa-user"></i>
+                                    Name *
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="parentUsername" 
+                                    class="form-input" 
+                                    placeholder="Enter your name"
+                                    required
+                                    autocomplete="name"
+                                >
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="parentPassword">
+                                    <i class="fas fa-lock"></i>
+                                    Password *
+                                </label>
+                                <div class="password-input-wrapper">
+                                    <input 
+                                        type="password" 
+                                        id="parentPassword" 
+                                        class="form-input" 
+                                        placeholder="At least 6 characters"
+                                        required
+                                        autocomplete="new-password"
+                                        minlength="6"
+                                    >
+                                    <button type="button" class="toggle-password" data-target="parentPassword">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="parentConfirmPassword">
+                                    <i class="fas fa-lock"></i>
+                                    Confirm Password *
+                                </label>
+                                <div class="password-input-wrapper">
+                                    <input 
+                                        type="password" 
+                                        id="parentConfirmPassword" 
+                                        class="form-input" 
+                                        placeholder="Re-enter password"
+                                        required
+                                        autocomplete="new-password"
+                                        minlength="6"
+                                    >
+                                    <button type="button" class="toggle-password" data-target="parentConfirmPassword">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Student Accounts -->
+                    <div class="register-section students-section">
+                        <div class="register-section-header">
+                            <h3 class="register-section-title">
+                                <i class="fas fa-user-graduate"></i>
+                                Student Accounts
+                            </h3>
+                        </div>
+                        
+                        <div class="register-section-content">
+                            <div id="studentsContainer" class="students-container">
+                                <!-- Student forms will be added here dynamically -->
+                            </div>
+                            
+                            <button type="button" class="btn add-student-btn" id="addStudentBtn">
+                                <i class="fas fa-plus"></i>
+                                <span>Add Another Student</span>
+                            </button>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div class="register-footer">
+                    <div class="register-footer-content">
+                        <div class="auth-footer">
+                            <p>Already have an account? <a href="/login" class="auth-link">Sign in</a></p>
+                        </div>
+                        
+                        <button type="submit" class="btn button-primary" id="registerBtn">
+                            <span>Create Account</span>
+                            <i class="fas fa-user-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="static/js/main.js"></script>
+    <script src="static/js/message-modal.js"></script>
+    <script src="static/js/register.js"></script>
+</body>
+</html>

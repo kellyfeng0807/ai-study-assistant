@@ -9,6 +9,8 @@
     <link rel="preload" href="static/css/main.css" as="style">
     <link rel="stylesheet" href="static/css/main.css">
     <link rel="stylesheet" href="static/css/settings.css">
+    <link rel="stylesheet" href="static/css/message-modal.css">
+    <link rel="stylesheet" href="static/css/auth.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- DNS prefetch for faster navigation -->
@@ -55,8 +57,8 @@
                 <div class="user-profile">
                     <div class="avatar">S</div>
                     <div class="user-info">
-                        <div class="user-name">Student</div>
-                        <div class="user-email">student@example.com</div>
+                        <div class="user-name"></div>
+                        <div class="user-email"></div>
                     </div>
                 </div>
             </div>
@@ -71,21 +73,43 @@
                 <div class="header-right">
                     <button class="icon-button" id="notificationBtn">
                         <i class="fas fa-bell"></i>
-                        <span class="badge">3</span>
+                        <span class="badge" style="display: none;"></span>
+                    </button>
+                    <button class="icon-button theme-toggle">
+                        <i class="fas fa-moon"></i>
                     </button>
                 </div>
             </header>
 
             <div class="content-body">
                 <section class="settings-section">
-                    <h3 class="section-title">Account Settings</h3>
+                    <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-lg);">
+                        <h3 class="section-title" style="margin: 0;">Account Settings</h3>
+                        <button class="button-outline" id="editBtn" style="display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-edit"></i>
+                            <span>Edit</span>
+                        </button>
+                    </div>
                     <div class="settings-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>User ID</label>
+                                <p>Your unique identifier</p>
+                            </div>
+                            <div class="setting-value">
+                                <span id="userIdDisplay" class="display-text">#12345</span>
+                            </div>
+                        </div>
+                        
                         <div class="setting-item">
                             <div class="setting-info">
                                 <label>Username</label>
                                 <p>Set your display name</p>
                             </div>
-                            <input type="text" id="username" class="setting-input" placeholder="Enter username">
+                            <div class="setting-value">
+                                <span id="usernameDisplay" class="display-text">Student</span>
+                                <input type="text" id="username" class="setting-input" placeholder="Enter username" style="display: none;">
+                            </div>
                         </div>
                         
                         <div class="setting-item">
@@ -93,7 +117,40 @@
                                 <label>Email</label>
                                 <p>Your email address</p>
                             </div>
-                            <input type="email" id="email" class="setting-input" placeholder="Enter email">
+                            <div class="setting-value">
+                                <span id="emailDisplay" class="display-text"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Account Type</label>
+                                <p>Student or Parent account</p>
+                            </div>
+                            <div class="setting-value">
+                                <span id="accountTypeDisplay" class="display-text">Student</span>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Password</label>
+                                <p>Change your password</p>
+                            </div>
+                            <div class="setting-value">
+                                <span id="passwordDisplay" class="display-text">••••••••</span>
+                                <input type="password" id="newPassword" class="setting-input" placeholder="Enter new password" style="display: none;">
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item" id="confirmPasswordItem" style="display: none;">
+                            <div class="setting-info">
+                                <label>Confirm Password</label>
+                                <p>Re-enter your new password</p>
+                            </div>
+                            <div class="setting-value">
+                                <input type="password" id="confirmPassword" class="setting-input" placeholder="Confirm new password">
+                            </div>
                         </div>
                         
                         <div class="setting-item">
@@ -101,14 +158,17 @@
                                 <label>Grade Level</label>
                                 <p>Select your current grade</p>
                             </div>
-                            <select id="gradeLevel" class="setting-select">
-                                <option value="7">Grade 7</option>
-                                <option value="8">Grade 8</option>
-                                <option value="9">Grade 9</option>
-                                <option value="10">Grade 10</option>
-                                <option value="11">Grade 11</option>
-                                <option value="12">Grade 12</option>
-                            </select>
+                            <div class="setting-value">
+                                <span id="gradeLevelDisplay" class="display-text">Grade 9</span>
+                                <select id="gradeLevel" class="setting-select" style="display: none;">
+                                    <option value="7">Grade 7</option>
+                                    <option value="8">Grade 8</option>
+                                    <option value="9">Grade 9</option>
+                                    <option value="10">Grade 10</option>
+                                    <option value="11">Grade 11</option>
+                                    <option value="12">Grade 12</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div class="setting-item">
@@ -116,19 +176,22 @@
                                 <label>Daily Study Goal</label>
                                 <p>Target study time per day (minutes)</p>
                             </div>
-                            <input type="number" id="dailyGoal" class="setting-input" min="30" max="480" placeholder="120">
+                            <div class="setting-value">
+                                <span id="dailyGoalDisplay" class="display-text">60 minutes</span>
+                                <input type="number" id="dailyGoal" class="setting-input" min="30" max="480" placeholder="120" style="display: none;">
+                            </div>
                         </div>
                     </div>
                 </section>
 
-                <div class="settings-actions">
+                <div class="settings-actions" id="editActions" style="display: none;">
                     <button class="button-primary" id="saveSettings">
                         <i class="fas fa-save"></i>
                         Save Settings
                     </button>
-                    <button class="button-outline" id="resetSettings">
-                        <i class="fas fa-undo"></i>
-                        Reset to Default
+                    <button class="button-outline" id="cancelEdit">
+                        <i class="fas fa-times"></i>
+                        Cancel
                     </button>
                 </div>
             </div>
@@ -141,13 +204,7 @@
             <button class="close-button">&times;</button>
         </div>
         <div class="notification-list">
-            <div class="notification-item unread">
-                <div class="notification-dot"></div>
-                <div class="notification-content">
-                    <div class="notification-title">Settings Saved</div>
-                    <div class="notification-time">Just now</div>
-                </div>
-            </div>
+            <!-- 由 notifications.js 动态渲染 -->
         </div>
     </div>
 

@@ -17,7 +17,44 @@ class ErrorBookManager {
     init() {
         this.initUploadArea();
         this.bindEventListeners();
-        this.bindActionButtons(); 
+        this.bindActionButtons();
+        this.initMessageListener(); 
+
+        // 检查 sessionStorage 标记（用于从 practice 返回时自动刷新）
+        try {
+            const flag = sessionStorage.getItem('refreshErrorList');
+            if (flag) {
+                sessionStorage.removeItem('refreshErrorList');
+                console.log('sessionStorage 标记存在，重新加载错题列表');
+                this.reloadErrorsFromServer();
+            }
+        } catch (e) {
+            // sessionStorage 访问失败，忽略
+        }
+
+        // 当页面可见性发生变化（比如从另一个标签页或返回历史），再次检查标记
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                try {
+                    const flag = sessionStorage.getItem('refreshErrorList');
+                    if (flag) {
+                        sessionStorage.removeItem('refreshErrorList');
+                        console.log('页面可见，sessionStorage 标记触发刷新');
+                        this.reloadErrorsFromServer();
+                    }
+                } catch (e) {}
+            }
+        });
+    }
+    
+    initMessageListener() {
+        // 监听来自 practice 页面的刷新消息
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'refreshErrorList') {
+                console.log('收到刷新请求，重新加载错题列表');
+                this.loadErrors();
+            }
+        });
     }
     
     initUploadArea() {
@@ -81,15 +118,18 @@ class ErrorBookManager {
                     reviewed: err.reviewed,
                     tags: Array.isArray(err.tags) ? err.tags : [],
                     text: `<p>${err.question_text || ''}</p>`,
-                    created_at: err.created_at,
-                    images: Array.isArray(err.images) ? err.images : []
+                    images: Array.isArray(err.images) ? err.images : [],
+                    created_at: err.created_at
                 });
             });
 
-            // 渲染 MathJax
-            if (typeof MathJax !== 'undefined') {
+            // 优化的 MathJax 渲染：批量渲染整个容器
+            if (window.MathJax && window.MathJax.typesetPromise) {
                 setTimeout(() => {
-                    MathJax.typesetPromise().catch(console.warn);
+                    const container = document.querySelector('.errors-list');
+                    if (container) {
+                        MathJax.typesetPromise([container]).catch(console.warn);
+                    }
                 }, 100);
             }
 
@@ -152,61 +192,62 @@ class ErrorBookManager {
         
         Utils.showNotification(`${files.length} image(s) selected`, 'success');
     }
-
+    
     async processErrors() {
-    if (this.selectedFiles.length === 0) return;
+        if (this.selectedFiles.length === 0) return;
 
-    const processBtn = document.getElementById('processBtn');
-    Utils.showLoadingState(processBtn, 'Processing images...');
+        const processBtn = document.getElementById('processBtn');
+        Utils.showLoadingState(processBtn, 'Processing images...');
 
-    let successCount = 0;
-    let failCount = 0;
+        let successCount = 0;
+        let failCount = 0;
 
-    for (const file of this.selectedFiles) {
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
+        for (const file of this.selectedFiles) {
+            try {
+                // 使用相对路径直接调用 fetch（像 map 一样）
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch(window.getApiUrl('/api/error/upload'), {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const uploadResult = await response.json();
 
-            const response = await fetch(window.getApiUrl('/api/error/upload'), {
-                method: 'POST',
-                body: formData
-            });
-
-            const uploadResult = await response.json();
-
-            // ✅ 正确判断：检查 questions 数组是否存在
-            if (!uploadResult?.success || !Array.isArray(uploadResult.questions) || uploadResult.questions.length === 0) {
+                if (!uploadResult?.success || !Array.isArray(uploadResult.questions) || uploadResult.questions.length === 0) {
                 console.error(`Failed to parse questions from ${file.name}`, uploadResult);
                 failCount++;
                 continue;
+                }
+
+                this.addErrorCard(uploadResult.questions);
+
+                successCount += uploadResult.questions.length;
+
+
+            } catch (err) {
+                console.error('Error processing image:', file.name, err);
+                failCount++;
             }
-
-            // ✅ 关键：把整个 questions 数组传给 addErrorCard
-            this.addErrorCard(uploadResult.questions);
-
-            successCount += uploadResult.questions.length;
-
-        } catch (err) {
-            console.error('Error processing image:', file.name, err);
-            failCount++;
         }
+
+        // Reload all errors from server (like map/note do)
+        await this.reloadErrorsFromServer();
+
+        // Show unified notification (like delete operation)
+        if (successCount > 0 && failCount === 0) {
+            Utils.showNotification(`Successfully processed ${successCount} question(s)`, 'success');
+        } else if (successCount > 0 && failCount > 0) {
+            Utils.showNotification(`Processed ${successCount} question(s), ${failCount} failed`, 'warning');
+        } else {
+            Utils.showNotification('Failed to process questions', 'error');
+        }
+
+        this.resetUploadArea();
+        try { Utils.hideLoadingState(processBtn); } catch(e) { /* ignore */ }
     }
-
-    await this.reloadErrorsFromServer();
-
-    // Show notification
-    if (successCount > 0 && failCount === 0) {
-        Utils.showNotification(`Successfully processed ${successCount} question(s)`, 'success');
-    } else if (successCount > 0 && failCount > 0) {
-        Utils.showNotification(`Processed ${successCount} question(s), ${failCount} failed`, 'warning');
-    } else {
-        Utils.showNotification('Failed to process questions', 'error');
-    }
-
-    this.resetUploadArea();
-    try { Utils.hideLoadingState(processBtn); } catch(e) { /* ignore */ }
-}
-
+    
     addErrorCard(data) {
         // 如果是多题数组，逐条递归渲染
         if (Array.isArray(data)) {
@@ -243,7 +284,7 @@ class ErrorBookManager {
                 dateStr = new Date().toLocaleDateString();
             }
         }
-        console.log('Image paths:', data.images);
+        
         // 渲染卡片 DOM
         card.innerHTML = `
             <div class="mastered-ribbon ${data.reviewed ? 'mastered' : 'not-mastered'}">
@@ -439,6 +480,8 @@ class ErrorBookManager {
                 if (data.success) {
                     card.remove();
                     Utils.showNotification('Error deleted successfully', 'success');
+                    // Notify practice page to reset button for this error
+                    sessionStorage.setItem('resetPracticeButton', id);
                 } else {
                     Utils.showNotification('Failed to delete error: ' + data.error, 'error');
                 }

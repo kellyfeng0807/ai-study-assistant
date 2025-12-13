@@ -9,12 +9,13 @@
     <link rel="stylesheet" href="static/css/error-book.css">
     <link rel="stylesheet" href="static/css/message-modal.css">
     <link rel="stylesheet" href="static/css/ai-chat.css">
+    <link rel="stylesheet" href="static/css/auth.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- DNS prefetch -->
     <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
 
-    <!-- MathJax 配置（必须在主脚本前） -->
+    <!-- MathJax 配置：优化渲染速度 -->
     <script>
     window.MathJax = {
       tex: {
@@ -25,13 +26,20 @@
       },
       options: {
         ignoreHtmlClass: 'tex2jax_ignore',
-        processHtmlClass: 'tex2jax_process'
+        processHtmlClass: 'tex2jax_process',
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      },
+      chtml: {
+        scale: 1,
+        minScale: 0.5,
+        matchFontHeight: false,
+        mtextInheritFont: true
       }
     };
     </script>
 
-    <!-- MathJax 主脚本 -->
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <!-- MathJax 主脚本 - 使用更轻量的 tex-chtml -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -74,8 +82,8 @@
                 <div class="user-profile">
                     <div class="avatar">S</div>
                     <div class="user-info">
-                        <div class="user-name">Student</div>
-                        <div class="user-email">student@example.com</div>
+                        <div class="user-name"></div>
+                        <div class="user-email"></div>
                     </div>
                 </div>
             </div>
@@ -90,7 +98,7 @@
                 <div class="header-right">
                     <button class="icon-button" id="notificationBtn">
                         <i class="fas fa-bell"></i>
-                        <span class="badge">3</span>
+                        <span class="badge" style="display: none;"></span>
                     </button>
                     <button class="icon-button theme-toggle">
                         <i class="fas fa-moon"></i>
@@ -168,18 +176,13 @@
             <button class="close-button">&times;</button>
         </div>
         <div class="notification-list">
-            <div class="notification-item unread">
-                <div class="notification-dot"></div>
-                <div class="notification-content">
-                    <div class="notification-title">Error Analysis Complete</div>
-                    <div class="notification-time">5 minutes ago</div>
-                </div>
-            </div>
+            <!-- 由 notifications.js 动态渲染 -->
         </div>
     </div>
 
     <script src="static/js/main.js"></script>
     <script src="static/js/message-modal.js"></script>
+    <script src="/static/js/module-tracker.js"></script>
     <script src="static/js/notifications.js"></script>
     <script src="static/js/ai-chat.js"></script>
     <script src="static/js/error-book.js"></script>

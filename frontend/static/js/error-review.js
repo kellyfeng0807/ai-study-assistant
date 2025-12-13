@@ -6,35 +6,44 @@
 
 let subject = "unknown"; // 全局默认值
 
-// 安全渲染 MathJax：等待 API 就绪后执行
+// 优化的 MathJax 渲染：批量渲染和防抖
+let renderQueue = [];
+let renderTimeout = null;
+
 function safeRenderMath(element) {
-    if (!window.MathJax) {
+    if (!window.MathJax || !window.MathJax.typesetPromise) {
         console.warn('MathJax is not loaded. Skipping math rendering.');
         return;
     }
 
-    if (!window.MathJax.startup || !window.MathJax.startup.promise) {
-        const script = document.getElementById('MathJax-script');
-        if (script) {
-            script.addEventListener('load', () => {
-                if (window.MathJax && window.MathJax.typesetPromise) {
-                    window.MathJax.typesetPromise([element]).catch(err => {
-                        console.warn('MathJax rendering failed:', err);
-                    });
-                }
-            });
-        }
-        return;
+    // 添加到队列
+    if (element && !renderQueue.includes(element)) {
+        renderQueue.push(element);
     }
 
-    window.MathJax.startup.promise.then(() => {
-        if (window.MathJax && window.MathJax.typesetPromise) {
-            window.MathJax.typesetPromise([element]).catch(err => {
+    // 防抖：100ms 后批量渲染
+    clearTimeout(renderTimeout);
+    renderTimeout = setTimeout(() => {
+        if (renderQueue.length > 0) {
+            const elements = [...renderQueue];
+            renderQueue = [];
+            
+            MathJax.typesetPromise(elements).catch(err => {
                 console.warn('MathJax rendering failed:', err);
             });
         }
-    }).catch(err => {
-        console.error('MathJax startup error:', err);
+    }, 100);
+}
+
+// 立即渲染（用于需要同步的场景）
+function renderMathNow(elements) {
+    if (!window.MathJax || !window.MathJax.typesetPromise) {
+        return Promise.resolve();
+    }
+    
+    const elementArray = Array.isArray(elements) ? elements : [elements];
+    return MathJax.typesetPromise(elementArray).catch(err => {
+        console.warn('MathJax rendering failed:', err);
     });
 }
 
@@ -58,23 +67,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     let card;
-
+    
     // 从服务器获取数据
     try {
         const res = await fetch(window.getApiUrl(`/api/error/get?id=${encodeURIComponent(errorId)}`));
         if (!res.ok) {
             throw new Error(`HTTP ${res.status}`);
         }
-
+        
         const data = await res.json();
         if (!data.success || !data.error) {
             throw new Error(data.error || 'Record not found');
         }
-
+        
         card = data.error;
         subject = card.subject || "unknown";
         console.log("Loaded from database, subject:", subject);
-
+        
     } catch (err) {
         console.error('Failed to fetch from database:', err);
         if (reviewCard) reviewCard.innerHTML = `<p class="empty-state">Error: ${err.message}</p>`;
@@ -89,7 +98,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     /* ---------------------- 渲染题目 ---------------------- */
     const questionEl = document.getElementById('questionContent');
     if (questionEl) {
-        questionEl.innerHTML = cleanLatexForMathJax(card.question_text) || '<i>题目内容为空</i>';
+        let htmlContent = cleanLatexForMathJax(card.question_text) || '<i>题目内容为空</i>';
+        
+        // 如果有裁切的图片，显示它们
+        if (Array.isArray(card.images) && card.images.length > 0) {
+            htmlContent += '<div class="question-images" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">';
+            card.images.forEach(imgPath => {
+                htmlContent += `<img src="${imgPath}" alt="题目图片" style="max-width: 300px; max-height: 200px; border: 1px solid #ddd; border-radius: 4px;">`;
+            });
+            htmlContent += '</div>';
+        }
+        
+        questionEl.innerHTML = htmlContent;
         safeRenderMath(questionEl);
     }
 
@@ -104,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     /* ---------------------- 正确答案 ---------------------- */
     const correctAnswerEl = document.getElementById('theAnswer');
     if (correctAnswerEl) {
-        correctAnswerEl.innerHTML = cleanLatexForMathJax(card.correct_answer) || '<i>None available</i>';
+        correctAnswerEl.innerHTML = cleanLatexForMathJax(card.correct_answer) || '<i>暂无</i>';
         safeRenderMath(correctAnswerEl);
     }
 
@@ -122,37 +142,141 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    /* ---------------------- 上次重做信息（redo_answer + redo_time） ---------------------- */
-const redoSection = document.getElementById('lastRedoSection');
-const redoTimeDisplay = document.getElementById('redoTimeDisplay');
-const lastRedoAnswerEl = document.getElementById('lastRedoAnswer');
+    // --- 原图展示（answer_images）---
+const originalImageSection = document.getElementById('originalImageSection');
+const originalImageContainer = document.getElementById('originalImageContainer');
 
-if (redoSection && redoTimeDisplay && lastRedoAnswerEl) {
-    if (card.redo_answer != null && card.redo_answer.trim() !== '' && card.redo_time) {
-        // 显示重做板块
-        redoSection.style.display = 'block';
-
-        // 格式化时间
-        const redoDate = new Date(card.redo_time);
-        redoTimeDisplay.textContent = redoDate.toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        });
-
-        // 渲染答案（支持 LaTeX）
-        const cleaned = cleanLatexForMathJax(card.redo_answer.trim());
-        lastRedoAnswerEl.innerHTML = cleaned;
-        safeRenderMath(lastRedoAnswerEl);
+if (originalImageSection && originalImageContainer) {
+    if (Array.isArray(card.answer_images) && card.answer_images.length > 0) {
+        const imageHtmls = card.answer_images.map(path =>
+    `<img src="${path}" alt="Original image" style="max-width: 300px; max-height: 300px; width: auto; height: auto; margin-top: 8px; display: block;">`
+).join('');
+        originalImageContainer.innerHTML = imageHtmls;
+        originalImageSection.style.display = 'block';
     } else {
-        // 隐藏板块
-        redoSection.style.display = 'none';
+        originalImageSection.style.display = 'none';
     }
 }
 
+    /* ---------------------- 上次重做信息（redo_answer + redo_time） ---------------------- */
+
+    /* ---------------------- 上次重做信息（redo_answer + redo_time） ---------------------- */
+function updateRedoSection(cardData) {
+    const redoSection = document.getElementById('lastRedoSection');
+    const redoTimeDisplay = document.getElementById('redoTimeDisplay');
+    const lastRedoAnswerEl = document.getElementById('lastRedoAnswer');
+
+    if (redoSection && redoTimeDisplay && lastRedoAnswerEl) {
+        // 判断是否有 redo_answer（非空字符串）
+        //const hasRedoAnswer = cardData.redo_answer != null && cardData.redo_answer.trim() !== '';
+        const hasRedoAnswer = cardData.redo_answer != null && cardData.redo_answer.trim() !== '';
+        const hasRedoImages = Array.isArray(cardData.redo_images) && cardData.redo_images.length > 0;
+        const hasRedoContent = hasRedoAnswer || hasRedoImages;
+        if (hasRedoContent) {
+            // 显示重做板块
+            redoSection.style.display = 'block';
+
+            // 格式化时间（即使没有 redo_time 也显示答案）
+            if (cardData.redo_time) {
+                const redoDate = new Date(cardData.redo_time);
+                redoTimeDisplay.textContent = redoDate.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+                redoTimeDisplay.style.display = 'inline'; // 确保时间可见
+            } else {
+                redoTimeDisplay.style.display = 'none'; // 没时间就不显示
+            }
+
+            // ===== 渲染 redo_answer =====
+            // ===== 渲染 redo_answer =====
+let answerHtml = '';
+const redoAnswer = cardData.redo_answer;
+
+if (typeof redoAnswer === 'string' && redoAnswer.startsWith('data:image/')) {
+    answerHtml = `<img src="${redoAnswer}" style="max-width: 100%; display: block;">`;
+} else if (redoAnswer) {
+    // 是字符串但不是 data URL，当作 LaTeX/文本处理
+    const cleaned = cleanLatexForMathJax(redoAnswer.trim());
+    answerHtml = cleaned.replace(/\n/g, '<br>');
+} else {
+    // redo_answer 为 null、undefined、空字符串等，不渲染任何内容
+    answerHtml = ''; // 或者显示占位提示，如 '<em>未作答</em>'
+}
+
+            // ===== 检查并追加 redo_images（裁剪图） =====
+if (cardData.redo_images && Array.isArray(cardData.redo_images) && cardData.redo_images.length > 0) {
+    const imageHtmls = cardData.redo_images.map(path => {
+        // 确保路径不是 null 或 undefined
+        if (typeof path === 'string') {
+            return `<img src="${path}" alt="Redo crop" style="max-width: 100%; margin-top: 8px; display: block;">`;
+        } else {
+            console.warn("Invalid image path:", path);
+            return ''; // 或者返回一个默认的占位符
+        }
+    }).filter(html => html !== ''); // 过滤掉无效的 HTML
+
+    answerHtml += imageHtmls.join('');
+} else {
+    // 可选：如果没有任何图片，可以在这里添加一些提示信息
+    answerHtml += '<div class="text-muted">无相关图片</div>';
+}
+
+            // 设置最终 HTML
+            lastRedoAnswerEl.innerHTML = answerHtml;
+
+            // 如果是 LaTeX 内容（非图片），才需要渲染 MathJax
+            // 假设 updateRedoSection 函数中包含如下代码段
+if (cardData.redo_answer && typeof cardData.redo_answer === 'string' && !cardData.redo_answer.startsWith('data:image/')) {
+    safeRenderMath(lastRedoAnswerEl);
+}
+        } else {
+            // 隐藏整个重做板块
+            redoSection.style.display = 'none';
+        }
+    }
+}
+
+
+/*
+    function updateRedoSection(cardData) {
+        const redoSection = document.getElementById('lastRedoSection');
+        const redoTimeDisplay = document.getElementById('redoTimeDisplay');
+        const lastRedoAnswerEl = document.getElementById('lastRedoAnswer');
+
+        if (redoSection && redoTimeDisplay && lastRedoAnswerEl) {
+            if (cardData.redo_answer != null && cardData.redo_answer.trim() !== '' && cardData.redo_time) {
+                // 显示重做板块
+                redoSection.style.display = 'block';
+
+                // 格式化时间
+                const redoDate = new Date(cardData.redo_time);
+                redoTimeDisplay.textContent = redoDate.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+
+                // 渲染答案（支持 LaTeX）
+                const cleaned = cleanLatexForMathJax(cardData.redo_answer.trim());
+                lastRedoAnswerEl.innerHTML = cleaned;
+                safeRenderMath(lastRedoAnswerEl);
+            } else {
+                // 隐藏板块
+                redoSection.style.display = 'none';
+            }
+        }
+    }
+*/
+    // 初始加载
+    updateRedoSection(card);
     /* ---------------------- 元信息 ---------------------- */
     const metaEl = document.getElementById('metaInfo');
     if (metaEl) {
@@ -167,6 +291,31 @@ if (redoSection && redoTimeDisplay && lastRedoAnswerEl) {
     /* ---------------------- 返回按钮 ---------------------- */
     const backBtn = document.getElementById('backBtn');
     if (backBtn) backBtn.addEventListener('click', () => window.history.back());
+
+    /* ---------------------- 刷新按钮 ---------------------- */
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            refreshBtn.disabled = true;
+            refreshBtn.querySelector('i').classList.add('fa-spin');
+            
+            try {
+                const refreshRes = await fetch(window.getApiUrl(`/api/error/get?id=${encodeURIComponent(errorId)}`));
+                const refreshData = await refreshRes.json();
+                if (refreshData.success && refreshData.error) {
+                    updateRedoSection(refreshData.error);
+                    // 可选：显示成功提示
+                    console.log('Redo section refreshed successfully');
+                }
+            } catch (refreshErr) {
+                console.error('Failed to refresh:', refreshErr);
+                alert('Failed to refresh. Please try again.');
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.querySelector('i').classList.remove('fa-spin');
+            }
+        });
+    }
 
     /* ============================================
      *        Dropzone 拖拽上传
@@ -212,9 +361,14 @@ if (redoSection && redoTimeDisplay && lastRedoAnswerEl) {
         function updatePreview(file) {
             const dzText = dropzone.querySelector(".dz-text");
             if (dzText) dzText.textContent = `已选择：${file.name}`;
-
+            
             // 显示预览图
             if (previewDiv && previewImg) {
+                // 清除之前的预览图（释放内存）
+                if (previewImg.src && previewImg.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(previewImg.src);
+                }
+                
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     previewImg.src = e.target.result;
@@ -225,144 +379,154 @@ if (redoSection && redoTimeDisplay && lastRedoAnswerEl) {
         }
     }
 
-    /* ============================================
-     *        清除按钮
-     * ============================================ */
-    const redoClearBtn = document.getElementById('redoClearBtn');
-    if (redoClearBtn && fileInput) {
-        redoClearBtn.addEventListener('click', () => {
-            fileInput.value = '';
-            const dzText = dropzone?.querySelector(".dz-text");
-            if (dzText) dzText.textContent = 'Drag & Drop your answer image here';
-            if (previewDiv) previewDiv.style.display = 'none';
-            if (previewImg) previewImg.src = '';
-            const redoResultEl = document.getElementById('redoResult');
-            if (redoResultEl) redoResultEl.textContent = '';
-        });
-    }
 
     /* =====================================================
      *                重做（redo）功能
      * ===================================================== */
     const redoBtn = document.getElementById('redoBtn');
-const redoResultEl = document.getElementById('redoResult');
+    const redoResultEl = document.getElementById('redoResult');
 
-if (redoBtn && fileInput && redoResultEl) {
-    redoBtn.addEventListener('click', async () => {
-        const file = fileInput.files[0];
-        if (!file) {
-            redoResultEl.textContent = 'Please select an image first.';
-            redoResultEl.className = 'redo-result err';
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const base64Data = e.target.result;
-
-            redoResultEl.textContent = 'Submitting...';
-            redoResultEl.className = 'redo-result';
-
-            try {
-                const res = await fetch(window.getApiUrl('/api/error/redo'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        id: errorId,
-                        redo_answer: base64Data
-                    })
-                });
-
-                const data = await res.json();
-                console.log("Redo response:", data);
-
-                if (!data.success) {
-                    redoResultEl.textContent = `提交失败: ${data.error || '未知错误'}`;
-                    redoResultEl.className = 'redo-result err';
-                    return;
-                }
-
-                // ✅ 只显示正确/错误
-                if (data.is_correct === true) {
-                    redoResultEl.textContent = 'Correct ✅';
-                    redoResultEl.className = 'redo-result ok';
-                } else {
-                    redoResultEl.textContent = 'Incorrect ❌';
-                    redoResultEl.className = 'redo-result err';
-                }
-
-            } catch (err) {
-                console.error('Redo error:', err);
-                redoResultEl.textContent = `提交出错: ${err.message}`;
+    if (redoBtn && fileInput && redoResultEl) {
+        redoBtn.addEventListener('click', async () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                redoResultEl.textContent = 'Please select an image first.';
                 redoResultEl.className = 'redo-result err';
+                return;
             }
-        };
-        reader.readAsDataURL(file);
-    });
-}
-/* ============================================
- *        文本重做（手动输入答案）
- * ============================================ */
-const redoTextBtn = document.getElementById('textRedoBtn');      // ✅ 匹配 HTML
-const redoTextResultEl = document.getElementById('textRedoResult'); // ✅
-const redoTextInput = document.getElementById('textAnswer');       // ✅
 
-if (redoTextBtn && redoTextResultEl && redoTextInput && errorId) {
-    redoTextBtn.addEventListener('click', async () => {
-        const userAnswer = redoTextInput.value.trim();
-        if (!userAnswer) {
-            redoTextResultEl.textContent = 'Please enter your answer first.';
-            redoTextResultEl.className = 'redo-result err';
-            return;
-        }
+            // 读取文件为 base64
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const base64Data = e.target.result;
+                
+                redoResultEl.textContent = 'Submitting...';
+                redoResultEl.className = 'redo-result';
 
-        redoTextResultEl.textContent = 'Submitting...';
-        redoTextResultEl.className = 'redo-result';
+                try {
+                    const res = await fetch(window.getApiUrl('/api/error/redo'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: errorId,
+                            redo_answer: base64Data
+                        })
+                    });
+                    const data = await res.json();
+                    console.log("Redo response:", data);
 
-        try {
-            const res = await fetch(window.getApiUrl('/api/error/redo_text'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: errorId,
-                    user_answer: userAnswer
-                })
-            });
+                    if (!data.success) {
+                        redoResultEl.textContent = `failed: ${data.error || '未知错误'}`;
+                        redoResultEl.className = 'redo-result err';
+                        return;
+                    }
 
-            const data = await res.json();
-            console.log("Text redo response:", data);
+                    if (data.is_correct === true) {
+                        redoResultEl.textContent = 'Correct ';
+                        redoResultEl.className = 'redo-result ok';
+                    } else {
+                        redoResultEl.textContent = 'Incorrect ';
+                        redoResultEl.className = 'redo-result err';
+                    }
 
-            if (!data.success) {
-                redoTextResultEl.textContent = `提交失败: ${data.error || '未知错误'}`;
+
+                    // 自动刷新 redo 区域
+                    try {
+                        const refreshRes = await fetch(window.getApiUrl(`/api/error/get?id=${encodeURIComponent(errorId)}`));
+                        const refreshData = await refreshRes.json();
+                        if (refreshData.success && refreshData.error) {
+                            updateRedoSection(refreshData.error);
+                        }
+                    } catch (refreshErr) {
+                        console.error('Failed to refresh redo section:', refreshErr);
+                    }
+
+                } catch (err) {
+                    console.error('Redo error:', err);
+                    redoResultEl.textContent = `failed: ${err.message}`;
+                    redoResultEl.className = 'redo-result err';
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    /* ============================================
+     *        文本重做（手动输入答案）
+     * ============================================ */
+    const redoTextBtn = document.getElementById('textRedoBtn');      // 匹配 HTML
+    const redoTextResultEl = document.getElementById('textRedoResult'); // 
+    const redoTextInput = document.getElementById('textAnswer');       // 
+
+    if (redoTextBtn && redoTextResultEl && redoTextInput && errorId) {
+        redoTextBtn.addEventListener('click', async () => {
+            const userAnswer = redoTextInput.value.trim();
+            if (!userAnswer) {
+                redoTextResultEl.textContent = 'Please enter your answer first.';
                 redoTextResultEl.className = 'redo-result err';
                 return;
             }
 
-            if (data.correct) {
-                redoTextResultEl.textContent = 'Correct✅';
-                redoTextResultEl.className = 'redo-result ok';
-            } else {
-                redoTextResultEl.textContent = `Incorrect ❌ ${data.ai_reason || ''}`;
+            redoTextResultEl.textContent = 'Submitting...';
+            redoTextResultEl.className = 'redo-result';
+
+            try {
+                const res = await fetch(window.getApiUrl('/api/error/redo_text'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: errorId,
+                        user_answer: userAnswer
+                    })
+                });
+
+                const data = await res.json();
+                console.log("Text redo response:", data);
+
+                if (!data.success) {
+                    redoTextResultEl.textContent = `fail to summit: ${data.error || 'unknown error'}`;
+                    redoTextResultEl.className = 'redo-result err';
+                    return;
+                }
+
+                if (data.correct) {
+                    redoTextResultEl.textContent = 'Correct';
+                    redoTextResultEl.className = 'redo-result ok';
+                } else {
+                    redoTextResultEl.textContent = `Incorrect  ${data.ai_reason || ''}`;
+                    redoTextResultEl.className = 'redo-result err';
+                }
+
+                // 自动刷新 redo 区域
+                try {
+                    const refreshRes = await fetch(window.getApiUrl(`/api/error/get?id=${encodeURIComponent(errorId)}`));
+                    const refreshData = await refreshRes.json();
+                    if (refreshData.success && refreshData.error) {
+                        updateRedoSection(refreshData.error);
+                    }
+                } catch (refreshErr) {
+                    console.error('Failed to refresh redo section:', refreshErr);
+                }
+
+            } catch (err) {
+                console.error('Text redo error:', err);
+                redoTextResultEl.textContent = `summition error: ${err.message}`;
                 redoTextResultEl.className = 'redo-result err';
             }
-
-        } catch (err) {
-            console.error('Text redo error:', err);
-            redoTextResultEl.textContent = `提交出错: ${err.message}`;
-            redoTextResultEl.className = 'redo-result err';
-        }
-    });
-
-    // 可选：实现 Clear 按钮
-    const clearBtn = document.getElementById('textRedoClearBtn');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            redoTextInput.value = '';
-            redoTextResultEl.textContent = '';
-            redoTextResultEl.className = 'redo-result';
         });
+
+        // 可选：实现 Clear 按钮
+        const clearBtn = document.getElementById('textRedoClearBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                redoTextInput.value = '';
+                redoTextResultEl.textContent = '';
+                redoTextResultEl.className = 'redo-result';
+            });
+        }
     }
-}
+
+
 
     /* ============================================
      *        折叠/展开正确答案和分析
@@ -386,6 +550,3 @@ if (redoTextBtn && redoTextResultEl && redoTextInput && errorId) {
         });
     });
 });
-
-
-

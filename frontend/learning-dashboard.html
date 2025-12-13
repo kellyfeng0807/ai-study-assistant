@@ -11,22 +11,39 @@
     <link rel="stylesheet" href="static/css/learning-dashboard.css">
     <link rel="stylesheet" href="static/css/ai-chat.css">
     <link rel="stylesheet" href="static/css/message-modal.css">
+    <link rel="stylesheet" href="static/css/auth.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- MathJax for LaTeX formula rendering -->
+    <!-- MathJax 配置：优化渲染速度 -->
     <script>
-        MathJax = {
+        window.MathJax = {
             tex: {
                 inlineMath: [['$', '$'], ['\\(', '\\)']],
                 displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                processEscapes: true
+                processEscapes: true,
+                processEnvironments: true
+            },
+            startup: {
+                typeset: false,
+                pageReady: () => {
+                    return MathJax.startup.defaultPageReady();
+                }
             },
             options: {
-                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            chtml: {
+                scale: 1,
+                minScale: 0.5,
+                matchFontHeight: false,
+                mtextInheritFont: true
             }
         };
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+    <!-- 使用更快的 CDN 和更轻量的版本 -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
     
     <!-- DNS prefetch for faster navigation -->
     <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
@@ -72,8 +89,8 @@
                 <div class="user-profile">
                     <div class="avatar">S</div>
                     <div class="user-info">
-                        <div class="user-name">Student</div>
-                        <div class="user-email">student@example.com</div>
+                        <div class="user-name"></div>
+                        <div class="user-email"></div>
                     </div>
                 </div>
             </div>
@@ -89,7 +106,7 @@
                     <span class="period-label" style="padding: 8px 16px; background: var(--card-background); border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; color: var(--text-secondary);">Last 7 days</span>
                     <button class="icon-button" id="notificationBtn">
                         <i class="fas fa-bell"></i>
-                        <span class="badge">3</span>
+                        <span class="badge" style="display: none;"></span>
                     </button>
                     <button class="icon-button theme-toggle">
                         <i class="fas fa-moon"></i>
@@ -104,12 +121,20 @@
                             <i class="fas fa-clock"></i>
                         </div>
                         <div class="metric-info">
-                            <div class="metric-value">42.5h</div>
+                            <div class="metric-value" id="totalStudyTime">0 min</div>
                             <div class="metric-label">Study Time</div>
+                            <div class="metric-progress" id="goalProgress" style="display: none; margin-top: 8px; width: 100%;">
+                                <div style="font-size: 0.75em; margin-bottom: 2px; color: var(--muted-foreground);">
+                                    <span id="goalValue">0 / 0 min</span>
+                                </div>
+                                <div style="background: hsl(var(--muted) / 0.3); height: 4px; border-radius: 2px; overflow: hidden;">
+                                    <div id="goalBar" style="background: hsl(142.1, 76.2%, 36.3%); height: 100%; width: 0%; transition: width 0.3s, background 0.3s;"></div>
+                                </div>
+                            </div>
                         </div>
                         <div class="metric-trend positive">
                             <i class="fas fa-arrow-up"></i>
-                            12%
+                            <span id="studyTimeTrend">0%</span>
                         </div>
                     </div>
 
@@ -118,12 +143,12 @@
                             <i class="fas fa-file-alt"></i>
                         </div>
                         <div class="metric-info">
-                            <div class="metric-value">156</div>
+                            <div class="metric-value" id="notesCount">0</div>
                             <div class="metric-label">Notes Created</div>
                         </div>
                         <div class="metric-trend positive">
                             <i class="fas fa-arrow-up"></i>
-                            8%
+                            <span id="notesTrend">0%</span>
                         </div>
                     </div>
 
@@ -132,12 +157,12 @@
                             <i class="fas fa-tasks"></i>
                         </div>
                         <div class="metric-info">
-                            <div class="metric-value">89%</div>
+                            <div class="metric-value" id="accuracyRate">0%</div>
                             <div class="metric-label">Accuracy Rate</div>
                         </div>
                         <div class="metric-trend positive">
                             <i class="fas fa-arrow-up"></i>
-                            5%
+                            <span id="accuracyTrend">0%</span>
                         </div>
                     </div>
 
@@ -146,20 +171,23 @@
                             <i class="fas fa-fire"></i>
                         </div>
                         <div class="metric-info">
-                            <div class="metric-value">15</div>
+                            <div class="metric-value" id="dayStreak">0</div>
                             <div class="metric-label">Day Streak</div>
                         </div>
                         <div class="metric-trend positive">
                             <i class="fas fa-arrow-up"></i>
-                            3
+                            <span id="streakTrend">0</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="charts-grid">
-                    <div class="chart-card large">
+                <div class="charts-grid charts-grid-three">
+                    <div class="chart-card">
                         <div class="chart-header">
-                            <h3 class="chart-title">Study Time Trend</h3>
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-line"></i>
+                                Study Time Trend (Last 7 Days)
+                            </h3>
                             <div class="chart-legend">
                                 <span class="legend-item">
                                     <span class="legend-dot" style="background: hsl(221.2 83.2% 53.3%);"></span>
@@ -168,34 +196,24 @@
                             </div>
                         </div>
                         <div class="chart-container">
-                            <div class="bar-chart">
-                                <div class="bar-group">
-                                    <div class="bar" style="height: 60%;"></div>
-                                    <span class="bar-label">Mon</span>
-                                </div>
-                                <div class="bar-group">
-                                    <div class="bar" style="height: 80%;"></div>
-                                    <span class="bar-label">Tue</span>
-                                </div>
-                                <div class="bar-group">
-                                    <div class="bar" style="height: 45%;"></div>
-                                    <span class="bar-label">Wed</span>
-                                </div>
-                                <div class="bar-group">
-                                    <div class="bar" style="height: 90%;"></div>
-                                    <span class="bar-label">Thu</span>
-                                </div>
-                                <div class="bar-group">
-                                    <div class="bar" style="height: 70%;"></div>
-                                    <span class="bar-label">Fri</span>
-                                </div>
-                                <div class="bar-group">
-                                    <div class="bar" style="height: 55%;"></div>
-                                    <span class="bar-label">Sat</span>
-                                </div>
-                                <div class="bar-group">
-                                    <div class="bar" style="height: 65%;"></div>
-                                    <span class="bar-label">Sun</span>
+                            <div class="bar-chart" id="dailyTrendChart">
+                                <!-- Chart will be loaded dynamically via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-clock"></i>
+                                Today's Module Usage
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <div class="progress-list" id="moduleTodayContainer">
+                                <div class="loading-placeholder">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <span>Loading...</span>
                                 </div>
                             </div>
                         </div>
@@ -203,10 +221,13 @@
 
                     <div class="chart-card">
                         <div class="chart-header">
-                            <h3 class="chart-title">Subject Distribution</h3>
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-pie"></i>
+                                Subject Distribution
+                            </h3>
                         </div>
                         <div class="chart-container">
-                            <div class="progress-list">
+                            <div class="progress-list" id="subjectDistribution">
                                 <!-- Subject distribution will be loaded dynamically -->
                             </div>
                         </div>
@@ -254,6 +275,7 @@
 
     <script src="static/js/main.js"></script>
     <script src="static/js/message-modal.js"></script>
+    <script src="static/js/notifications.js"></script>
     <script src="static/js/ai-chat.js"></script>
     <script src="static/js/learning-dashboard.js"></script>
 </body>
