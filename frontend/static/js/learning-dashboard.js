@@ -356,9 +356,9 @@ class LearningDashboard {
         // 如果没有数据
         if (!subjects || subjects.length === 0) {
             container.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: var(--muted-foreground);">
-                    <i class="fas fa-chart-pie" style="font-size: 32px; opacity: 0.5;"></i>
-                    <p>No subject data</p>
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 200px; padding: 40px; color: var(--muted-foreground);">
+                    <i class="fas fa-chart-pie" style="font-size: 32px; opacity: 0.5; margin-bottom: 12px;"></i>
+                    <p style="margin: 0;">No subject data</p>
                 </div>
             `;
             return;
@@ -478,9 +478,9 @@ class LearningDashboard {
                 `).join('');
             } else {
                 strengthsList.innerHTML = `
-                    <li class="performance-item" style="color: var(--muted-foreground); justify-content: center;">
-                        <i class="fas fa-info-circle"></i>
-                        <span>No data yet. Add notes or errors first.</span>
+                    <li class="performance-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; color: var(--muted-foreground);">
+                        <i class="fas fa-info-circle" style="font-size: 24px; opacity: 0.5; margin-bottom: 8px;"></i>
+                        <span style="text-align: center;">No data yet. Add notes or errors first.</span>
                     </li>
                 `;
             }
@@ -498,8 +498,8 @@ class LearningDashboard {
                 `).join('');
             } else {
                 improvementsList.innerHTML = `
-                    <li class="performance-item" style="color: var(--muted-foreground); justify-content: center;">
-                        <i class="fas fa-info-circle"></i>
+                    <li class="performance-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; color: var(--muted-foreground);">
+                        <i class="fas fa-info-circle" style="font-size: 24px; opacity: 0.5; margin-bottom: 8px;"></i>
                         <span>No data</span>
                     </li>
                 `;
@@ -661,9 +661,9 @@ class LearningDashboard {
         if (!modules || modules.length === 0) {
             console.log('[INFO] No module data, showing empty state');
             container.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: hsl(var(--muted-foreground));">
-                    <i class="fas fa-clock" style="font-size: 32px; opacity: 0.5;"></i>
-                    <p style="margin-top: 10px;">No module usage today</p>
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 200px; padding: 40px; color: var(--muted-foreground);">
+                    <i class="fas fa-clock" style="font-size: 32px; opacity: 0.5; margin-bottom: 12px;"></i>
+                    <p style="margin: 0;">No module usage today</p>
                 </div>
             `;
             return;

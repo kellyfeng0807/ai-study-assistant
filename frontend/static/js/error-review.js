@@ -391,6 +391,8 @@ if (cardData.redo_answer && typeof cardData.redo_answer === 'string' && !cardDat
                     if (data.is_correct === true) {
                         redoResultEl.textContent = 'Correct ';
                         redoResultEl.className = 'redo-result ok';
+                        // 通知error-book页面需要刷新数据
+                        localStorage.setItem('errorBookNeedsRefresh', 'true');
                     } else {
                         redoResultEl.textContent = 'Incorrect ';
                         redoResultEl.className = 'redo-result err';
@@ -459,6 +461,8 @@ if (cardData.redo_answer && typeof cardData.redo_answer === 'string' && !cardDat
                 if (data.correct) {
                     redoTextResultEl.textContent = 'Correct';
                     redoTextResultEl.className = 'redo-result ok';
+                    // 通知error-book页面需要刷新数据
+                    localStorage.setItem('errorBookNeedsRefresh', 'true');
                 } else {
                     redoTextResultEl.textContent = `Incorrect  ${data.ai_reason || ''}`;
                     redoTextResultEl.className = 'redo-result err';

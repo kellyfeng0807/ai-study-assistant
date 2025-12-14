@@ -2,7 +2,7 @@
 Mind Map Generation Module - Enhanced with AI and File Upload
 """
 
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, session
 from werkzeug.utils import secure_filename
 import os
 import json
@@ -30,9 +30,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def load_mindmaps():
+def load_mindmaps(user_id='default'):
     """加载所有思维导图数据"""
-    return db_sqlite.get_all_mindmaps()
+    return db_sqlite.get_all_mindmaps(user_id)
 
 def save_mindmaps(mindmaps):
     """保存思维导图数据"""
@@ -185,13 +185,17 @@ def generate_mindmap():
         # 生成Mermaid代码
         mermaid_code = generate_mermaid_from_text(topic, depth, context, style)
         
+        # 获取当前用户
+        user_id = session.get('user_id', 'default')
+        
         # 确保标题唯一
-        mindmaps = load_mindmaps()
+        mindmaps = load_mindmaps(user_id)
         unique_title = ensure_unique_title(topic, mindmaps)
         
         mindmap_id = str(uuid.uuid4())
         mindmap = {
             'id': mindmap_id,
+            'user_id': user_id,
             'title': unique_title,
             'mermaid_code': mermaid_code,
             'depth': depth,
@@ -382,7 +386,10 @@ def upload_file_for_mindmap():
 def list_mindmaps():
     """获取所有思维导图列表"""
     try:
-        mindmaps = db_sqlite.get_all_mindmaps()
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
+        mindmaps = db_sqlite.get_all_mindmaps(user_id)
         return jsonify({
             'success': True,
             'mindmaps': mindmaps,
@@ -491,7 +498,10 @@ def generate_from_notes():
 def get_mindmap(map_id):
     """获取特定思维导图"""
     try:
-        mindmap = db_sqlite.get_mindmap_by_id(map_id)
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
+        mindmap = db_sqlite.get_mindmap_by_id(map_id, user_id)
         if not mindmap:
             return jsonify({
                 'success': False,

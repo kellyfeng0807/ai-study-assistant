@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 import json
 from datetime import datetime,  timedelta
 import sys
@@ -34,7 +34,7 @@ def track_module():
             return jsonify({"ignored": True, "reason": "Duration out of range"})
         
         today = datetime.now().strftime("%Y-%m-%d")
-        user_id = 1
+        user_id = session.get('user_id', 'default')
         
         # Track the module usage
         db_sqlite.track_module_usage(user_id, today, module, seconds)
@@ -55,7 +55,7 @@ def get_module_stats():
     """
     try:
         period = int(request.args.get('period', 7))
-        user_id = 1
+        user_id = session.get('user_id', 'default')
         
         end_date = datetime.now()
         start_date = end_date - timedelta(days=period)
@@ -87,7 +87,7 @@ def get_module_daily_trend():
     返回格式: [{"date": "2025-12-09", "total_seconds": 3600, "modules": {...}}, ...]
     """
     try:
-        user_id = 1
+        user_id = session.get('user_id', 'default')
         days = int(request.args.get('days', 7))
         
         end_date = datetime.now()
@@ -142,7 +142,7 @@ def get_module_today():
     返回格式: [{"module": "note-assistant", "seconds": 1200}, ...]
     """
     try:
-        user_id = 1
+        user_id = session.get('user_id', 'default')
         today = datetime.now().strftime('%Y-%m-%d')
         
         stats = db_sqlite.get_module_usage_stats(user_id, today, today)

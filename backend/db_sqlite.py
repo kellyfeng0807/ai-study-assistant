@@ -60,7 +60,7 @@ def init_db():
     cur.execute('''
     CREATE TABLE IF NOT EXISTS note (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER DEFAULT 1,
+        user_id TEXT DEFAULT 'default',
         title TEXT,
         text_content TEXT,
         key_points TEXT,
@@ -73,21 +73,12 @@ def init_db():
     )
     ''')
     conn.commit()
-    # Ensure 'tags' column exists
-    cur.execute("PRAGMA table_info(note)")
-    cols = [c[1] for c in cur.fetchall()]
-    if 'tags' not in cols:
-        try:
-            cur.execute("ALTER TABLE note ADD COLUMN tags TEXT")
-            conn.commit()
-        except Exception:
-            pass
     
     # Create mindmap table
     cur.execute('''
     CREATE TABLE IF NOT EXISTS mindmap (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER DEFAULT 1,
+        user_id TEXT DEFAULT 'default',
         title TEXT,
         mermaid_code TEXT,
         depth INTEGER DEFAULT 3,
@@ -106,7 +97,7 @@ def init_db():
     cur.execute('''
     CREATE TABLE IF NOT EXISTS error_book (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER DEFAULT 1,
+        user_id TEXT DEFAULT 'default',
         subject TEXT,
         type TEXT,
         tags TEXT,
@@ -128,30 +119,11 @@ def init_db():
     ''')
     conn.commit()
     
-    # Migrate error_book: add missing columns
-    try:
-        cur.execute("PRAGMA table_info(error_book)")
-        error_cols = [c[1] for c in cur.fetchall()]
-        if 'source_practice_id' not in error_cols:
-            cur.execute("ALTER TABLE error_book ADD COLUMN source_practice_id INTEGER DEFAULT -1")
-            conn.commit()
-        if 'images' not in error_cols:
-            cur.execute("ALTER TABLE error_book ADD COLUMN images TEXT DEFAULT '[]'")
-            conn.commit()
-        if 'answer_images' not in error_cols:
-            cur.execute("ALTER TABLE error_book ADD COLUMN answer_images TEXT DEFAULT '[]'")
-            conn.commit()
-        if 'redo_images' not in error_cols:
-            cur.execute("ALTER TABLE error_book ADD COLUMN redo_images TEXT DEFAULT '[]'")
-            conn.commit()
-    except Exception as e:
-        print(f"Migration note for error_book columns: {e}")
-    
     # Create practice_record table
     cur.execute('''
     CREATE TABLE IF NOT EXISTS practice_record (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER DEFAULT 1,
+        user_id TEXT DEFAULT 'default',
         error_id INTEGER,
         subject TEXT,
         type TEXT,
@@ -169,21 +141,11 @@ def init_db():
     ''')
     conn.commit()
     
-    # Migrate practice_record: add practice_images if missing
-    try:
-        cur.execute("PRAGMA table_info(practice_record)")
-        practice_cols = [c[1] for c in cur.fetchall()]
-        if 'practice_images' not in practice_cols:
-            cur.execute("ALTER TABLE practice_record ADD COLUMN practice_images TEXT DEFAULT '[]'")
-            conn.commit()
-    except Exception as e:
-        print(f"Migration note for practice_record.practice_images: {e}")
-    
     # Create module_usage table for tracking module usage time
     cur.execute('''
     CREATE TABLE IF NOT EXISTS module_usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER DEFAULT 1,
+        user_id TEXT DEFAULT 'default',
         date TEXT NOT NULL,
         module TEXT NOT NULL,
         duration_seconds INTEGER DEFAULT 0,
@@ -229,30 +191,7 @@ def init_db():
         FOREIGN KEY (parent_id) REFERENCES user_settings(user_id)
     )
     ''')
-    
-    '''
     conn.commit()
-    
-    
-    # Migrate existing user_id column if it's INTEGER
-    try:
-        cur.execute("PRAGMA table_info(user_settings)")
-        cols = {c[1]: c[2] for c in cur.fetchall()}
-        
-        # Add missing columns if they don't exist
-        if 'password_hash' not in cols:
-            cur.execute("ALTER TABLE user_settings ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
-        if 'account_type' not in cols:
-            cur.execute("ALTER TABLE user_settings ADD COLUMN account_type TEXT DEFAULT 'student'")
-        if 'parent_id' not in cols:
-            cur.execute("ALTER TABLE user_settings ADD COLUMN parent_id TEXT")
-        if 'avatar_url' not in cols:
-            cur.execute("ALTER TABLE user_settings ADD COLUMN avatar_url TEXT")
-        conn.commit()
-    except Exception as e:
-        print(f"Migration note: {e}")
-    
-    '''
     conn.close()
 
 
@@ -304,7 +243,7 @@ def insert_note(note):
         INSERT INTO note (user_id, title, text_content, key_points, examples, summary, subject, source, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
-        note.get('user_id', 1),
+        note.get('user_id', 'default'),
         note.get('title'),
         note.get('original_text'),
         key_points,
@@ -356,34 +295,34 @@ def delete_note(note_id):
     return changes > 0
 
 
-def get_note_by_id(note_id):
+def get_note_by_id(note_id, user_id='default'):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute('SELECT * FROM note WHERE id=?', (note_id,))
+    cur.execute('SELECT * FROM note WHERE id=? AND user_id=?', (note_id, user_id))
     row = cur.fetchone()
     conn.close()
     return _row_to_note_dict(row)
 
 
-def list_notes(subject=None, limit=10):
+def list_notes(subject=None, limit=10, user_id='default'):
     conn = get_conn()
     cur = conn.cursor()
     if subject:
-        cur.execute('SELECT * FROM note WHERE subject=? ORDER BY created_at DESC LIMIT ?', (subject, limit))
+        cur.execute('SELECT * FROM note WHERE subject=? AND user_id=? ORDER BY created_at DESC LIMIT ?', (subject, user_id, limit))
     else:
-        cur.execute('SELECT * FROM note ORDER BY created_at DESC LIMIT ?', (limit,))
+        cur.execute('SELECT * FROM note WHERE user_id=? ORDER BY created_at DESC LIMIT ?', (user_id, limit))
     rows = cur.fetchall()
     conn.close()
     return [_row_to_note_dict(r) for r in rows]
 
 
-def count_notes(subject=None):
+def count_notes(subject=None, user_id='default'):
     conn = get_conn()
     cur = conn.cursor()
     if subject:
-        cur.execute('SELECT COUNT(*) FROM note WHERE subject=?', (subject,))
+        cur.execute('SELECT COUNT(*) FROM note WHERE subject=? AND user_id=?', (subject, user_id))
     else:
-        cur.execute('SELECT COUNT(*) FROM note')
+        cur.execute('SELECT COUNT(*) FROM note WHERE user_id=?', (user_id,))
     count = cur.fetchone()[0]
     conn.close()
     return count
@@ -414,7 +353,7 @@ def insert_mindmap(mindmap):
         INSERT INTO mindmap (user_id, title, mermaid_code, depth, style, source, source_file, context, node_positions, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
-        mindmap.get('user_id', 1),
+        mindmap.get('user_id', 'default'),
         mindmap.get('title'),
         mindmap.get('mermaid_code'),
         mindmap.get('depth', 3),
@@ -461,18 +400,18 @@ def delete_mindmap(map_id):
     conn.close()
     return changes > 0
 
-def get_mindmap_by_id(map_id):
+def get_mindmap_by_id(map_id, user_id='default'):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute('SELECT * FROM mindmap WHERE id=?', (map_id,))
+    cur.execute('SELECT * FROM mindmap WHERE id=? AND user_id=?', (map_id, user_id))
     row = cur.fetchone()
     conn.close()
     return _row_to_mindmap_dict(row)
 
-def get_all_mindmaps():
+def get_all_mindmaps(user_id='default'):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute('SELECT * FROM mindmap ORDER BY created_at DESC')
+    cur.execute('SELECT * FROM mindmap WHERE user_id=? ORDER BY created_at DESC', (user_id,))
     rows = cur.fetchall()
     conn.close()
     return [_row_to_mindmap_dict(row) for row in rows]
@@ -561,7 +500,7 @@ def insert_error(error):
         INSERT INTO error_book (user_id, subject, type, tags, question, user_answer, correct_answer, analysis_steps, images, created_at, updated_at, difficulty, reviewed,source_practice_id, redo_images,answer_images)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)
     ''', (
-        error.get('user_id', 1),
+        error.get('user_id', 'default'),
         error.get('subject', ''),
         error.get('type', ''),
         tags,
@@ -646,30 +585,27 @@ def delete_error(error_id):
     return True
 
 
-def get_error_by_id(error_id):
+def get_error_by_id(error_id, user_id='default'):
     """Get a single error by id."""
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute('SELECT * FROM error_book WHERE id=?', (error_id,))
+    cur.execute('SELECT * FROM error_book WHERE id=? AND user_id=?', (error_id, user_id))
     row = cur.fetchone()
     conn.close()
     return _row_to_error_dict(row)
 
 
-def list_errors(subject=None, user_id=None, limit=100):
+def list_errors(subject=None, user_id='default', limit=100):
     """List errors with optional filtering."""
     conn = get_conn()
     cur = conn.cursor()
     
-    query = 'SELECT * FROM error_book WHERE 1=1'
-    params = []
+    query = 'SELECT * FROM error_book WHERE user_id=?'
+    params = [user_id]
     
     if subject:
         query += ' AND subject=?'
         params.append(subject)
-    if user_id:
-        query += ' AND user_id=?'
-        params.append(user_id)
     
     query += ' ORDER BY created_at DESC LIMIT ?'
     params.append(limit)
@@ -680,20 +616,17 @@ def list_errors(subject=None, user_id=None, limit=100):
     return [_row_to_error_dict(r) for r in rows]
 
 
-def count_errors(subject=None, user_id=None):
+def count_errors(subject=None, user_id='default'):
     """Count errors with optional filtering."""
     conn = get_conn()
     cur = conn.cursor()
     
-    query = 'SELECT COUNT(*) FROM error_book WHERE 1=1'
-    params = []
+    query = 'SELECT COUNT(*) FROM error_book WHERE user_id=?'
+    params = [user_id]
     
     if subject:
         query += ' AND subject=?'
         params.append(subject)
-    if user_id:
-        query += ' AND user_id=?'
-        params.append(user_id)
     
     cur.execute(query, params)
     count = cur.fetchone()[0]
@@ -808,7 +741,7 @@ def insert_practice(practice):
          created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
     ''', (
-        practice.get('user_id', 1),
+        practice.get('user_id', 'default'),
         practice.get('error_id'),
         practice.get('subject', ''),
         practice.get('type', ''),
@@ -876,29 +809,25 @@ def delete_practice(practice_id):
     return changes > 0
 
 
-def get_practice_by_id(practice_id):
+def get_practice_by_id(practice_id, user_id='default'):
     """Get a single practice by id."""
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute('SELECT * FROM practice_record WHERE id=?', (practice_id,))
+    cur.execute('SELECT * FROM practice_record WHERE id=? AND user_id=?', (practice_id, user_id))
     row = cur.fetchone()
 
     conn.close()
     return _row_to_practice_dict(row)
 
 
-def list_practice_by_error_id(error_id, user_id=None):
+def list_practice_by_error_id(error_id, user_id='default'):
     """List practice records by error_id."""
     conn = get_conn()
     cur = conn.cursor()
 
-    query = 'SELECT * FROM practice_record WHERE error_id=?'
-    params = [error_id]
-
-    if user_id:
-        query += ' AND user_id=?'
-        params.append(user_id)
+    query = 'SELECT * FROM practice_record WHERE error_id=? AND user_id=?'
+    params = [error_id, user_id]
 
     query += ' ORDER BY created_at DESC'
 
@@ -909,20 +838,17 @@ def list_practice_by_error_id(error_id, user_id=None):
     return [_row_to_practice_dict(r) for r in rows]
 
 
-def list_practice(subject=None, user_id=None, limit=100):
+def list_practice(subject=None, user_id='default', limit=100):
     """List practice records with optional filtering."""
     conn = get_conn()
     cur = conn.cursor()
 
-    query = 'SELECT * FROM practice_record WHERE 1=1'
-    params = []
+    query = 'SELECT * FROM practice_record WHERE user_id=?'
+    params = [user_id]
 
     if subject:
         query += ' AND subject=?'
         params.append(subject)
-    if user_id:
-        query += ' AND user_id=?'
-        params.append(user_id)
 
     query += ' ORDER BY created_at DESC LIMIT ?'
     params.append(limit)
@@ -933,20 +859,17 @@ def list_practice(subject=None, user_id=None, limit=100):
     return [_row_to_practice_dict(r) for r in rows]
 
 
-def count_practice(subject=None, user_id=None):
+def count_practice(subject=None, user_id='default'):
     """Count practice records."""
     conn = get_conn()
     cur = conn.cursor()
 
-    query = 'SELECT COUNT(*) FROM practice_record WHERE 1=1'
-    params = []
+    query = 'SELECT COUNT(*) FROM practice_record WHERE user_id=?'
+    params = [user_id]
 
     if subject:
         query += ' AND subject=?'
         params.append(subject)
-    if user_id:
-        query += ' AND user_id=?'
-        params.append(user_id)
 
     cur.execute(query, params)
     count = cur.fetchone()[0]

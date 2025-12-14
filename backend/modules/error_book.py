@@ -4,7 +4,7 @@ Error Book Manager Module
 上传/拍照题目 → OCR识别 → 自动分类 → 生成复习计划
 """
 
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, session
 from werkzeug.utils import secure_filename
 import json
 import re
@@ -236,9 +236,13 @@ def upload_question():
                         relative_path = "/" + relative_path
                     parsed['images'].append(relative_path)
 
+            # Get user_id from session
+            user_id = session.get('user_id', 'default')
+            parsed['user_id'] = user_id
+            
             # 插入数据到数据库
             new_id = db_sqlite.insert_error(parsed)
-            saved = db_sqlite.get_error_by_id(new_id)
+            saved = db_sqlite.get_error_by_id(new_id, user_id)
             if isinstance(saved, dict) and 'success' in saved:
                 del saved['success']
             saved['id'] = new_id
@@ -260,7 +264,8 @@ def upload_question():
 @error_bp.route('/list', methods=['GET'])
 def list_errors_route():
     subject = request.args.get('subject', '')
-    user_id = request.args.get('user_id')
+    # Get user_id from session instead of request args
+    user_id = session.get('user_id', 'default')
     
     errors = db_sqlite.list_errors(subject=subject if subject else None, user_id=user_id)
     total = db_sqlite.count_errors(subject=subject if subject else None, user_id=user_id)
@@ -284,7 +289,10 @@ def get_error():
     except ValueError:
         return jsonify({'success': False, 'error': 'Invalid id format'}), 400
     
-    error = db_sqlite.get_error_by_id(error_id)
+    # Get user_id from session
+    user_id = session.get('user_id', 'default')
+    
+    error = db_sqlite.get_error_by_id(error_id, user_id)
     if not error:
         return jsonify({'success': False, 'error': 'Error not found'}), 404
     
@@ -331,7 +339,10 @@ def redo_error():
         return jsonify({"success": False, "error": f"Invalid image data: {str(e)}"}), 400
 
     try:
-        error = db_sqlite.get_error_by_id(int(error_id))
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
+        error = db_sqlite.get_error_by_id(int(error_id), user_id)
         if not error:
             return jsonify({"success": False, "error": "Error record not found"}), 404
 
@@ -406,8 +417,11 @@ def generate_similar_exercises():
     count = max(1, min(count, 5))  # 限制 1~5 题
 
     try:
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
         # ===== 先查询数据库是否已有对应练习题 =====
-        existing_practice = db_sqlite.list_practice_by_error_id(error_id=error_id)
+        existing_practice = db_sqlite.list_practice_by_error_id(error_id=error_id, user_id=user_id)
         if existing_practice and len(existing_practice) >= count and not force:
             print(f"Found existing {len(existing_practice)} practice questions for error_id={error_id}")
             return jsonify({
@@ -418,7 +432,7 @@ def generate_similar_exercises():
         # ===== 获取学生的 grade 信息 =====
         grade = None
         try:
-            error_record = db_sqlite.get_error_by_id(error_id)
+            error_record = db_sqlite.get_error_by_id(error_id, user_id)
             if error_record and error_record.get('user_id'):
                 user_settings = db_sqlite.get_user_settings(error_record['user_id'])
                 if user_settings and user_settings.get('success'):
@@ -443,8 +457,9 @@ def generate_similar_exercises():
         saved_list = []
         for parsed in similar_list:
             parsed["error_id"] = error_id
+            parsed["user_id"] = user_id
             new_id = db_sqlite.insert_practice(parsed)
-            saved = db_sqlite.get_practice_by_id(new_id)
+            saved = db_sqlite.get_practice_by_id(new_id, user_id)
             saved_list.append(saved)
 
         return jsonify({
@@ -485,8 +500,11 @@ def redo_text():
     except ValueError:
         return jsonify({'success': False, 'error': 'Invalid id format'}), 400
 
+    # Get user_id from session
+    user_id = session.get('user_id', 'default')
+    
     # 取原题
-    error = db_sqlite.get_error_by_id(error_id)
+    error = db_sqlite.get_error_by_id(error_id, user_id)
     if not error:
         return jsonify({'success': False, 'error': 'Error not found'}), 404
 
@@ -665,14 +683,17 @@ def favorite_practice():
 
     try:
         practice_id = int(practice_id)
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
         # 获取 practice 记录
-        practice = db_sqlite.get_practice_by_id(practice_id)
+        practice = db_sqlite.get_practice_by_id(practice_id, user_id)
         if not practice:
             return jsonify({"success": False, "error": "Practice record not found"}), 404
 
         # 准备插入 error_book 的数据
         error_data = {
-            "user_id": practice.get("user_id", 1),
+            "user_id": user_id,
             "subject": practice.get("subject", ""),
             "type": practice.get("type", ""),
             "tags": practice.get("tags") or [],

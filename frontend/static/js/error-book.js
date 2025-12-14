@@ -32,6 +32,18 @@ class ErrorBookManager {
             // sessionStorage 访问失败，忽略
         }
 
+        // 检查 localStorage 标记（用于从 review 页面做对题目后自动刷新）
+        try {
+            const refreshFlag = localStorage.getItem('errorBookNeedsRefresh');
+            if (refreshFlag === 'true') {
+                localStorage.removeItem('errorBookNeedsRefresh');
+                console.log('localStorage 刷新标记存在，重新加载错题列表');
+                this.reloadErrorsFromServer();
+            }
+        } catch (e) {
+            // localStorage 访问失败，忽略
+        }
+
         // 当页面可见性发生变化（比如从另一个标签页或返回历史），再次检查标记
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
@@ -40,6 +52,13 @@ class ErrorBookManager {
                     if (flag) {
                         sessionStorage.removeItem('refreshErrorList');
                         console.log('页面可见，sessionStorage 标记触发刷新');
+                        this.reloadErrorsFromServer();
+                    }
+                    // 同时检查 localStorage 标记
+                    const refreshFlag = localStorage.getItem('errorBookNeedsRefresh');
+                    if (refreshFlag === 'true') {
+                        localStorage.removeItem('errorBookNeedsRefresh');
+                        console.log('页面可见，localStorage 刷新标记触发刷新');
                         this.reloadErrorsFromServer();
                     }
                 } catch (e) {}

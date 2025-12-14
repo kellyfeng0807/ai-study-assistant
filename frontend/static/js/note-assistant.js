@@ -279,6 +279,8 @@ class NoteAssistantManager {
         const fileGenerateBtn = document.getElementById('fileGenerateBtn');
         const subject = document.getElementById('fileSubjectSelect')?.value || '';
         
+        let generationSuccess = false;
+        
         try {
             // 显示加载状态
             if (fileGenerateBtn) {
@@ -304,6 +306,7 @@ class NoteAssistantManager {
             const result = await response.json();
             
             if (result.success) {
+                generationSuccess = true;
                 window.messageModal?.toast('Note generated successfully!', 'success', 3000);
                 
                 // 显示生成的笔记
@@ -313,9 +316,6 @@ class NoteAssistantManager {
                 
                 // 刷新笔记列表
                 this.loadRecentNotes();
-                
-                // 清除上传的文件
-                this.clearUploadedFile();
             } else {
                 throw new Error(result.error || 'Failed to generate note');
             }
@@ -324,10 +324,14 @@ class NoteAssistantManager {
             console.error('File upload note generation failed:', error);
             window.messageModal?.toast('Generation failed: ' + error.message, 'error', 4000);
         } finally {
-            // 恢复按钮状态
-            if (fileGenerateBtn) {
-                fileGenerateBtn.disabled = !this.uploadedFile;
-                fileGenerateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Note from File';
+            // 成功后清除文件并重置UI，失败后恢复按钮状态
+            if (generationSuccess) {
+                this.clearUploadedFile();
+            } else {
+                if (fileGenerateBtn) {
+                    fileGenerateBtn.disabled = false;
+                    fileGenerateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Note from File';
+                }
             }
         }
     }

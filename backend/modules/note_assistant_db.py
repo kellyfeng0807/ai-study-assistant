@@ -2,7 +2,7 @@
 This is a safe replacement for the previously corrupted `note_assistant.py`.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 import os
 import json
 import traceback
@@ -138,16 +138,19 @@ def generate_note():
             logging.error(f"AI service failed: {e}")
             notes_data = _fallback_notes(text, subject)
 
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
         rec = {
             'title': notes_data.get('title', 'Untitled'),
             'subject': notes_data.get('subject', subject or 'General'),
             'content': notes_data,
             'original_text': text,
-            'user_id': 1,
+            'user_id': user_id,
             'source': 'generated'
         }
         nid = db_sqlite.insert_note(rec)
-        saved = db_sqlite.get_note_by_id(nid)
+        saved = db_sqlite.get_note_by_id(nid, user_id)
         return jsonify({'success': True, 'note_id': nid, 'note': saved})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -158,12 +161,15 @@ def list_notes():
     subject = request.args.get('subject')
     limit = int(request.args.get('limit', 10))
     try:
-        notes = db_sqlite.list_notes(subject=subject, limit=limit)
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
+        notes = db_sqlite.list_notes(subject=subject, limit=limit, user_id=user_id)
         result = [
             {'id': n['id'], 'title': n['title'], 'subject': n['subject'], 'date': n['date'], 'preview': n['content'].get('summary', '')[:100], 'key_points_count': len(n['content'].get('key_points', []))}
             for n in notes
         ]
-        total = db_sqlite.count_notes(subject=subject)
+        total = db_sqlite.count_notes(subject=subject, user_id=user_id)
         return jsonify({'success': True, 'notes': result, 'total': total})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -172,7 +178,10 @@ def list_notes():
 @bp.route('/<int:note_id>', methods=['GET'])
 def get_note(note_id):
     try:
-        n = db_sqlite.get_note_by_id(note_id)
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
+        n = db_sqlite.get_note_by_id(note_id, user_id)
         if not n:
             return jsonify({'success': False, 'error': 'Note not found'}), 404
         return jsonify({'success': True, 'note': n})
@@ -202,8 +211,11 @@ def update_note(note_id):
             'original_text': payload.get('original_text', None),
             'source': payload.get('source', 'manual')
         }
-        db_sqlite.update_note(note_id, updated)
-        saved = db_sqlite.get_note_by_id(note_id)
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
+        db_sqlite.update_note(note_id, payload)
+        saved = db_sqlite.get_note_by_id(note_id, user_id)
         return jsonify({'success': True, 'note': saved})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -306,16 +318,19 @@ def upload_file_generate_note():
         except Exception as e:
             logging.error(f"AI service failed: {e}")
             notes_data = _fallback_notes(extracted_text, subject)
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
         rec = {
             'title': notes_data.get('title', 'Untitled'),
             'subject': notes_data.get('subject', subject or 'General'),
             'content': notes_data,
             'original_text': extracted_text,
-            'user_id': 1,
+            'user_id': user_id,
             'source': 'file_upload'
         }
         nid = db_sqlite.insert_note(rec)
-        saved = db_sqlite.get_note_by_id(nid)
+        saved = db_sqlite.get_note_by_id(nid, user_id)
         return jsonify({
             'success': True,
             'note_id': nid,

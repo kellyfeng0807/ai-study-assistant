@@ -22,30 +22,15 @@
             </div>
             
             <nav class="nav-menu">
-                <a href="/note-assistant" class="nav-item">
-                    <i class="fas fa-file-text"></i>
-                    <span>Note Assistant</span>
-                </a>
-                <a href="/error-book" class="nav-item">
-                    <i class="fas fa-book-open"></i>
-                    <span>Error Book</span>
-                </a>
-                <a href="/map-generation" class="nav-item">
-                    <i class="fas fa-sitemap"></i>
-                    <span>Mind Map</span>
-                </a>
-                <a href="/learning-dashboard" class="nav-item">
-                    <i class="fas fa-chart-bar"></i>
-                    <span>Analytics</span>
-                </a>
                 <a href="/parent-view" class="nav-item active">
                     <i class="fas fa-users"></i>
                     <span>Parent View</span>
                 </a>
+                <!-- Parent accounts will see children's reports here, dynamically added by JS -->
             </nav>
             
             <div class="sidebar-footer">
-                <a href="/settings" class="nav-item">
+                <a href="/parent-settings" class="nav-item">
                     <i class="fas fa-cog"></i>
                     <span>Settings</span>
                 </a>
@@ -66,7 +51,7 @@
                     <p class="page-subtitle" id="reportDate">Loading...</p>
                 </div>
                 <div class="header-right">
-                    <button class="icon-button" onclick="window.print()" title="Print Report">
+                    <button class="icon-button" onclick="handlePrint()" title="Print Report">
                         <i class="fas fa-print"></i>
                     </button>
                     <button class="icon-button theme-toggle">
@@ -161,9 +146,38 @@
 
     <script src="static/js/main.js"></script>
     <script>
+        // Smooth print handler to avoid UI flicker
+        function handlePrint() {
+            // Add print-preparing class for smooth transition
+            document.body.classList.add('print-preparing');
+            
+            // Small delay to ensure render is complete
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    // Trigger print
+                    window.print();
+                    
+                    // Clean up after print dialog is shown
+                    setTimeout(() => {
+                        document.body.classList.remove('print-preparing');
+                    }, 100);
+                });
+            });
+        }
+        
         document.addEventListener('DOMContentLoaded', async () => {
             try {
-                const response = await fetch('/api/dashboard/parent-report');
+                // 从URL参数获取user_id（家长查看子女数据）
+                const urlParams = new URLSearchParams(window.location.search);
+                const userId = urlParams.get('user_id');
+                
+                // 构建API URL，如果有user_id则传递
+                let apiUrl = '/api/dashboard/parent-report';
+                if (userId) {
+                    apiUrl += `?user_id=${userId}`;
+                }
+                
+                const response = await fetch(apiUrl);
                 const data = await response.json();
                 
                 if (data.success) {

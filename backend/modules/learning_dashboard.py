@@ -3,7 +3,7 @@ Learning Dashboard Module
 学习数据分析和可视化 - 已接入数据库
 """
 
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, session
 from datetime import datetime, timedelta
 import random
 import os
@@ -124,6 +124,9 @@ def get_statistics():
     }
     period = period_map.get(str(period_param), 30)
     
+    # Get user_id from session
+    user_id = session.get('user_id', 'default')
+    
     # 计算日期范围
     end_date = datetime.now()
     start_date = end_date - timedelta(days=period)
@@ -140,12 +143,12 @@ def get_statistics():
     
     # ========== 1. 笔记数量 ==========
     # 当前周期
-    cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ?', (start_date_str,))
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at >= ?', (user_id, start_date_str,))
     notes_count = cur.fetchone()[0]
     
     # 上个周期
-    cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ? AND created_at < ?', 
-                (prev_start_str, prev_end_str))
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at >= ? AND created_at < ?', 
+                (user_id, prev_start_str, prev_end_str))
     prev_notes_count = cur.fetchone()[0]
     
     # 计算趋势
@@ -160,13 +163,13 @@ def get_statistics():
     cur.execute('''
         SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
         FROM module_usage 
-        WHERE date >= ?
-    ''', (start_date_str,))
+        WHERE user_id=? AND date >= ?
+    ''', (user_id, start_date_str,))
     total_minutes = int(cur.fetchone()[0] or 0)
     
     # 如果 module_usage 没有数据，使用估算（笔记*15 + 错题*10）
     if total_minutes == 0:
-        cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at >= ?', (start_date_str,))
+        cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND created_at >= ?', (user_id, start_date_str,))
         current_errors = cur.fetchone()[0]
         total_minutes = notes_count * 15 + current_errors * 10
     
@@ -174,13 +177,13 @@ def get_statistics():
     cur.execute('''
         SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
         FROM module_usage 
-        WHERE date >= ? AND date < ?
-    ''', (prev_start_str, prev_end_str))
+        WHERE user_id=? AND date >= ? AND date < ?
+    ''', (user_id, prev_start_str, prev_end_str))
     prev_minutes = int(cur.fetchone()[0] or 0)
     
     if prev_minutes == 0:
-        cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at >= ? AND created_at < ?',
-                    (prev_start_str, prev_end_str))
+        cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND created_at >= ? AND created_at < ?',
+                    (user_id, prev_start_str, prev_end_str))
         prev_errors = cur.fetchone()[0]
         prev_minutes = prev_notes_count * 15 + prev_errors * 10
     
@@ -193,21 +196,21 @@ def get_statistics():
     
     # ========== 3. 准确率（错题复习率） ==========
     # 当前周期
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at >= ?', (start_date_str,))
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND created_at >= ?', (user_id, start_date_str,))
     total_errors = cur.fetchone()[0]
     
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 1 AND created_at >= ?', (start_date_str,))
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 1 AND created_at >= ?', (user_id, start_date_str,))
     reviewed_errors = cur.fetchone()[0]
     
     accuracy = round((reviewed_errors / total_errors * 100) if total_errors > 0 else 0)
     
     # 上个周期准确率
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at >= ? AND created_at < ?',
-                (prev_start_str, prev_end_str))
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND created_at >= ? AND created_at < ?',
+                (user_id, prev_start_str, prev_end_str))
     prev_total_errors = cur.fetchone()[0]
     
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 1 AND created_at >= ? AND created_at < ?',
-                (prev_start_str, prev_end_str))
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 1 AND created_at >= ? AND created_at < ?',
+                (user_id, prev_start_str, prev_end_str))
     prev_reviewed = cur.fetchone()[0]
     
     prev_accuracy = round((prev_reviewed / prev_total_errors * 100) if prev_total_errors > 0 else 0)
@@ -224,16 +227,16 @@ def get_statistics():
         date_pattern = date_str + '%'
         
         # 检查当天是否有笔记
-        cur.execute('SELECT COUNT(*) FROM note WHERE created_at LIKE ?', (date_pattern,))
+        cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at LIKE ?', (user_id, date_pattern,))
         has_note = cur.fetchone()[0] > 0
         
         # 检查当天是否有错题活动
-        cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at LIKE ? OR updated_at LIKE ?', 
-                    (date_pattern, date_pattern))
+        cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND (created_at LIKE ? OR updated_at LIKE ?)', 
+                    (user_id, date_pattern, date_pattern))
         has_error = cur.fetchone()[0] > 0
         
         # 检查当天是否有 module_usage 记录
-        cur.execute('SELECT COUNT(*) FROM module_usage WHERE date = ?', (date_str,))
+        cur.execute('SELECT COUNT(*) FROM module_usage WHERE user_id=? AND date = ?', (user_id, date_str,))
         has_progress = cur.fetchone()[0] > 0
         
         if has_note or has_error or has_progress:
@@ -256,12 +259,12 @@ def get_statistics():
     streak_trend_value = streak - prev_streak
     
     # ========== 5. 待复习数量 ==========
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 0')
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 0', (user_id,))
     pending_total = cur.fetchone()[0]
     
     # 今日创建的未复习错题
     today_str = datetime.now().strftime('%Y-%m-%d')
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 0 AND created_at LIKE ?', (today_str + '%',))
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 0 AND created_at LIKE ?', (user_id, today_str + '%',))
     today_pending = cur.fetchone()[0]
     
     conn.close()
@@ -316,19 +319,20 @@ def get_subjects():
     获取科目数据（从数据库读取真实数据）
     GET /api/dashboard/subjects
     """
+    user_id = session.get('user_id', 'default')
     conn = db_sqlite.get_conn()
     cur = conn.cursor()
     
     # 获取笔记和错题按科目分组（合并统计）
     cur.execute('''
         SELECT subject, SUM(count) as count FROM (
-            SELECT subject, COUNT(*) as count FROM note GROUP BY subject
+            SELECT subject, COUNT(*) as count FROM note WHERE user_id=? GROUP BY subject
             UNION ALL
-            SELECT subject, COUNT(*) as count FROM error_book GROUP BY subject
+            SELECT subject, COUNT(*) as count FROM error_book WHERE user_id=? GROUP BY subject
         )
         GROUP BY subject
         ORDER BY count DESC
-    ''')
+    ''', (user_id, user_id))
     note_subjects = cur.fetchall()
     
     # 获取错题按科目分组
@@ -336,8 +340,9 @@ def get_subjects():
         SELECT subject, COUNT(*) as total, 
                SUM(CASE WHEN reviewed = 1 THEN 1 ELSE 0 END) as reviewed
         FROM error_book 
+        WHERE user_id=?
         GROUP BY subject
-    ''')
+    ''', (user_id,))
     error_subjects = {row['subject']: {'total': row['total'], 'reviewed': row['reviewed'] or 0} 
                       for row in cur.fetchall()}
     
@@ -371,17 +376,9 @@ def get_subjects():
             'errors_count': error_data['total']
         })
     
-    # 如果没有数据，返回默认科目
-    if not subjects:
-        subjects = [
-            {'name': 'Mathematics', 'percentage': 35, 'time_spent': 420, 'mastery_level': 75, 'color': get_subject_color('Mathematics')},
-            {'name': 'Physics', 'percentage': 28, 'time_spent': 360, 'mastery_level': 68, 'color': get_subject_color('Physics')},
-            {'name': 'English', 'percentage': 22, 'time_spent': 280, 'mastery_level': 82, 'color': get_subject_color('English')},
-            {'name': 'History', 'percentage': 15, 'time_spent': 180, 'mastery_level': 71, 'color': get_subject_color('History')}
-        ]
-    
     # 按颜色对比度排序，避免相邻颜色相近
-    subjects = sort_subjects_by_color_contrast(subjects)
+    if subjects:
+        subjects = sort_subjects_by_color_contrast(subjects)
     
     return jsonify({
         'success': True,
@@ -395,20 +392,21 @@ def get_progress():
     获取学习进度
     GET /api/dashboard/progress
     """
+    user_id = session.get('user_id', 'default')
     conn = db_sqlite.get_conn()
     cur = conn.cursor()
     
     # 本周笔记数
     week_start = (datetime.now() - timedelta(days=datetime.now().weekday())).strftime('%Y-%m-%d')
-    cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ?', (week_start,))
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at >= ?', (user_id, week_start,))
     weekly_notes = cur.fetchone()[0]
     
     # 获取各科目进度
     cur.execute('''
         SELECT subject, COUNT(*) as count FROM note 
-        WHERE created_at >= ?
+        WHERE user_id=? AND created_at >= ?
         GROUP BY subject
-    ''', (week_start,))
+    ''', (user_id, week_start,))
     subject_progress = cur.fetchall()
     
     conn.close()
@@ -445,6 +443,7 @@ def get_chart_data():
     获取图表数据
     GET /api/dashboard/chart-data?type=time&period=7
     """
+    user_id = session.get('user_id', 'default')
     chart_type = request.args.get('type', 'time')
     period = int(request.args.get('period', '7'))
     
@@ -456,12 +455,12 @@ def get_chart_data():
         data = []
         
         # Debug: 检查总笔记数
-        cur.execute('SELECT COUNT(*) FROM note')
+        cur.execute('SELECT COUNT(*) FROM note WHERE user_id=?', (user_id,))
         total_notes = cur.fetchone()[0]
         print(f"[DEBUG] Total notes in database: {total_notes}")
         
         # Debug: 查看最近的笔记
-        cur.execute('SELECT id, created_at FROM note ORDER BY id DESC LIMIT 5')
+        cur.execute('SELECT id, created_at FROM note WHERE user_id=? ORDER BY id DESC LIMIT 5', (user_id,))
         recent = cur.fetchall()
         print(f"[DEBUG] Recent notes: {recent}")
         
@@ -473,23 +472,23 @@ def get_chart_data():
             # 查询当天笔记数 - 使用 LIKE 匹配日期前缀
             cur.execute('''
                 SELECT COUNT(*) FROM note 
-                WHERE created_at LIKE ?
-            ''', (date_str + '%',))
+                WHERE user_id=? AND created_at LIKE ?
+            ''', (user_id, date_str + '%',))
             note_count = cur.fetchone()[0]
             
             # 查询当天错题数
             cur.execute('''
                 SELECT COUNT(*) FROM error_book 
-                WHERE created_at LIKE ?
-            ''', (date_str + '%',))
+                WHERE user_id=? AND created_at LIKE ?
+            ''', (user_id, date_str + '%',))
             error_count = cur.fetchone()[0]
             
             # 从 module_usage 获取真实追踪时间
             cur.execute('''
                 SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
                 FROM module_usage 
-                WHERE date = ?
-            ''', (date_str,))
+                WHERE user_id=? AND date = ?
+            ''', (user_id, date_str,))
             study_time = int(cur.fetchone()[0] or 0)
             
             # 如果没有记录，使用估算
@@ -514,10 +513,10 @@ def get_chart_data():
         })
     
     elif chart_type == 'review':
-        cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 1')
+        cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 1', (user_id,))
         completed = cur.fetchone()[0]
         
-        cur.execute('SELECT COUNT(*) FROM error_book')
+        cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=?', (user_id,))
         total = cur.fetchone()[0]
         
         conn.close()
@@ -547,7 +546,8 @@ def get_analysis():
     conn = db_sqlite.get_conn()
     cur = conn.cursor()
     
-    user_id = request.args.get('user_id', 'default')
+    # 从session获取登录用户的user_id
+    user_id = session.get('user_id', 'default')
     
     # 获取用户设置（包括daily_goal）
     user_settings = db_sqlite.get_user_settings(user_id)
@@ -559,9 +559,10 @@ def get_analysis():
                COUNT(*) as total,
                SUM(CASE WHEN reviewed = 1 THEN 1 ELSE 0 END) as reviewed
         FROM error_book 
+        WHERE user_id=?
         GROUP BY subject
         ORDER BY total DESC
-    ''')
+    ''', (user_id,))
     subject_errors = cur.fetchall()
     
     strengths = []
@@ -592,9 +593,10 @@ def get_analysis():
     cur.execute('''
         SELECT subject, COUNT(*) as count 
         FROM note 
+        WHERE user_id=?
         GROUP BY subject
         ORDER BY count DESC
-    ''')
+    ''', (user_id,))
     note_subjects = cur.fetchall()
     
     # 笔记多的科目也算强项
@@ -617,34 +619,36 @@ def get_analysis():
     cur.execute('''
         SELECT strftime('%H', created_at) as hour, COUNT(*) as count
         FROM note
+        WHERE user_id=?
         GROUP BY hour
         ORDER BY count DESC
         LIMIT 1
-    ''')
+    ''', (user_id,))
     most_active_hour = cur.fetchone()
     
     # 获取最活跃的星期几
     cur.execute('''
         SELECT strftime('%w', created_at) as weekday, COUNT(*) as count
         FROM note
+        WHERE user_id=?
         GROUP BY weekday
         ORDER BY count DESC
         LIMIT 1
-    ''')
+    ''', (user_id,))
     best_day_row = cur.fetchone()
     
     # 总笔记数和天数
-    cur.execute('SELECT COUNT(*) FROM note')
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=?', (user_id,))
     total_notes = cur.fetchone()[0]
     
     # 使用 substr 提取日期部分来计算不同的活跃天数
-    cur.execute('SELECT COUNT(DISTINCT substr(created_at, 1, 10)) FROM note')
+    cur.execute('SELECT COUNT(DISTINCT substr(created_at, 1, 10)) FROM note WHERE user_id=?', (user_id,))
     active_days = cur.fetchone()[0]
     
     # 错题复习率
-    cur.execute('SELECT COUNT(*) FROM error_book')
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=?', (user_id,))
     total_errors = cur.fetchone()[0]
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 1')
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 1', (user_id,))
     reviewed_errors = cur.fetchone()[0]
     
     # 获取最近7天学习时间统计
@@ -652,8 +656,8 @@ def get_analysis():
     cur.execute('''
         SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
         FROM module_usage 
-        WHERE date >= ?
-    ''', (seven_days_ago,))
+        WHERE user_id=? AND date >= ?
+    ''', (user_id, seven_days_ago,))
     week_minutes = int(cur.fetchone()[0] or 0)
     
     # 计算目标完成度
@@ -741,7 +745,8 @@ def get_parent_report():
     cur = conn.cursor()
     
     today = datetime.now()
-    user_id = request.args.get('user_id', 'default')
+    # 优先从URL参数获取（家长查看子女数据），否则从session获取
+    user_id = request.args.get('user_id') or session.get('user_id', 'default')
     
     # 获取用户设置（包含daily_goal）
     user_settings = db_sqlite.get_user_settings(user_id)
@@ -750,34 +755,34 @@ def get_parent_report():
     # ========== 收集所有数据 ==========
     
     # 1. 总体统计
-    cur.execute('SELECT COUNT(*) FROM note')
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=?', (user_id,))
     total_notes = cur.fetchone()[0]
     
-    cur.execute('SELECT COUNT(*) FROM error_book')
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=?', (user_id,))
     total_errors = cur.fetchone()[0]
     
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 1')
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 1', (user_id,))
     reviewed_errors = cur.fetchone()[0]
     
-    cur.execute('SELECT COUNT(*) FROM mindmap')
+    cur.execute('SELECT COUNT(*) FROM mindmap WHERE user_id=?', (user_id,))
     total_mindmaps = cur.fetchone()[0]
     
     # 2. 本周数据
     week_start = (today - timedelta(days=today.weekday())).strftime('%Y-%m-%d')
-    cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ?', (week_start,))
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at >= ?', (user_id, week_start,))
     week_notes = cur.fetchone()[0]
     
-    cur.execute('SELECT COUNT(*) FROM mindmap WHERE created_at >= ?', (week_start,))
+    cur.execute('SELECT COUNT(*) FROM mindmap WHERE user_id=? AND created_at >= ?', (user_id, week_start,))
     week_mindmaps = cur.fetchone()[0]
     
     # 3. 上周数据（对比用）
     last_week_start = (today - timedelta(days=today.weekday() + 7)).strftime('%Y-%m-%d')
-    cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ? AND created_at < ?', 
-                (last_week_start, week_start))
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at >= ? AND created_at < ?', 
+                (user_id, last_week_start, week_start))
     last_week_notes = cur.fetchone()[0]
     
-    cur.execute('SELECT COUNT(*) FROM mindmap WHERE created_at >= ? AND created_at < ?', 
-                (last_week_start, week_start))
+    cur.execute('SELECT COUNT(*) FROM mindmap WHERE user_id=? AND created_at >= ? AND created_at < ?', 
+                (user_id, last_week_start, week_start))
     last_week_mindmaps = cur.fetchone()[0]
     
     # 时间统计（从 module_usage 读取）
@@ -785,16 +790,16 @@ def get_parent_report():
     cur.execute('''
         SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
         FROM module_usage 
-        WHERE date >= ?
-    ''', (week_start,))
+        WHERE user_id=? AND date >= ?
+    ''', (user_id, week_start,))
     week_minutes = int(cur.fetchone()[0] or 0)
     
     # 上周总学习时间
     cur.execute('''
         SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
         FROM module_usage 
-        WHERE date >= ? AND date < ?
-    ''', (last_week_start, week_start))
+        WHERE user_id=? AND date >= ? AND date < ?
+    ''', (user_id, last_week_start, week_start))
     last_week_minutes = int(cur.fetchone()[0] or 0)
     
     # 今日学习时间
@@ -802,8 +807,8 @@ def get_parent_report():
     cur.execute('''
         SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
         FROM module_usage 
-        WHERE date = ?
-    ''', (today_str,))
+        WHERE user_id=? AND date = ?
+    ''', (user_id, today_str,))
     today_minutes = int(cur.fetchone()[0] or 0)
     
     # 最近30天总学习时间
@@ -811,58 +816,57 @@ def get_parent_report():
     cur.execute('''
         SELECT COALESCE(SUM(duration_seconds), 0) / 60.0
         FROM module_usage 
-        WHERE date >= ?
-    ''', (thirty_days_ago,))
+        WHERE user_id=? AND date >= ?
+    ''', (user_id, thirty_days_ago,))
     total_minutes_30days = int(cur.fetchone()[0] or 0)
     
-    # 4. 连续学习天数
+    # 4. 连续学习天数（与analysis端点保持一致，使用module_usage）
     streak = 0
     check_date = today.date()
     while True:
         date_str = check_date.strftime('%Y-%m-%d')
-        date_pattern = date_str + '%'
-        cur.execute('SELECT COUNT(*) FROM note WHERE created_at LIKE ?', (date_pattern,))
-        has_note = cur.fetchone()[0] > 0
-        cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at LIKE ? OR updated_at LIKE ?', 
-                    (date_pattern, date_pattern))
-        has_error = cur.fetchone()[0] > 0
-        cur.execute('SELECT COUNT(*) FROM mindmap WHERE created_at LIKE ?', (date_pattern,))
-        has_mindmap = cur.fetchone()[0] > 0
         
-        if has_note or has_error or has_mindmap:
+        # 检查当天是否有 module_usage 记录
+        cur.execute('SELECT COUNT(*) FROM module_usage WHERE user_id=? AND date = ?', (user_id, date_str,))
+        has_progress = cur.fetchone()[0] > 0
+        
+        if has_progress:
             streak += 1
             check_date -= timedelta(days=1)
         else:
+            # 如果今天没有活动，检查是否是今天（给一天宽限期）
             if check_date == today.date() and streak == 0:
                 check_date -= timedelta(days=1)
                 continue
             break
-        if streak >= 30:
+        
+        # 最多检查90天
+        if streak >= 90:
             break
     
     # 5. 最近30天活跃天数
     thirty_days_ago = (today - timedelta(days=30)).strftime('%Y-%m-%d')
     cur.execute('''
         SELECT COUNT(DISTINCT date) FROM (
-            SELECT substr(created_at, 1, 10) as date FROM note WHERE created_at >= ?
+            SELECT substr(created_at, 1, 10) as date FROM note WHERE user_id=? AND created_at >= ?
             UNION
-            SELECT substr(created_at, 1, 10) as date FROM error_book WHERE created_at >= ?
+            SELECT substr(created_at, 1, 10) as date FROM error_book WHERE user_id=? AND created_at >= ?
             UNION
-            SELECT substr(created_at, 1, 10) as date FROM mindmap WHERE created_at >= ?
+            SELECT substr(created_at, 1, 10) as date FROM mindmap WHERE user_id=? AND created_at >= ?
         )
-    ''', (thirty_days_ago, thirty_days_ago, thirty_days_ago))
+    ''', (user_id, thirty_days_ago, user_id, thirty_days_ago, user_id, thirty_days_ago))
     active_days_30 = cur.fetchone()[0]
     
     # 6. 科目分布（包含note和error_book，mindmap无subject字段）
     cur.execute('''
         SELECT subject, SUM(count) as count FROM (
-            SELECT subject, COUNT(*) as count FROM note GROUP BY subject
+            SELECT subject, COUNT(*) as count FROM note WHERE user_id=? GROUP BY subject
             UNION ALL
-            SELECT subject, COUNT(*) as count FROM error_book GROUP BY subject
+            SELECT subject, COUNT(*) as count FROM error_book WHERE user_id=? GROUP BY subject
         )
         GROUP BY subject
         ORDER BY count DESC
-    ''')
+    ''', (user_id, user_id))
     subjects = cur.fetchall()
     
     # 7. 错题各科目情况
@@ -871,29 +875,31 @@ def get_parent_report():
                COUNT(*) as total,
                SUM(CASE WHEN reviewed = 1 THEN 1 ELSE 0 END) as reviewed
         FROM error_book 
+        WHERE user_id=?
         GROUP BY subject
-    ''')
+    ''', (user_id,))
     error_by_subject = cur.fetchall()
     
     # 8. 学习时间分布
     cur.execute('''
         SELECT strftime('%H', created_at) as hour, COUNT(*) as count
         FROM note 
+        WHERE user_id=?
         GROUP BY hour
         ORDER BY count DESC
-    ''')
+    ''', (user_id,))
     time_distribution = cur.fetchall()
     
     # 9. 上次学习时间（检查所有表）
     cur.execute('''
         SELECT MAX(date) FROM (
-            SELECT created_at as date FROM note
+            SELECT created_at as date FROM note WHERE user_id=?
             UNION
-            SELECT created_at as date FROM error_book
+            SELECT created_at as date FROM error_book WHERE user_id=?
             UNION
-            SELECT created_at as date FROM mindmap
+            SELECT created_at as date FROM mindmap WHERE user_id=?
         )
-    ''')
+    ''', (user_id, user_id, user_id))
     last_study = cur.fetchone()[0]
     days_since_last = 0
     if last_study:
@@ -1196,6 +1202,7 @@ def get_schedule():
     获取复习计划
     GET /api/dashboard/schedule
     """
+    user_id = session.get('user_id', 'default')
     conn = db_sqlite.get_conn()
     cur = conn.cursor()
     
@@ -1203,7 +1210,7 @@ def get_schedule():
     schedule = []
     day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 0')
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 0', (user_id,))
     pending_count = cur.fetchone()[0]
     
     conn.close()
@@ -1248,6 +1255,7 @@ def get_heatmap():
     获取学习热力图数据（最近12周）
     GET /api/dashboard/heatmap
     """
+    user_id = session.get('user_id', 'default')
     conn = db_sqlite.get_conn()
     cur = conn.cursor()
     
@@ -1265,22 +1273,22 @@ def get_heatmap():
         try:
             cur.execute('''
                 SELECT COALESCE(SUM(duration_seconds), 0) 
-                FROM module_usage WHERE date = ?
-            ''', (date_str,))
+                FROM module_usage WHERE user_id=? AND date = ?
+            ''', (user_id, date_str,))
             module_seconds = cur.fetchone()[0] or 0
             module_minutes = module_seconds // 60
         except:
             module_minutes = 0
         
         # 2. 统计当天活动数量（用于估算和显示）
-        cur.execute('SELECT COUNT(*) FROM note WHERE created_at LIKE ?', (date_pattern,))
+        cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at LIKE ?', (user_id, date_pattern,))
         note_count = cur.fetchone()[0]
         
-        cur.execute('SELECT COUNT(*) FROM mindmap WHERE created_at LIKE ?', (date_pattern,))
+        cur.execute('SELECT COUNT(*) FROM mindmap WHERE user_id=? AND created_at LIKE ?', (user_id, date_pattern,))
         mindmap_count = cur.fetchone()[0]
         
-        cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at LIKE ? OR updated_at LIKE ?', 
-                    (date_pattern, date_pattern))
+        cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND (created_at LIKE ? OR updated_at LIKE ?)', 
+                    (user_id, date_pattern, date_pattern))
         error_count = cur.fetchone()[0]
         
         total_activity = note_count + mindmap_count + error_count
@@ -1346,6 +1354,7 @@ def get_today_modules():
     Returns: [{"module": "note-assistant", "minutes": 15, "icon": "📝"}, ...]
     """
     try:
+        user_id = session.get('user_id', 'default')
         conn = db_sqlite.get_conn()
         cur = conn.cursor()
         
@@ -1355,10 +1364,10 @@ def get_today_modules():
         cur.execute('''
             SELECT module, SUM(duration_seconds) as total_seconds
             FROM module_usage
-            WHERE date = ?
+            WHERE user_id=? AND date = ?
             GROUP BY module
             ORDER BY total_seconds DESC
-        ''', (today,))
+        ''', (user_id, today,))
         
         rows = cur.fetchall()
         
@@ -1418,30 +1427,31 @@ def get_ai_suggestions():
     获取AI学习建议（以鼓励为主）
     GET /api/dashboard/ai-suggestions
     """
+    user_id = session.get('user_id', 'default')
     conn = db_sqlite.get_conn()
     cur = conn.cursor()
     
     # 收集学习数据
     # 1. 总笔记数
-    cur.execute('SELECT COUNT(*) FROM note')
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=?', (user_id,))
     total_notes = cur.fetchone()[0]
     
     # 2. 本周笔记数
     week_start = (datetime.now() - timedelta(days=datetime.now().weekday())).strftime('%Y-%m-%d')
-    cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ?', (week_start,))
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at >= ?', (user_id, week_start,))
     week_notes = cur.fetchone()[0]
     
     # 3. 科目分布
-    cur.execute('SELECT subject, COUNT(*) as count FROM note GROUP BY subject ORDER BY count DESC')
+    cur.execute('SELECT subject, COUNT(*) as count FROM note WHERE user_id=? GROUP BY subject ORDER BY count DESC', (user_id,))
     subjects = cur.fetchall()
     top_subject = subjects[0]['subject'] if subjects else None
     subject_count = len(subjects)
     
     # 4. 错题情况
-    cur.execute('SELECT COUNT(*) FROM error_book')
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=?', (user_id,))
     total_errors = cur.fetchone()[0]
     
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 1')
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 1', (user_id,))
     reviewed_errors = cur.fetchone()[0]
     
     # 5. 连续学习天数
@@ -1450,10 +1460,10 @@ def get_ai_suggestions():
     while True:
         date_str = check_date.strftime('%Y-%m-%d')
         date_pattern = date_str + '%'
-        cur.execute('SELECT COUNT(*) FROM note WHERE created_at LIKE ?', (date_pattern,))
+        cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at LIKE ?', (user_id, date_pattern,))
         has_note = cur.fetchone()[0] > 0
-        cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at LIKE ? OR updated_at LIKE ?', 
-                    (date_pattern, date_pattern))
+        cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND (created_at LIKE ? OR updated_at LIKE ?)', 
+                    (user_id, date_pattern, date_pattern))
         has_error = cur.fetchone()[0] > 0
         
         if has_note or has_error:
@@ -1470,8 +1480,8 @@ def get_ai_suggestions():
     # 6. 最活跃时间
     cur.execute('''
         SELECT strftime('%H', created_at) as hour, COUNT(*) as count
-        FROM note GROUP BY hour ORDER BY count DESC LIMIT 1
-    ''')
+        FROM note WHERE user_id=? GROUP BY hour ORDER BY count DESC LIMIT 1
+    ''', (user_id,))
     active_hour = cur.fetchone()
     
     # 生成真正个性化的建议（基于学生具体数据分析）
@@ -1494,10 +1504,11 @@ def get_ai_suggestions():
             SELECT subject, COUNT(*) as total,
                    SUM(CASE WHEN reviewed = 1 THEN 1 ELSE 0 END) as reviewed
             FROM error_book 
+            WHERE user_id=?
             GROUP BY subject
             ORDER BY (COUNT(*) - SUM(CASE WHEN reviewed = 1 THEN 1 ELSE 0 END)) DESC
             LIMIT 1
-        ''')
+        ''', (user_id,))
         worst_review_subject = cur.fetchone()
         
         if worst_review_subject:
@@ -1523,11 +1534,11 @@ def get_ai_suggestions():
     this_week_start = (today - timedelta(days=today.weekday())).strftime('%Y-%m-%d')
     last_week_start = (today - timedelta(days=today.weekday() + 7)).strftime('%Y-%m-%d')
     
-    cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ?', (this_week_start,))
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at >= ?', (user_id, this_week_start,))
     this_week_notes = cur.fetchone()[0]
     
-    cur.execute('SELECT COUNT(*) FROM note WHERE created_at >= ? AND created_at < ?', 
-                (last_week_start, this_week_start))
+    cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at >= ? AND created_at < ?', 
+                (user_id, last_week_start, this_week_start))
     last_week_notes = cur.fetchone()[0]
     
     if this_week_notes > last_week_notes and last_week_notes > 0:
@@ -1699,6 +1710,7 @@ def get_notifications():
     获取真实通知
     GET /api/dashboard/notifications
     """
+    user_id = session.get('user_id', 'default')
     conn = db_sqlite.get_conn()
     cur = conn.cursor()
     
@@ -1706,7 +1718,7 @@ def get_notifications():
     notifications = []
     
     # 1. 检查待复习错题
-    cur.execute('SELECT COUNT(*) FROM error_book WHERE reviewed = 0')
+    cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND reviewed = 0', (user_id,))
     pending_errors = cur.fetchone()[0]
     if pending_errors > 0:
         notifications.append({
@@ -1725,12 +1737,12 @@ def get_notifications():
     while True:
         date_str = check_date.strftime('%Y-%m-%d')
         date_pattern = date_str + '%'
-        cur.execute('SELECT COUNT(*) FROM note WHERE created_at LIKE ?', (date_pattern,))
+        cur.execute('SELECT COUNT(*) FROM note WHERE user_id=? AND created_at LIKE ?', (user_id, date_pattern,))
         has_note = cur.fetchone()[0] > 0
-        cur.execute('SELECT COUNT(*) FROM error_book WHERE created_at LIKE ? OR updated_at LIKE ?', 
-                    (date_pattern, date_pattern))
+        cur.execute('SELECT COUNT(*) FROM error_book WHERE user_id=? AND (created_at LIKE ? OR updated_at LIKE ?)', 
+                    (user_id, date_pattern, date_pattern))
         has_error = cur.fetchone()[0] > 0
-        cur.execute('SELECT COUNT(*) FROM study_progress WHERE date = ?', (date_str,))
+        cur.execute('SELECT COUNT(*) FROM study_progress WHERE user_id=? AND date = ?', (user_id, date_str,))
         has_progress = cur.fetchone()[0] > 0
         
         if has_note or has_error or has_progress:

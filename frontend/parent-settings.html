@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent Settings - AI Study Assistant</title>
+    
+    <link rel="preload" href="static/css/main.css" as="style">
+    <link rel="stylesheet" href="static/css/main.css">
+    <link rel="stylesheet" href="static/css/settings.css">
+    <link rel="stylesheet" href="static/css/parent-settings.css">
+    <link rel="stylesheet" href="static/css/message-modal.css">
+    <link rel="stylesheet" href="static/css/auth.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1 class="app-title">AI Study Assistant</h1>
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="/parent-view" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    <span>Parent View</span>
+                </a>
+                <!-- Parent accounts will see children's reports here, dynamically added by JS -->
+            </nav>
+            
+            <div class="sidebar-footer">
+                <a href="/parent-settings" class="nav-item active">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+                <div class="user-profile">
+                    <div class="avatar">P</div>
+                    <div class="user-info">
+                        <div class="user-name"></div>
+                        <div class="user-email"></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="content-header">
+                <div class="header-left">
+                    <h2 class="page-title">Parent Settings</h2>
+                    <p class="page-subtitle">Manage your account and student information</p>
+                </div>
+                <div class="header-right">
+                    <button class="icon-button theme-toggle">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="content-body">
+                <!-- Parent Account Settings -->
+                <section class="settings-section">
+                    <div class="section-header">
+                        <h3 class="section-title">Parent Account Settings</h3>
+                        <button class="button-outline" id="editParentBtn">
+                            <i class="fas fa-edit"></i>
+                            <span>Edit</span>
+                        </button>
+                    </div>
+                    <div class="settings-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>User ID</label>
+                                <p>Your unique identifier</p>
+                            </div>
+                            <div class="setting-value">
+                                <span id="parentUserIdDisplay" class="display-text"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Username</label>
+                                <p>Set your display name</p>
+                            </div>
+                            <div class="setting-value">
+                                <span id="parentUsernameDisplay" class="display-text"></span>
+                                <input type="text" id="parentUsername" class="setting-input" placeholder="Enter username" style="display: none;">
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Email</label>
+                                <p>Your email address</p>
+                            </div>
+                            <div class="setting-value">
+                                <span id="parentEmailDisplay" class="display-text"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Password</label>
+                                <p>Change your password</p>
+                            </div>
+                            <div class="setting-value">
+                                <span id="parentPasswordDisplay" class="display-text">••••••••</span>
+                                <input type="password" id="parentNewPassword" class="setting-input" placeholder="Enter new password" style="display: none;">
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item" id="parentConfirmPasswordItem" style="display: none;">
+                            <div class="setting-info">
+                                <label>Confirm Password</label>
+                                <p>Re-enter your new password</p>
+                            </div>
+                            <div class="setting-value">
+                                <input type="password" id="parentConfirmPassword" class="setting-input" placeholder="Confirm new password">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-actions" id="parentEditActions" style="display: none;">
+                        <button class="button-primary" id="saveParentSettings">
+                            <i class="fas fa-save"></i>
+                            Save Settings
+                        </button>
+                        <button class="button-outline" id="cancelParentEdit">
+                            <i class="fas fa-times"></i>
+                            Cancel
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Student Accounts Management -->
+                <section class="settings-section">
+                    <div class="section-header">
+                        <h3 class="section-title">Student Accounts</h3>
+                        <button class="button-primary" id="addStudentBtn" style="display: none;">
+                            <i class="fas fa-plus"></i>
+                            <span>Add Student</span>
+                        </button>
+                    </div>
+                    
+                    <div id="studentCardsContainer" class="student-cards-container">
+                        <!-- Student cards will be dynamically loaded here -->
+                        <div class="loading-placeholder">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Loading student accounts...</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div id="notificationPanel" class="notification-panel hidden">
+        <div class="panel-header">
+            <h3>Notifications</h3>
+            <button class="close-button">&times;</button>
+        </div>
+        <div class="notification-list"></div>
+    </div>
+
+    <script src="static/js/main.js"></script>
+    <script src="static/js/message-modal.js"></script>
+    <script src="static/js/parent-settings.js"></script>
+</body>
+</html>

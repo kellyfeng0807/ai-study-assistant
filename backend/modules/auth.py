@@ -420,6 +420,214 @@ def get_parent_email():
         }), 500
 
 
+@auth_bp.route('/children', methods=['GET'])
+def get_children():
+    """获取当前登录家长的所有子女账号"""
+    try:
+        # 从session获取当前登录用户的user_id
+        user_id = session.get('user_id')
+        
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Not logged in'
+            }), 401
+        
+        # 获取当前用户信息，确认是家长账号
+        current_user = get_user_settings(user_id)
+        
+        if not current_user:
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+        
+        # 只有家长账号才能查询子女列表
+        if current_user.get('account_type') != 'parent':
+            return jsonify({
+                'success': False,
+                'error': 'Only parent accounts can access this endpoint'
+            }), 403
+        
+        # 获取该家长的所有子女账号
+        children = get_students_by_parent(user_id)
+        
+        return jsonify({
+            'success': True,
+            'children': children
+        })
+        
+    except Exception as e:
+        print(f"Get children error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@auth_bp.route('/update-profile', methods=['POST'])
+def update_profile():
+    """更新当前用户的个人信息"""
+    try:
+        user_id = session.get('user_id')
+        
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Not logged in'
+            }), 401
+        
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No data provided'
+            }), 400
+        
+        # 导入数据库函数
+        from db_sqlite import get_connection, hash_password
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # 构建更新语句
+        updates = []
+        params = []
+        
+        if 'username' in data:
+            updates.append('username = ?')
+            params.append(data['username'])
+        
+        if 'password' in data:
+            password_hash = hash_password(data['password'])
+            updates.append('password_hash = ?')
+            params.append(password_hash)
+        
+        if not updates:
+            return jsonify({
+                'success': False,
+                'error': 'No valid fields to update'
+            }), 400
+        
+        # 执行更新
+        params.append(user_id)
+        query = f"UPDATE user_settings SET {', '.join(updates)} WHERE user_id = ?"
+        cursor.execute(query, params)
+        conn.commit()
+        conn.close()
+        
+        # 更新session中的username
+        if 'username' in data:
+            session['username'] = data['username']
+        
+        return jsonify({
+            'success': True,
+            'message': 'Profile updated successfully'
+        })
+        
+    except Exception as e:
+        print(f"Update profile error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@auth_bp.route('/update-student', methods=['POST'])
+def update_student():
+    """家长更新学生账号信息"""
+    try:
+        parent_id = session.get('user_id')
+        account_type = session.get('account_type')
+        
+        if not parent_id or account_type != 'parent':
+            return jsonify({
+                'success': False,
+                'error': 'Only parent accounts can update student information'
+            }), 403
+        
+        data = request.get_json()
+        
+        if not data or 'user_id' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Student user_id is required'
+            }), 400
+        
+        student_id = data['user_id']
+        
+        # 导入数据库函数
+        from db_sqlite import get_connection, hash_password
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # 验证该学生是否属于当前家长
+        cursor.execute('SELECT parent_id FROM user_settings WHERE user_id = ?', (student_id,))
+        result = cursor.fetchone()
+        
+        if not result or result[0] != parent_id:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'You can only update your own student accounts'
+            }), 403
+        
+        # 构建更新语句
+        updates = []
+        params = []
+        
+        if 'username' in data:
+            updates.append('username = ?')
+            params.append(data['username'])
+        
+        if 'password' in data:
+            password_hash = hash_password(data['password'])
+            updates.append('password_hash = ?')
+            params.append(password_hash)
+        
+        if 'grade_level' in data:
+            updates.append('grade_level = ?')
+            params.append(str(data['grade_level']))
+        
+        if 'daily_goal' in data:
+            updates.append('daily_goal = ?')
+            params.append(int(data['daily_goal']))
+        
+        if not updates:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'No valid fields to update'
+            }), 400
+        
+        # 执行更新
+        params.append(student_id)
+        query = f"UPDATE user_settings SET {', '.join(updates)} WHERE user_id = ?"
+        cursor.execute(query, params)
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Student information updated successfully'
+        })
+        
+    except Exception as e:
+        print(f"Update student error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @auth_bp.route('/switch', methods=['POST'])
 def switch_account():
     """切换账号（需要密码验证）"""

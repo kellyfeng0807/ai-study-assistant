@@ -321,6 +321,67 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
+ * Adjust sidebar navigation based on account type
+ * Only needed for parent accounts to dynamically generate children links
+ */
+async function adjustSidebarForAccountType(user) {
+    const navMenu = document.querySelector('.nav-menu');
+    if (!navMenu) return;
+    
+    const accountType = user.account_type || 'student';
+    
+    // 只有家长账号需要动态生成子女链接
+    if (accountType === 'parent') {
+        // 家长账号：只显示 Parent View 和 Settings
+        // 获取家长的所有子女账号
+        try {
+            const response = await fetch(window.getApiUrl('/auth/children'));
+            const data = await response.json();
+            
+            if (data.success && data.children && data.children.length > 0) {
+                // 清空现有的导航菜单
+                navMenu.innerHTML = '';
+                
+                // 为每个子女创建一个 Parent View 链接
+                data.children.forEach(child => {
+                    const link = document.createElement('a');
+                    link.href = `/parent-view?user_id=${child.user_id}`;
+                    link.className = 'nav-item';
+                    link.innerHTML = `
+                        <i class="fas fa-user-graduate"></i>
+                        <span>${child.username}'s Report</span>
+                    `;
+                    navMenu.appendChild(link);
+                });
+                
+                // 如果当前在 parent-view 页面，高亮对应的链接
+                const currentPath = window.location.pathname;
+                const currentUserId = new URLSearchParams(window.location.search).get('user_id');
+                if (currentPath.includes('/parent-view') && currentUserId) {
+                    const activeLink = navMenu.querySelector(`a[href="/parent-view?user_id=${currentUserId}"]`);
+                    if (activeLink) {
+                        activeLink.classList.add('active');
+                    }
+                } else if (data.children.length > 0) {
+                    // 默认高亮第一个子女
+                    navMenu.querySelector('.nav-item')?.classList.add('active');
+                }
+            } else {
+                // 没有子女账号，显示提示
+                navMenu.innerHTML = `
+                    <div class="nav-item" style="cursor: default; opacity: 0.6;">
+                        <i class="fas fa-info-circle"></i>
+                        <span>No students linked</span>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Failed to load children accounts:', error);
+        }
+    }
+}
+
+/**
  * Load user profile from auth session and update sidebar
  * Returns true if logged in, false otherwise
  */
@@ -389,6 +450,9 @@ async function loadUserProfile() {
                 const initial = (user.username || 'S')[0].toUpperCase();
                 el.textContent = initial;
             });
+            
+            // Handle sidebar navigation based on account type
+            await adjustSidebarForAccountType(user);
             
             return true;
         } else {
