@@ -178,8 +178,23 @@ def check_email():
                 'error': 'Email not found'
             }), 404
         
-        # 获取该家长下的所有学生账号
-        students = get_students_by_parent(parent['user_id'])
+        # 获取该家长下的所有子账号（包括学生和其他父账号）
+        from db_sqlite import get_conn
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM user_settings WHERE parent_id=?', (parent['user_id'],))
+        children_rows = cur.fetchall()
+        conn.close()
+        
+        students = []
+        for child in children_rows:
+            students.append({
+                'user_id': child['user_id'],
+                'username': child['username'],
+                'account_type': child['account_type'],
+                'email': child['email'] if child['email'] else '',
+                'avatar_url': child['avatar_url'] if child['avatar_url'] else None
+            })
         
         return jsonify({
             'success': True,
@@ -362,14 +377,20 @@ def get_accounts_by_email():
             'email': parent_user['email']
         })
         
-        # 获取子账号（学生账号）
-        students = get_students_by_parent(parent_user['user_id'])
-        for student in students:
+        # 获取所有子账号（包括学生和其他父账号）用于账号切换
+        from db_sqlite import get_conn
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM user_settings WHERE parent_id=?', (parent_user['user_id'],))
+        children = cur.fetchall()
+        conn.close()
+        
+        for child in children:
             accounts.append({
-                'user_id': student['user_id'],
-                'username': student['username'],
-                'account_type': student['account_type'],
-                'email': ''
+                'user_id': child['user_id'],
+                'username': child['username'],
+                'account_type': child['account_type'],
+                'email': child['email'] if child['email'] else ''
             })
         
         return jsonify({
@@ -449,8 +470,33 @@ def get_children():
                 'error': 'Only parent accounts can access this endpoint'
             }), 403
         
-        # 获取该家长的所有子女账号
-        children = get_students_by_parent(user_id)
+        # 找到根父账号 - 如果当前用户是子父账号，向上查找直到根父账号
+        root_parent_id = user_id
+        finding_parent = current_user
+        
+        while finding_parent and finding_parent.get('parent_id'):
+            root_parent_id = finding_parent.get('parent_id')
+            finding_parent = get_user_settings(root_parent_id)
+        
+        # 获取根父账号下的所有子账号（包括学生和其他父账号）
+        from db_sqlite import get_conn
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM user_settings WHERE parent_id=?', (root_parent_id,))
+        rows = cur.fetchall()
+        conn.close()
+        
+        children = []
+        for row in rows:
+            children.append({
+                'user_id': row['user_id'],
+                'username': row['username'],
+                'email': row['email'],
+                'account_type': row['account_type'],
+                'avatar_url': row['avatar_url'] if 'avatar_url' in row.keys() else None,
+                'grade_level': row['grade_level'],
+                'daily_goal': row['daily_goal']
+            })
         
         return jsonify({
             'success': True,
@@ -488,9 +534,9 @@ def update_profile():
             }), 400
         
         # 导入数据库函数
-        from db_sqlite import get_connection, hash_password
+        from db_sqlite import get_conn, hash_password
         
-        conn = get_connection()
+        conn = get_conn()
         cursor = conn.cursor()
         
         # 构建更新语句
@@ -562,9 +608,9 @@ def update_student():
         student_id = data['user_id']
         
         # 导入数据库函数
-        from db_sqlite import get_connection, hash_password
+        from db_sqlite import get_conn, hash_password
         
-        conn = get_connection()
+        conn = get_conn()
         cursor = conn.cursor()
         
         # 验证该学生是否属于当前家长
@@ -620,6 +666,169 @@ def update_student():
         
     except Exception as e:
         print(f"Update student error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@auth_bp.route('/create-child', methods=['POST'])
+def create_child():
+    """家长创建子账号（学生或其他家长）"""
+    try:
+        parent_id = session.get('user_id')
+        account_type = session.get('account_type')
+        
+        if not parent_id or account_type != 'parent':
+            return jsonify({
+                'success': False,
+                'error': 'Only parent accounts can create child accounts'
+            }), 403
+        
+        data = request.get_json()
+        
+        if not data or not data.get('username') or not data.get('password'):
+            return jsonify({
+                'success': False,
+                'error': 'Username and password are required'
+            }), 400
+        
+        if len(data['password']) < 6:
+            return jsonify({
+                'success': False,
+                'error': 'Password must be at least 6 characters'
+            }), 400
+        
+        child_account_type = data.get('account_type', 'student')
+        
+        if child_account_type not in ['student', 'parent']:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid account type'
+            }), 400
+        
+        # 获取邮箱，家长账号使用母账号邮箱
+        email = data.get('email', '').strip().lower()
+        if child_account_type == 'parent' and not email:
+            # 自动使用母账号的邮箱
+            parent_user = get_user_settings(parent_id)
+            if parent_user and parent_user.get('email'):
+                email = parent_user.get('email')
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Cannot determine email for parent account'
+                }), 400
+        
+        # 创建账号 - all accounts link to root parent
+        # 找到真实的根父账。如果筛选者是歐号。浮加程序的下级账号，不断向上黎查找直到找到parent_id为NULL的账号
+        from db_sqlite import get_conn
+        finding_parent = get_user_settings(parent_id)
+        root_parent_id = parent_id
+        
+        # Keep going up the hierarchy until we find the root parent (one with no parent_id)
+        while finding_parent and finding_parent.get('parent_id'):
+            root_parent_id = finding_parent.get('parent_id')
+            finding_parent = get_user_settings(root_parent_id)
+        
+        child_id = create_user(
+            email=email,
+            username=data['username'].strip(),
+            password=data['password'],
+            account_type=child_account_type,
+            parent_id=root_parent_id,  # Links to root parent so all accounts share same family
+            grade_level=str(data.get('grade_level', '')) if child_account_type == 'student' else '',
+            daily_goal=int(data.get('daily_goal', 60)) if child_account_type == 'student' else 60,
+            avatar_url=data.get('avatar_url')
+        )
+        
+        if not child_id:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to create account'
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': f'{child_account_type.capitalize()} account created successfully',
+            'user_id': child_id
+        })
+        
+    except Exception as e:
+        print(f"Create child error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@auth_bp.route('/delete-child', methods=['POST'])
+def delete_child():
+    """家长删除子账号"""
+    try:
+        parent_id = session.get('user_id')
+        account_type = session.get('account_type')
+        
+        if not parent_id or account_type != 'parent':
+            return jsonify({
+                'success': False,
+                'error': 'Only parent accounts can delete child accounts'
+            }), 403
+        
+        data = request.get_json()
+        user_id_to_delete = data.get('user_id')
+        
+        if not user_id_to_delete:
+            return jsonify({
+                'success': False,
+                'error': 'User ID is required'
+            }), 400
+        
+        # 验证该账号确实是当前家长的子账号
+        from db_sqlite import get_conn
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        cur.execute('SELECT parent_id FROM user_settings WHERE user_id=?', (user_id_to_delete,))
+        row = cur.fetchone()
+        
+        if not row:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Account not found'
+            }), 404
+        
+        if row['parent_id'] != parent_id:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'You do not have permission to delete this account'
+            }), 403
+        
+        # 删除账号及其所有相关数据
+        cur.execute('DELETE FROM user_settings WHERE user_id=?', (user_id_to_delete,))
+        # Delete from tables that exist
+        cur.execute('DELETE FROM module_usage WHERE user_id=?', (user_id_to_delete,))
+        cur.execute('DELETE FROM error_book WHERE user_id=?', (user_id_to_delete,))
+        cur.execute('DELETE FROM practice_record WHERE user_id=?', (user_id_to_delete,))
+        cur.execute('DELETE FROM note WHERE user_id=?', (user_id_to_delete,))
+        cur.execute('DELETE FROM mindmap WHERE user_id=?', (user_id_to_delete,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Account deleted successfully'
+        })
+        
+    except Exception as e:
+        print(f"Delete child error: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({

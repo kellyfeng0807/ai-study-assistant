@@ -3,11 +3,11 @@
  */
 
 let parentData = null;
-let studentAccounts = [];
+let allAccounts = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
     await loadParentProfile();
-    await loadStudentAccounts();
+    await loadAllAccounts();
     initEventListeners();
 });
 
@@ -40,123 +40,186 @@ async function loadParentProfile() {
 }
 
 /**
- * Load student accounts under this parent
+ * Load all accounts (students and other parents under this parent)
  */
-async function loadStudentAccounts() {
-    const container = document.getElementById('studentCardsContainer');
+async function loadAllAccounts() {
+    const container = document.getElementById('studentAccountsContainer');
     
     try {
         const response = await fetch(window.getApiUrl('/auth/children'));
         const data = await response.json();
         
         if (data.success && data.children && data.children.length > 0) {
-            studentAccounts = data.children;
-            renderStudentCards(studentAccounts);
+            allAccounts = data.children;
+            renderAccountCards(allAccounts);
         } else {
             container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-user-graduate"></i>
-                    <p>No student accounts linked yet</p>
+                <div class="empty-state" style="text-align: center; padding: 40px; color: var(--text-tertiary);">
+                    <i class="fas fa-user-graduate" style="font-size: 48px; margin-bottom: 16px; display: block; opacity: 0.3;"></i>
+                    <p>No child accounts yet. Click "Add New Account" to create one.</p>
                 </div>
             `;
         }
     } catch (error) {
-        console.error('Failed to load student accounts:', error);
+        console.error('Failed to load accounts:', error);
         container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-exclamation-circle"></i>
-                <p>Failed to load student accounts</p>
+            <div class="empty-state" style="text-align: center; padding: 40px; color: var(--text-tertiary);">
+                <i class="fas fa-exclamation-circle" style="font-size: 48px; margin-bottom: 16px; display: block; opacity: 0.3;"></i>
+                <p>Failed to load accounts</p>
             </div>
         `;
     }
 }
 
 /**
- * Render student account cards
+ * Render account cards (each as a settings-section)
  */
-function renderStudentCards(students) {
-    const container = document.getElementById('studentCardsContainer');
+function renderAccountCards(accounts) {
+    const container = document.getElementById('studentAccountsContainer');
     
-    container.innerHTML = students.map(student => `
-        <div class="student-card" data-student-id="${student.user_id}">
-            <div class="student-card-header">
-                <div class="student-avatar">${(student.username || 'S')[0].toUpperCase()}</div>
-                <div class="student-card-title">
-                    <h4 class="student-name">${student.username || 'Student'}</h4>
-                    <span class="student-type">Student Account</span>
-                </div>
-                <div class="student-card-actions">
-                    <button class="icon-btn edit-student-btn" title="Edit">
+    container.innerHTML = accounts.map(account => {
+        const isStudent = account.account_type === 'student';
+        const icon = isStudent ? 'fa-user-graduate' : 'fa-user-tie';
+        const typeLabel = isStudent ? 'Student Account' : 'Parent Account';
+        
+        return `
+        <section class="settings-section" data-account-id="${account.user_id}">
+            <div class="section-header">
+                <h3 class="section-title">
+                    <i class="fas ${icon}" style="margin-right: 8px; color: var(--primary-color);"></i>
+                    ${account.username || 'Account'}
+                </h3>
+                <div style="display: flex; gap: 8px;">
+                    <button class="button-outline edit-account-btn">
                         <i class="fas fa-edit"></i>
+                        <span>Edit</span>
+                    </button>
+                    <button class="button-outline delete-account-btn" style="color: #ef4444; border-color: #ef4444;" data-account-id="${account.user_id}" data-username="${account.username}">
+                        <i class="fas fa-trash"></i>
+                        <span>Delete</span>
                     </button>
                 </div>
             </div>
-            
-            <div class="student-card-body">
-                <div class="student-field">
-                    <div class="field-label">
-                        <i class="fas fa-id-card"></i>
-                        <span>User ID</span>
+            <div class="settings-group">
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <label>User ID</label>
+                        <p>Unique identifier</p>
                     </div>
-                    <div class="field-value">
-                        <span class="display-text">${student.user_id}</span>
-                    </div>
-                </div>
-                
-                <div class="student-field">
-                    <div class="field-label">
-                        <i class="fas fa-user"></i>
-                        <span>Name</span>
-                    </div>
-                    <div class="field-value">
-                        <span class="display-text student-name-display">${student.username || '-'}</span>
-                        <input type="text" class="setting-input student-name-input" value="${student.username || ''}" style="display: none;">
+                    <div class="setting-value">
+                        <span class="display-text">${account.user_id}</span>
                     </div>
                 </div>
                 
-                <div class="student-field">
-                    <div class="field-label">
-                        <i class="fas fa-lock"></i>
-                        <span>Password</span>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <label>Account Type</label>
+                        <p>User role</p>
                     </div>
-                    <div class="field-value">
+                    <div class="setting-value">
+                        <span class="display-text">${typeLabel}</span>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <label>Username</label>
+                        <p>Display name</p>
+                    </div>
+                    <div class="setting-value">
+                        <span class="display-text account-name-display">${account.username || '-'}</span>
+                        <input type="text" class="setting-input account-name-input" value="${account.username || ''}" style="display: none;">
+                    </div>
+                </div>
+                
+                ${isStudent && account.email ? `
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <label>Email</label>
+                        <p>Account email</p>
+                    </div>
+                    <div class="setting-value">
+                        <span class="display-text">${account.email}</span>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <label>Password</label>
+                        <p>Change password</p>
+                    </div>
+                    <div class="setting-value">
                         <span class="display-text">••••••••</span>
-                        <input type="password" class="setting-input student-password-input" placeholder="Enter new password" style="display: none;">
+                        <input type="password" class="setting-input account-password-input" placeholder="Enter new password" style="display: none;">
                     </div>
                 </div>
                 
-                <div class="student-field">
-                    <div class="field-label">
-                        <i class="fas fa-graduation-cap"></i>
-                        <span>Grade</span>
+                ${isStudent ? `
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <label>Grade Level</label>
+                        <p>Current grade</p>
                     </div>
-                    <div class="field-value">
-                        <span class="display-text student-grade-display">Grade ${student.grade_level || 9}</span>
-                        <select class="setting-select student-grade-select" style="display: none;">
+                    <div class="setting-value">
+                        <span class="display-text account-grade-display">Grade ${account.grade_level || 9}</span>
+                        <select class="setting-select account-grade-select" style="display: none;">
                             ${[7, 8, 9, 10, 11, 12].map(g => 
-                                `<option value="${g}" ${g == student.grade_level ? 'selected' : ''}>Grade ${g}</option>`
+                                `<option value="${g}" ${g == account.grade_level ? 'selected' : ''}>Grade ${g}</option>`
                             ).join('')}
                         </select>
                     </div>
                 </div>
                 
-                <div class="student-field">
-                    <div class="field-label">
-                        <i class="fas fa-bullseye"></i>
-                        <span>Goal</span>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <label>Daily Goal</label>
+                        <p>Target study time (minutes)</p>
                     </div>
-                    <div class="field-value">
-                        <span class="display-text student-goal-display">${student.daily_goal || 60} min</span>
-                        <input type="number" class="setting-input student-goal-input" value="${student.daily_goal || 60}" min="30" max="480" style="display: none;">
+                    <div class="setting-value">
+                        <span class="display-text account-goal-display">${account.daily_goal || 60} minutes</span>
+                        <input type="number" class="setting-input account-goal-input" value="${account.daily_goal || 60}" min="30" max="480" style="display: none;">
                     </div>
                 </div>
+                ` : ''}
             </div>
-        </div>
-    `).join('');
+            
+            <div class="settings-actions account-edit-actions" style="display: none;">
+                <button class="button-primary save-account-btn">
+                    <i class="fas fa-save"></i>
+                    Save Changes
+                </button>
+                <button class="button-outline cancel-account-btn">
+                    <i class="fas fa-times"></i>
+                    Cancel
+                </button>
+            </div>
+        </section>
+        `;
+    }).join('');
     
     // Bind edit buttons
-    container.querySelectorAll('.edit-student-btn').forEach(btn => {
-        btn.addEventListener('click', handleEditStudent);
+    container.querySelectorAll('.edit-account-btn').forEach(btn => {
+        btn.addEventListener('click', handleEditAccount);
+    });
+    
+    // Bind delete buttons
+    container.querySelectorAll('.delete-account-btn').forEach(btn => {
+        btn.addEventListener('click', handleDeleteAccount);
+    });
+    
+    container.querySelectorAll('.save-account-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const section = e.target.closest('.settings-section');
+            saveAccountSettings(section);
+        });
+    });
+    
+    container.querySelectorAll('.cancel-account-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const section = e.target.closest('.settings-section');
+            cancelAccountEdit(section);
+        });
     });
 }
 
@@ -181,17 +244,31 @@ function initEventListeners() {
         cancelParentBtn.addEventListener('click', cancelParentEdit);
     }
     
-    // Password field show/hide confirm
+    // Password field show/hide confirm - only for parent account
     const parentPasswordInput = document.getElementById('parentNewPassword');
-    if (parentPasswordInput) {
-        parentPasswordInput.addEventListener('input', (e) => {
-            const confirmItem = document.getElementById('parentConfirmPasswordItem');
-            if (e.target.value) {
-                confirmItem.style.display = 'flex';
+    const parentConfirmItem = document.getElementById('parentConfirmPasswordItem');
+    if (parentPasswordInput && parentConfirmItem) {
+        parentPasswordInput.addEventListener('input', function(e) {
+            // 只控制父账号自己的确认框，且只在父账号编辑模式下
+            const parentEditActions = document.getElementById('parentEditActions');
+            if (parentEditActions && parentEditActions.style.display !== 'none' && this.value) {
+                parentConfirmItem.style.display = 'flex';
             } else {
-                confirmItem.style.display = 'none';
+                parentConfirmItem.style.display = 'none';
             }
         });
+    }
+    
+    // Add account button
+    const addAccountBtn = document.getElementById('addAccountBtn');
+    if (addAccountBtn) {
+        addAccountBtn.addEventListener('click', openAccountTypeModal);
+    }
+    
+    // New account form
+    const newAccountForm = document.getElementById('newAccountForm');
+    if (newAccountForm) {
+        newAccountForm.addEventListener('submit', handleCreateAccount);
     }
 }
 
@@ -286,110 +363,166 @@ function cancelParentEdit() {
 }
 
 /**
- * Handle edit student button click
+ * Handle edit account button click
  */
-function handleEditStudent(e) {
-    const card = e.target.closest('.student-card');
-    const isEditing = card.classList.contains('editing');
+function handleEditAccount(e) {
+    const section = e.target.closest('.settings-section');
+    const editBtn = section.querySelector('.edit-account-btn');
+    const isEditing = section.querySelector('.account-edit-actions').style.display !== 'none';
     
     if (isEditing) {
-        cancelStudentEdit(card);
+        cancelAccountEdit(section);
     } else {
-        enterStudentEditMode(card);
+        enterAccountEditMode(section);
     }
 }
 
 /**
- * Enter student edit mode
+ * Enter account edit mode
  */
-function enterStudentEditMode(card) {
-    card.classList.add('editing');
+function enterAccountEditMode(section) {
+    const accountId = section.dataset.accountId;
+    const account = allAccounts.find(a => a.user_id === accountId);
+    const isStudent = account && account.account_type === 'student';
     
     // Hide displays, show inputs
-    card.querySelector('.student-name-display').style.display = 'none';
-    card.querySelector('.student-name-input').style.display = 'block';
-    
-    card.querySelector('.student-password-input').style.display = 'block';
-    card.querySelectorAll('.field-value .display-text')[1].style.display = 'none';
-    
-    card.querySelector('.student-grade-display').style.display = 'none';
-    card.querySelector('.student-grade-select').style.display = 'block';
-    
-    card.querySelector('.student-goal-display').style.display = 'none';
-    card.querySelector('.student-goal-input').style.display = 'block';
-    
-    // Change edit button to cancel and add save actions
-    const editBtn = card.querySelector('.edit-student-btn');
-    editBtn.innerHTML = '<i class="fas fa-times"></i>';
-    editBtn.title = 'Cancel';
-    
-    // Add action buttons
-    const cardBody = card.querySelector('.student-card-body');
-    if (!card.querySelector('.card-actions')) {
-        const actionsHtml = `
-            <div class="card-actions">
-                <button class="button-save save-student-btn">
-                    <i class="fas fa-save"></i>
-                    Save Changes
-                </button>
-                <button class="button-cancel cancel-student-btn">
-                    <i class="fas fa-times"></i>
-                    Cancel
-                </button>
-            </div>
-        `;
-        cardBody.insertAdjacentHTML('afterend', actionsHtml);
-        
-        card.querySelector('.save-student-btn').addEventListener('click', () => saveStudentSettings(card));
-        card.querySelector('.cancel-student-btn').addEventListener('click', () => cancelStudentEdit(card));
+    const nameDisplay = section.querySelector('.account-name-display');
+    const nameInput = section.querySelector('.account-name-input');
+    if (nameDisplay && nameInput) {
+        nameDisplay.style.display = 'none';
+        nameInput.style.display = 'block';
     }
+    
+    // Show password input (find the password setting-item specifically)
+    const passwordDisplay = section.querySelector('.account-password-input')?.previousElementSibling;
+    const passwordInput = section.querySelector('.account-password-input');
+    if (passwordDisplay && passwordInput && passwordDisplay.textContent.includes('••')) {
+        passwordDisplay.style.display = 'none';
+        passwordInput.style.display = 'block';
+    }
+    
+    if (isStudent) {
+        const gradeDisplay = section.querySelector('.account-grade-display');
+        const gradeSelect = section.querySelector('.account-grade-select');
+        if (gradeDisplay && gradeSelect) {
+            gradeDisplay.style.display = 'none';
+            gradeSelect.style.display = 'block';
+        }
+        
+        const goalDisplay = section.querySelector('.account-goal-display');
+        const goalInput = section.querySelector('.account-goal-input');
+        if (goalDisplay && goalInput) {
+            goalDisplay.style.display = 'none';
+            goalInput.style.display = 'block';
+        }
+    }
+    
+    // Show action buttons, change edit button text
+    section.querySelector('.account-edit-actions').style.display = 'flex';
+    section.querySelector('.edit-account-btn').innerHTML = '<i class="fas fa-times"></i><span>Cancel</span>';
 }
 
 /**
- * Cancel student edit mode
+ * Cancel account edit mode
  */
-function cancelStudentEdit(card) {
-    card.classList.remove('editing');
+function cancelAccountEdit(section) {
+    const accountId = section.dataset.accountId;
+    const account = allAccounts.find(a => a.user_id === accountId);
+    const isStudent = account && account.account_type === 'student';
     
     // Show displays, hide inputs
-    card.querySelector('.student-name-display').style.display = 'inline';
-    card.querySelector('.student-name-input').style.display = 'none';
+    const nameDisplay = section.querySelector('.account-name-display');
+    const nameInput = section.querySelector('.account-name-input');
+    if (nameDisplay && nameInput) {
+        nameDisplay.style.display = 'inline';
+        nameInput.style.display = 'none';
+    }
     
-    card.querySelector('.student-password-input').style.display = 'none';
-    card.querySelector('.student-password-input').value = '';
-    card.querySelectorAll('.field-value .display-text')[1].style.display = 'inline';
+    // Hide password input and show password display
+    const passwordDisplay = section.querySelector('.account-password-input')?.previousElementSibling;
+    const passwordInput = section.querySelector('.account-password-input');
+    if (passwordDisplay && passwordInput && passwordDisplay.textContent.includes('••')) {
+        passwordDisplay.style.display = 'inline';
+        passwordInput.style.display = 'none';
+        passwordInput.value = '';
+    }
     
-    card.querySelector('.student-grade-display').style.display = 'inline';
-    card.querySelector('.student-grade-select').style.display = 'none';
+    if (isStudent) {
+        const gradeDisplay = section.querySelector('.account-grade-display');
+        const gradeSelect = section.querySelector('.account-grade-select');
+        if (gradeDisplay && gradeSelect) {
+            gradeDisplay.style.display = 'inline';
+            gradeSelect.style.display = 'none';
+        }
+        
+        const goalDisplay = section.querySelector('.account-goal-display');
+        const goalInput = section.querySelector('.account-goal-input');
+        if (goalDisplay && goalInput) {
+            goalDisplay.style.display = 'inline';
+            goalInput.style.display = 'none';
+        }
+    }
     
-    card.querySelector('.student-goal-display').style.display = 'inline';
-    card.querySelector('.student-goal-input').style.display = 'none';
+    // Hide action buttons, restore edit button
+    section.querySelector('.account-edit-actions').style.display = 'none';
+    section.querySelector('.edit-account-btn').innerHTML = '<i class="fas fa-edit"></i><span>Edit</span>';
+}
+
+/**
+ * Handle delete account button click
+ */
+async function handleDeleteAccount(e) {
+    const accountId = e.currentTarget.dataset.accountId;
+    const username = e.currentTarget.dataset.username;
     
-    // Change cancel button back to edit
-    const editBtn = card.querySelector('.edit-student-btn');
-    editBtn.innerHTML = '<i class="fas fa-edit"></i>';
-    editBtn.title = 'Edit';
+    // Use messageModal.confirm for consistent styling
+    const confirmed = await window.messageModal.confirm(
+        `Are you sure you want to delete the account "${username}"? This action cannot be undone.`,
+        'Delete Account',
+        { danger: true, confirmText: 'Delete', cancelText: 'Cancel' }
+    );
     
-    // Remove action buttons
-    const actions = card.querySelector('.card-actions');
-    if (actions) {
-        actions.remove();
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(window.getApiUrl('/auth/delete-child'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: accountId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showMessage('Account deleted successfully', 'success');
+            await loadAllAccounts();
+        } else {
+            showMessage(data.error || 'Failed to delete account', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to delete account:', error);
+        showMessage('Failed to delete account', 'error');
     }
 }
 
 /**
- * Save student settings
+ * Save account settings
  */
-async function saveStudentSettings(card) {
-    const studentId = card.dataset.studentId;
-    const newName = card.querySelector('.student-name-input').value.trim();
-    const newPassword = card.querySelector('.student-password-input').value;
-    const newGrade = parseInt(card.querySelector('.student-grade-select').value);
-    const newGoal = parseInt(card.querySelector('.student-goal-input').value);
+async function saveAccountSettings(section) {
+    const accountId = section.dataset.accountId;
+    const account = allAccounts.find(a => a.user_id === accountId);
+    
+    if (!account) return;
+    
+    const isStudent = account.account_type === 'student';
+    const newName = section.querySelector('.account-name-input').value.trim();
+    const newPassword = section.querySelector('.account-password-input').value;
     
     // Validation
     if (!newName) {
-        showMessage('Student name cannot be empty', 'error');
+        showMessage('Name cannot be empty', 'error');
         return;
     }
     
@@ -398,23 +531,29 @@ async function saveStudentSettings(card) {
         return;
     }
     
-    if (newGoal < 30 || newGoal > 480) {
-        showMessage('Daily goal must be between 30 and 480 minutes', 'error');
-        return;
+    const updates = {
+        user_id: accountId,
+        username: newName
+    };
+    
+    if (newPassword) {
+        updates.password = newPassword;
+    }
+    
+    if (isStudent) {
+        const newGrade = parseInt(section.querySelector('.account-grade-select').value);
+        const newGoal = parseInt(section.querySelector('.account-goal-input').value);
+        
+        if (newGoal < 30 || newGoal > 480) {
+            showMessage('Daily goal must be between 30 and 480 minutes', 'error');
+            return;
+        }
+        
+        updates.grade_level = newGrade;
+        updates.daily_goal = newGoal;
     }
     
     try {
-        const updates = {
-            user_id: studentId,
-            username: newName,
-            grade_level: newGrade,
-            daily_goal: newGoal
-        };
-        
-        if (newPassword) {
-            updates.password = newPassword;
-        }
-        
         const response = await fetch(window.getApiUrl('/auth/update-student'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -424,14 +563,144 @@ async function saveStudentSettings(card) {
         const data = await response.json();
         
         if (data.success) {
-            showMessage('Student settings saved successfully', 'success');
-            await loadStudentAccounts();
+            showMessage('Settings saved successfully', 'success');
+            await loadAllAccounts();
         } else {
-            showMessage(data.error || 'Failed to save student settings', 'error');
+            showMessage(data.error || 'Failed to save settings', 'error');
         }
     } catch (error) {
-        console.error('Failed to save student settings:', error);
-        showMessage('Failed to save student settings', 'error');
+        console.error('Failed to save settings:', error);
+        showMessage('Failed to save settings', 'error');
+    }
+}
+
+/**
+ * Open account type selection modal
+ */
+function openAccountTypeModal() {
+    document.getElementById('accountTypeModal').style.display = 'flex';
+}
+
+/**
+ * Close account type selection modal
+ */
+function closeAccountTypeModal() {
+    document.getElementById('accountTypeModal').style.display = 'none';
+}
+
+/**
+ * Open new account form
+ */
+function openNewAccountForm(accountType) {
+    closeAccountTypeModal();
+    
+    const isStudent = accountType === 'student';
+    document.getElementById('newAccountType').value = accountType;
+    document.getElementById('newAccountTitle').textContent = isStudent ? 'Create Student Account' : 'Create Parent Account';
+    
+    // Email field handling
+    const emailGroup = document.getElementById('emailGroup');
+    const emailInput = document.getElementById('newEmail');
+    
+    if (isStudent) {
+        // 学生账号不需要邮箱
+        emailGroup.style.display = 'none';
+        emailInput.required = false;
+    } else {
+        // 家长账号隐藏邮箱字段，自动使用母账号邮箱
+        emailGroup.style.display = 'none';
+        emailInput.required = false;
+        // 自动填充母账号邮箱
+        if (parentData && parentData.email) {
+            emailInput.value = parentData.email;
+        }
+    }
+    
+    // Show/hide grade and goal fields (only for students)
+    document.getElementById('gradeGroup').style.display = isStudent ? 'block' : 'none';
+    document.getElementById('goalGroup').style.display = isStudent ? 'block' : 'none';
+    
+    // Reset form
+    document.getElementById('newAccountForm').reset();
+    document.getElementById('newAccountType').value = accountType;
+    
+    document.getElementById('newAccountModal').style.display = 'flex';
+}
+
+/**
+ * Close new account form modal
+ */
+function closeNewAccountModal() {
+    document.getElementById('newAccountModal').style.display = 'none';
+    document.getElementById('newAccountForm').reset();
+}
+
+/**
+ * Handle create account form submission
+ */
+async function handleCreateAccount(e) {
+    e.preventDefault();
+    
+    const accountType = document.getElementById('newAccountType').value;
+    const username = document.getElementById('newUsername').value.trim();
+    const email = document.getElementById('newEmail').value.trim();
+    const password = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmNewPassword').value;
+    
+    // Validation
+    if (!username) {
+        showMessage('Username is required', 'error');
+        return;
+    }
+    
+    // Email validation removed - backend auto-fills parent email
+    
+    if (password !== confirmPassword) {
+        showMessage('Passwords do not match', 'error');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showMessage('Password must be at least 6 characters', 'error');
+        return;
+    }
+    
+    const isStudent = accountType === 'student';
+    const requestData = {
+        username: username,
+        password: password,
+        account_type: accountType,
+        parent_id: parentData.user_id
+    };
+    
+    if (email) {
+        requestData.email = email;
+    }
+    
+    if (isStudent) {
+        requestData.grade_level = document.getElementById('newGrade').value;
+        requestData.daily_goal = parseInt(document.getElementById('newGoal').value);
+    }
+    
+    try {
+        const response = await fetch(window.getApiUrl('/auth/create-child'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showMessage(`${accountType === 'student' ? 'Student' : 'Parent'} account created successfully`, 'success');
+            closeNewAccountModal();
+            await loadAllAccounts();
+        } else {
+            showMessage(data.error || 'Failed to create account', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to create account:', error);
+        showMessage('Failed to create account', 'error');
     }
 }
 
@@ -439,8 +708,10 @@ async function saveStudentSettings(card) {
  * Show message
  */
 function showMessage(message, type = 'info') {
-    // Use existing message modal if available
-    if (window.MessageModal && window.MessageModal.show) {
+    // Use Utils notification system
+    if (window.Utils && window.Utils.showNotification) {
+        window.Utils.showNotification(message, type);
+    } else if (window.MessageModal && window.MessageModal.show) {
         window.MessageModal.show(message, type);
     } else {
         alert(message);

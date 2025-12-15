@@ -1308,11 +1308,12 @@ def create_user(email, username, password, account_type='student', parent_id=Non
 
 
 def get_students_by_parent(parent_id):
-    """Get all student accounts under a parent."""
+    """Get all student accounts under a parent (only returns students, not parent accounts)."""
     conn = get_conn()
     cur = conn.cursor()
     
-    cur.execute('SELECT * FROM user_settings WHERE parent_id=?', (parent_id,))
+    # Only get student accounts, not parent accounts
+    cur.execute('SELECT * FROM user_settings WHERE parent_id=? AND account_type=?', (parent_id, 'student'))
     rows = cur.fetchall()
     conn.close()
     

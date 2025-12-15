@@ -22,8 +22,12 @@ class LoginManager {
             const data = await response.json();
             
             if (data.success && data.logged_in) {
-                // Already logged in, redirect to dashboard
-                window.location.href = '/learning-dashboard';
+                // Already logged in, redirect based on account type
+                if (data.account_type === 'parent') {
+                    window.location.href = '/parent-view';
+                } else {
+                    window.location.href = '/learning-dashboard';
+                }
             }
         } catch (error) {
             console.error('Session check failed:', error);
@@ -189,9 +193,33 @@ class LoginManager {
                 // Store user info in localStorage for quick access
                 localStorage.setItem('currentUser', JSON.stringify(data.user));
                 
-                // Redirect to dashboard after a short delay
-                setTimeout(() => {
-                    window.location.href = '/learning-dashboard';
+                // Redirect based on account type
+                setTimeout(async () => {
+                    if (data.user.account_type === 'parent') {
+                        // For parent accounts, redirect to first student's report
+                        try {
+                            const childrenResponse = await fetch(window.getApiUrl('/auth/children'));
+                            const childrenData = await childrenResponse.json();
+                            
+                            if (childrenData.success && childrenData.children && childrenData.children.length > 0) {
+                                // Find first student account
+                                const firstStudent = childrenData.children.find(child => child.account_type === 'student');
+                                if (firstStudent) {
+                                    window.location.href = `/parent-view?user_id=${firstStudent.user_id}`;
+                                } else {
+                                    // No students, go to parent-view without user_id
+                                    window.location.href = '/parent-view';
+                                }
+                            } else {
+                                window.location.href = '/parent-view';
+                            }
+                        } catch (error) {
+                            console.error('Failed to load children:', error);
+                            window.location.href = '/parent-view';
+                        }
+                    } else {
+                        window.location.href = '/learning-dashboard';
+                    }
                 }, 500);
             } else {
                 Utils.showNotification(data.error || 'Invalid password', 'error');

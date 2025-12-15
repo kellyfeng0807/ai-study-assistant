@@ -339,32 +339,45 @@ async function adjustSidebarForAccountType(user) {
             const data = await response.json();
             
             if (data.success && data.children && data.children.length > 0) {
-                // 清空现有的导航菜单
-                navMenu.innerHTML = '';
+                // 筛选只显示学生账号，不显示父账号
+                const students = data.children.filter(child => child.account_type === 'student');
                 
-                // 为每个子女创建一个 Parent View 链接
-                data.children.forEach(child => {
-                    const link = document.createElement('a');
-                    link.href = `/parent-view?user_id=${child.user_id}`;
-                    link.className = 'nav-item';
-                    link.innerHTML = `
-                        <i class="fas fa-user-graduate"></i>
-                        <span>${child.username}'s Report</span>
-                    `;
-                    navMenu.appendChild(link);
-                });
-                
-                // 如果当前在 parent-view 页面，高亮对应的链接
-                const currentPath = window.location.pathname;
-                const currentUserId = new URLSearchParams(window.location.search).get('user_id');
-                if (currentPath.includes('/parent-view') && currentUserId) {
-                    const activeLink = navMenu.querySelector(`a[href="/parent-view?user_id=${currentUserId}"]`);
-                    if (activeLink) {
-                        activeLink.classList.add('active');
+                if (students.length > 0) {
+                    // 清空现有的导航菜单
+                    navMenu.innerHTML = '';
+                    
+                    // 为每个学生创建一个Parent View链接
+                    students.forEach(child => {
+                        const link = document.createElement('a');
+                        link.href = `/parent-view?user_id=${child.user_id}`;
+                        link.className = 'nav-item';
+                        link.innerHTML = `
+                            <i class="fas fa-user-graduate"></i>
+                            <span>${child.username}'s Report</span>
+                        `;
+                        navMenu.appendChild(link);
+                    });
+                    
+                    // 如果当前在parent-view页面，高亮对应的链接
+                    const currentPath = window.location.pathname;
+                    const currentUserId = new URLSearchParams(window.location.search).get('user_id');
+                    if (currentPath.includes('/parent-view') && currentUserId) {
+                        const activeLink = navMenu.querySelector(`a[href="/parent-view?user_id=${currentUserId}"]`);
+                        if (activeLink) {
+                            activeLink.classList.add('active');
+                        }
+                    } else if (students.length > 0) {
+                        // 默认高亮第一个学生
+                        navMenu.querySelector('.nav-item')?.classList.add('active');
                     }
-                } else if (data.children.length > 0) {
-                    // 默认高亮第一个子女
-                    navMenu.querySelector('.nav-item')?.classList.add('active');
+                } else {
+                    // 没有学生账号的提示
+                    navMenu.innerHTML = `
+                        <div class="nav-item" style="cursor: default; opacity: 0.6;">
+                            <i class="fas fa-info-circle"></i>
+                            <span>No students linked</span>
+                        </div>
+                    `;
                 }
             } else {
                 // 没有子女账号，显示提示
@@ -541,6 +554,25 @@ function initUserMenu() {
 }
 
 /**
+ * Get avatar color based on username
+ */
+function getAvatarColor(username) {
+    const colors = [
+        '#3b82f6', // blue
+        '#8b5cf6', // purple
+        '#ec4899', // pink
+        '#f59e0b', // amber
+        '#10b981', // green
+        '#06b6d4', // cyan
+        '#f97316', // orange
+        '#6366f1'  // indigo
+    ];
+    
+    const charCode = username.charCodeAt(0);
+    return colors[charCode % colors.length];
+}
+
+/**
  * Show account switch modal with accounts under same email
  */
 async function showAccountSwitchModal() {
@@ -614,12 +646,14 @@ async function showAccountSwitchModal() {
                     <p>Select an account to switch to</p>
                 </div>
                 <div class="account-switch-list" id="accountSwitchList">
-                    ${accountsData.accounts.map(account => `
+                    ${accountsData.accounts.map(account => {
+                        const avatarColor = getAvatarColor(account.username);
+                        return `
                         <div class="account-switch-item ${account.user_id === currentUser.user_id ? 'selected' : ''}" 
                              data-user-id="${account.user_id}"
                              data-username="${account.username}"
                              data-account-type="${account.account_type}">
-                            <div class="account-avatar avatar">
+                            <div class="account-avatar avatar" style="background: ${avatarColor};">
                                 ${account.username[0].toUpperCase()}
                             </div>
                             <div class="account-details">
@@ -628,7 +662,8 @@ async function showAccountSwitchModal() {
                             </div>
                             ${account.user_id === currentUser.user_id ? '<i class="fas fa-check" style="margin-left: auto; color: hsl(var(--primary));"></i>' : ''}
                         </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
                 <div class="form-group">
                     <label for="switchPassword">
@@ -708,8 +743,12 @@ async function showAccountSwitchModal() {
                 if (data.success) {
                     modal.classList.remove('show');
                     setTimeout(() => modal.remove(), 200);
-                    // Reload page to reflect new user
-                    window.location.reload();
+                    // Redirect based on account type
+                    if (data.user.account_type === 'parent') {
+                        window.location.href = '/parent-view';
+                    } else {
+                        window.location.href = '/learning-dashboard';
+                    }
                 } else {
                     alert(data.error || 'Failed to switch account');
                 }
