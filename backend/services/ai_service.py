@@ -297,7 +297,7 @@ OUTPUT: Only valid Mermaid code, no markdown blocks, no explanations"""
                 ],
                 stream=False,
                 temperature=1.0,
-                max_tokens=2000
+                max_tokens=8000
             )
             
             mermaid_code = response.choices[0].message.content.strip()
@@ -439,7 +439,7 @@ OUTPUT: Only valid Mermaid code, no markdown, no explanations"""
                 ],
                 stream=False,
                 temperature=1.0,
-                max_tokens=2000
+                max_tokens=8000
             )
             
             mermaid_code = response.choices[0].message.content.strip()
@@ -563,7 +563,7 @@ Be friendly, clear, and concise in your responses. Use LaTeX notation for mathem
                 messages=messages,
                 stream=False,
                 temperature=1.3,  # 通用对话推荐值,提供更自然和多样化的回复
-                max_tokens=500
+                max_tokens=2000
             )
             
             ai_response = response.choices[0].message.content.strip()
@@ -717,7 +717,7 @@ Student's submitted answer:
                 ],
                 stream=False,
                 temperature=0.0,  # 判分需要精确性
-                max_tokens=1000
+                max_tokens=8000
             )
             
             raw_output = response.choices[0].message.content.strip()
@@ -928,28 +928,28 @@ Student's submitted answer:
     def judge_practice_answer_with_image(self, question_text, correct_answer, image_path):
         """
         使用 Qwen-VL 判断练习答案（图片形式）
-        
+
         Args:
             question_text: 题目文本
             correct_answer: 正确答案
             image_path: 用户答案图片路径
-            
+
         Returns:
             dict: {'user_answer': str, 'is_correct': bool}
         """
         prompt = f"""
-已知题目如下：
-{question_text}
+            已知题目如下：
+            {question_text}
 
-请自己做一次题目，给出对应的过程和答案，然后识别用户上传图片中的答案，并判断是否正确。
+            请自己做一次题目，给出对应的过程和答案，然后识别用户上传图片中的答案，并判断是否正确。
 
-输出 JSON:
-{{
-"correct_answer_and_analyse":"...",
-    "user_answer": "...",
-    "is_correct": true 或 false
-}}
-"""
+            只能输出 JSON，不要输出任何除了json之外的东西:
+            {{
+            "correct_answer_and_analyse":"...",
+                "user_answer": "...",
+                "is_correct": true 或 false
+            }}
+            """
         messages = [{
             "role": "user",
             "content": [
@@ -967,7 +967,7 @@ Student's submitted answer:
 
         raw_output = response.output.choices[0].message.content[0]['text']
         parsed = json.loads(self._clean_json_for_object(raw_output))
-        
+
         return {
             'user_answer': parsed.get("user_answer", "").strip(),
             'is_correct': parsed.get("is_correct", False)
@@ -1016,7 +1016,7 @@ Student's submitted answer:
                 messages=[{"role": "user", "content": prompt}],
                 stream=False,
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=4000
             )
             
             raw_output = response.choices[0].message.content.strip()
