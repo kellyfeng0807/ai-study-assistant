@@ -549,12 +549,15 @@ def do_text_practice():
     user_answer_text = (data.get("user_answer_text") or "").strip()
     correct_answer=data.get("correct_answer")
 
+    user_id = session.get('user_id', 'default')
+    
     if not practice_id or not user_answer_text:
         return jsonify({"success": False, "error": "Missing practice_id or answer"}), 400
 
     try:
         practice_id = int(practice_id)
-        practice = db_sqlite.get_practice_by_id(practice_id)
+        practice = db_sqlite.get_practice_by_id(practice_id, user_id)
+        
         if not practice:
             return jsonify({"success": False, "error": "Practice question not found"}), 404
 
@@ -608,13 +611,14 @@ def do_image_practice():
     data = request.json
     practice_id = data.get("practice_id")
     redo_image = data.get("redo_answer", "")
-
+    user_id = session.get('user_id', 'default')
+    
     if not practice_id or not redo_image:
         return jsonify({"success": False, "error": "Missing practice_id or image"}), 400
 
     try:
         practice_id = int(practice_id)
-        practice = db_sqlite.get_practice_by_id(practice_id)
+        practice = db_sqlite.get_practice_by_id(practice_id,user_id)
         if not practice:
             return jsonify({"success": False, "error": "Practice question not found"}), 404
 

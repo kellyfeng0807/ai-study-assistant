@@ -325,7 +325,7 @@ if (e.target.closest('.submit-text-answer')) {
     }
 
     try {
-      const res = await fetch('/api/error/practice/do_text', {
+      const res = await fetch(window.getApiUrl('/api/error/practice/do_text'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ practice_id: practiceId, user_answer_text: userAnswer })
