@@ -192,9 +192,7 @@ def generate_mindmap():
         mindmaps = load_mindmaps(user_id)
         unique_title = ensure_unique_title(topic, mindmaps)
         
-        mindmap_id = str(uuid.uuid4())
         mindmap = {
-            'id': mindmap_id,
             'user_id': user_id,
             'title': unique_title,
             'mermaid_code': mermaid_code,
@@ -207,8 +205,9 @@ def generate_mindmap():
             'node_positions': '{}'
         }
         
-        mindmaps.insert(0, mindmap)
-        save_mindmaps(mindmaps)
+        # Insert and get the real database id
+        new_id = db_sqlite.insert_mindmap(mindmap)
+        mindmap['id'] = new_id
         
         return jsonify({
             'success': True,
@@ -315,7 +314,6 @@ def upload_file_for_mindmap():
             mermaid_code = generate_mermaid_from_text(topic or main_topic, depth, combined_context, style)
         
         # 创建思维导图记录
-        mindmap_id = str(uuid.uuid4())
         
         # Get main file info
         first_filename = saved_files[0][1] if saved_files else 'unknown'
@@ -330,12 +328,14 @@ def upload_file_for_mindmap():
         # Determine title
         base_title = topic or (first_filename.rsplit('.', 1)[0] if len(saved_files) == 1 else f"{len(saved_files)} Files Analysis")
         
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        
         # 确保标题唯一
-        mindmaps = load_mindmaps()
+        mindmaps = load_mindmaps(user_id)
         unique_title = ensure_unique_title(base_title, mindmaps)
         
         mindmap = {
-            'id': mindmap_id,
             'title': unique_title,
             'mermaid_code': mermaid_code,
             'depth': depth,
@@ -346,11 +346,13 @@ def upload_file_for_mindmap():
             'source_file': source_file,
             'file_type': file_type,
             'context': (context or combined_file_content)[:200],
-            'node_positions': '{}'
+            'node_positions': '{}',
+            'user_id': user_id
         }
         
-        mindmaps.insert(0, mindmap)
-        save_mindmaps(mindmaps)
+        # Insert and get the real database id
+        new_id = db_sqlite.insert_mindmap(mindmap)
+        mindmap['id'] = new_id
         
         # Clean up uploaded files
         for filepath, _ in saved_files:
@@ -430,9 +432,10 @@ def generate_from_notes():
             depth = depth_input if depth_input else 3
 
         # Load notes data from DB
+        user_id = session.get('user_id', 'default')
         notes = []
         for nid in note_ids:
-            n = db_sqlite.get_note_by_id(nid)
+            n = db_sqlite.get_note_by_id(nid, user_id)
             if n:
                 notes.append(n)
 
@@ -470,12 +473,10 @@ def generate_from_notes():
             mermaid_code = generate_mermaid_from_text(topic, depth if depth != 'auto' else 3, combined_content, style)
 
         # 确保标题唯一
-        mindmaps = load_mindmaps()
+        mindmaps = load_mindmaps(user_id)
         unique_title = ensure_unique_title(topic, mindmaps)
         
-        mindmap_id = str(uuid.uuid4())
         mindmap = {
-            'id': mindmap_id,
             'title': unique_title,
             'mermaid_code': mermaid_code,
             'depth': depth,
@@ -484,10 +485,13 @@ def generate_from_notes():
             'updated_at': datetime.now().isoformat(),
             'source': 'notes_selection',
             'context': combined_content[:200],
-            'node_positions': '{}'
+            'node_positions': '{}',
+            'user_id': user_id
         }
 
-        db_sqlite.insert_mindmap(mindmap)
+        # Insert and get the real database id
+        new_id = db_sqlite.insert_mindmap(mindmap)
+        mindmap['id'] = new_id
 
         return jsonify({'success': True, 'mindmap': mindmap, 'mermaid_code': mermaid_code})
 
@@ -563,7 +567,9 @@ def export_mindmap():
         map_id = data.get('map_id')
         export_format = data.get('format', 'png')
         
-        mindmaps = load_mindmaps()
+        # Get user_id from session
+        user_id = session.get('user_id', 'default')
+        mindmaps = load_mindmaps(user_id)
         mindmap = next((m for m in mindmaps if m['id'] == map_id), None)
         
         if not mindmap:

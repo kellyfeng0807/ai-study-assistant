@@ -265,7 +265,10 @@ class NoteAssistantManager {
         if (filePlaceholder) filePlaceholder.style.display = 'flex';
         if (filePreview) filePreview.style.display = 'none';
         if (fileInput) fileInput.value = '';
-        if (fileGenerateBtn) fileGenerateBtn.disabled = true;
+        if (fileGenerateBtn) {
+            fileGenerateBtn.disabled = true;
+            fileGenerateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Note from File';
+        }
         
         console.log('Uploaded file cleared');
     }
@@ -434,7 +437,7 @@ class NoteAssistantManager {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    context: recognizedText
+                    text: recognizedText
                 })
             });
             

@@ -821,7 +821,7 @@ Student's submitted answer:
             "  {... 第二题 ...}\n"
             "]"
         )
-        
+
         # 构建消息列表
         messages = [{
             "role": "user",
@@ -988,29 +988,30 @@ Student's submitted answer:
         """
         subject_instruction = f'Subject is: {subject}' if subject else 'Please identify the subject'
         
-        prompt = f"""你是一名资深教师。请根据以下学习内容，生成一份结构化的学习笔记。
+        prompt = f"""You are an experienced teacher. Based on the following learning content, generate a structured study note.
 
-学习内容：
+Learning Content:
 {text}
 
 {subject_instruction}
 
-请严格输出 JSON 格式，包含以下字段：
+Please output strictly in JSON format with the following fields:
 {{
-  "title": "笔记标题（简洁明了）",
-  "summary": "内容摘要（50-100字）",
-  "key_points": ["关键点1", "关键点2", "关键点3"],
-  "examples": ["示例1", "示例2"],
-  "detailed_notes": "详细笔记内容（Markdown格式，包含标题、列表、重点等）",
-  "tags": ["标签1", "标签2"]
+  "title": "Note title (concise and clear)",
+  "summary": "Content summary (50-100 words)",
+  "key_points": ["Key point 1", "Key point 2", "Key point 3"],
+  "examples": ["Example 1", "Example 2"],
+  "detailed_notes": "Detailed note content (Markdown format, including headings, lists, highlights)",
+  "tags": ["Tag 1", "Tag 2"]
 }}
 
-注意：
-1. key_points 应提取最核心的3-5个要点
-2. examples 如果有，提取1-3个代表性示例，如果没有可以为空数组
-3. detailed_notes 使用 Markdown 格式，清晰分段
-4. tags 应包含相关的知识点标签
-5. 只输出 JSON，不要其他解释"""
+Requirements:
+1. key_points should extract 3-5 core points
+2. examples should contain 1-3 representative examples if available, or an empty array if none
+3. detailed_notes should use Markdown format with clear sections
+4. tags should include relevant knowledge point tags
+5. Output JSON only, no additional explanation
+6. All output must be in English"""
 
         try:
             response = self.client.chat.completions.create(
@@ -1109,7 +1110,11 @@ Student's submitted answer:
     
     def speech_to_text(self, audio_data, language='auto'):
         """
-        Speech to text using Xfyun ASR
+        Speech to text - supports multiple backends
+        
+        Priority:
+        1. OpenAI Whisper (if OPENAI_API_KEY is set) - Best for mixed language
+        2. Xfyun ASR (fallback) - Chinese/English only
         
         Args:
             audio_data: Raw PCM audio data (16kHz, mono, 16-bit)
@@ -1118,6 +1123,62 @@ Student's submitted answer:
         Returns:
             tuple: (recognized_text, error)
         """
+        import logging
+        import os
+        
+        # Try Whisper first if OpenAI key is available (best for mixed language)
+        openai_key = os.getenv('OPENAI_API_KEY')
+        if openai_key:
+            logging.debug('Using OpenAI Whisper for speech recognition (supports mixed language)')
+            text, error = self._recognize_whisper(audio_data, openai_key)
+            if text:
+                return text, None
+            logging.warning(f'Whisper failed: {error}, falling back to Xfyun')
+        
+        # Fallback to Xfyun ASR
+        return self._speech_to_text_xfyun(audio_data, language)
+    
+    def _recognize_whisper(self, audio_data, api_key):
+        """Use OpenAI Whisper API for speech recognition (supports mixed language)"""
+        import tempfile
+        import os
+        import logging
+        
+        try:
+            from openai import OpenAI
+            
+            # Save PCM data as WAV file (Whisper needs a file)
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+                temp_path = f.name
+                # Write WAV header + PCM data
+                import wave
+                with wave.open(temp_path, 'wb') as wav:
+                    wav.setnchannels(1)
+                    wav.setsampwidth(2)  # 16-bit
+                    wav.setframerate(16000)
+                    wav.writeframes(audio_data)
+            
+            client = OpenAI(api_key=api_key)
+            
+            with open(temp_path, 'rb') as audio_file:
+                transcript = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    response_format="text"
+                )
+            
+            # Clean up temp file
+            os.unlink(temp_path)
+            
+            logging.debug(f'Whisper result: {len(transcript)} characters')
+            return transcript.strip(), None
+            
+        except Exception as e:
+            logging.error(f'Whisper recognition failed: {e}')
+            return None, str(e)
+    
+    def _speech_to_text_xfyun(self, audio_data, language='auto'):
+        """Xfyun ASR fallback - supports Chinese, English, and mixed content"""
         import logging
         
         # Auto-detection: try both languages and select best result
@@ -1140,13 +1201,24 @@ Student's submitted answer:
                 zh_char_count = sum(1 for c in text_zh if '\u4e00' <= c <= '\u9fff')
                 zh_ratio = zh_char_count / len(text_zh) if text_zh else 0
                 
-                logging.debug(f'Chinese ratio: {zh_ratio*100:.1f}%, English ratio: {en_ratio*100:.1f}%')
+                # Check for English words in Chinese result (mixed content detection)
+                en_words_in_zh = sum(1 for c in text_zh if c.isalpha() and ord(c) < 128)
+                mixed_ratio = en_words_in_zh / len(text_zh) if text_zh else 0
                 
-                if en_ratio > 0.6 and en_len > zh_len * 0.5:
-                    logging.debug('Selecting English result')
+                logging.debug(f'Chinese ratio: {zh_ratio*100:.1f}%, English ratio: {en_ratio*100:.1f}%, Mixed ratio: {mixed_ratio*100:.1f}%')
+                
+                # If Chinese result contains English letters, it's likely mixed content
+                # Chinese mode can recognize English words, so prefer Chinese result for mixed content
+                if mixed_ratio > 0.1 and zh_ratio > 0.2:
+                    logging.debug('Detected mixed content, selecting Chinese result (supports mixed language)')
+                    return text_zh, None
+                elif en_ratio > 0.7 and zh_ratio < 0.1:
+                    # Pure English content
+                    logging.debug('Selecting English result (pure English detected)')
                     return text_en, None
                 else:
-                    logging.debug('Selecting Chinese result')
+                    # Default to Chinese (better for mixed content)
+                    logging.debug('Selecting Chinese result (default for mixed/Chinese content)')
                     return text_zh, None
             
             elif text_en:
