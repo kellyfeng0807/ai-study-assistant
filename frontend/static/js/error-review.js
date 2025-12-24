@@ -52,7 +52,9 @@ function cleanLatexForMathJax(text) {
     return text
         .replace(/\x0c/g, '')
         .replace(/\\x0crac/g, '\\frac')
-        .replace(/\\x0c/g, '');
+        .replace(/\\x0c/g, '')
+        .replace(/\\n/g, '<br>')
+        .replace(/\n/g, '<br>');
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -110,7 +112,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         questionEl.innerHTML = htmlContent;
-        safeRenderMath(questionEl);
+
+        // 渲染 MathJax
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            MathJax.typesetPromise([questionEl]).catch(console.warn);
+        }
+
     }
 
     /* ---------------------- 用户答案 ---------------------- */
@@ -158,7 +165,6 @@ if (originalImageSection && originalImageContainer) {
     }
 }
 
-    /* ---------------------- 上次重做信息（redo_answer + redo_time） ---------------------- */
 
     /* ---------------------- 上次重做信息（redo_answer + redo_time） ---------------------- */
 function updateRedoSection(cardData) {
@@ -193,7 +199,7 @@ function updateRedoSection(cardData) {
             }
 
             // ===== 渲染 redo_answer =====
-            // ===== 渲染 redo_answer =====
+            
 let answerHtml = '';
 const redoAnswer = cardData.redo_answer;
 
@@ -213,7 +219,7 @@ if (cardData.redo_images && Array.isArray(cardData.redo_images) && cardData.redo
     const imageHtmls = cardData.redo_images.map(path => {
         // 确保路径不是 null 或 undefined
         if (typeof path === 'string') {
-            return `<img src="${path}" alt="Redo crop" style="max-width: 100%; margin-top: 8px; display: block;">`;
+            return `<img src="${path}" alt="Redo crop" style="max-width: 600px; max-height:600px;margin-top: 8px; display: block;">`;
         } else {
             console.warn("Invalid image path:", path);
             return ''; // 或者返回一个默认的占位符
@@ -223,7 +229,7 @@ if (cardData.redo_images && Array.isArray(cardData.redo_images) && cardData.redo
     answerHtml += imageHtmls.join('');
 } else {
     // 可选：如果没有任何图片，可以在这里添加一些提示信息
-    answerHtml += '<div class="text-muted">无相关图片</div>';
+    answerHtml += '<div class="text-muted">No related images</div>';
 }
 
             // 设置最终 HTML

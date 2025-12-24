@@ -804,12 +804,14 @@ Student's submitted answer:
             "4. 题型（type）、知识点（tags）使用英文描述。\n"
             "5. 'correct_answer' 和 'analysis_steps' 必须基于题目推导，与用户答案无关。\n"
             "6. 'user_answer' 为图片上的答案。\n"
+            "7.'difficulty' 为题目难度，从以下三个词中选择：easy,medium,hard"
             "请按以下格式输出示例：\n"
             "[\n"
             "  {\n"
             "    \"subject\": \"Chinese\",\n"
             "    \"type\": \"Constructed-response question\",\n"
             "    \"tags\": [\"Trigonometric Functions\",\"Induction Formulas\"],\n"
+            "    \"difficulty\": \"difficulty of question\",\n"
             "    \"question_text\": \"题目原文\",\n"
             "    \"analysis_steps\": [\"正确步骤1\",\"正确步骤2\"],\n"
             "    \"correct_answer\": \"正确答案\",\n"
@@ -819,7 +821,7 @@ Student's submitted answer:
             "  {... 第二题 ...}\n"
             "]"
         )
-
+        
         # 构建消息列表
         messages = [{
             "role": "user",

@@ -16,43 +16,25 @@
 
     <!-- MathJax 配置：优化渲染速度 -->
     <script>
-        window.MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']],
-                displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                processEscapes: true,
-                processEnvironments: true
-            },
-            startup: {
-                typeset: false,  // 禁止自动渲染
-                pageReady: () => {
-                    return MathJax.startup.defaultPageReady();
-                }
-            },
-            options: {
-                ignoreHtmlClass: 'tex2jax_ignore',
-                processHtmlClass: 'tex2jax_process',
-                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-                renderActions: {
-                    findScript: [10, (doc) => {
-                        for (const node of document.querySelectorAll('script[type^="math/tex"]')) {
-                            const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], false);
-                            const text = document.createTextNode('');
-                            node.parentNode.replaceChild(text, node);
-                            math.start = {node: text, delim: '', n: 0};
-                            math.end = {node: text, delim: '', n: 0};
-                            doc.math.push(math);
-                        }
-                    }, '']
-                }
-            },
-            chtml: {
-                scale: 1,
-                minScale: 0.5,
-                matchFontHeight: false,
-                mtextInheritFont: true
-            }
-        };
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        ignoreHtmlClass: 'tex2jax_ignore',
+        processHtmlClass: 'tex2jax_process',
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      },
+      chtml: {
+        scale: 1,
+        minScale: 0.5,
+        matchFontHeight: false,
+        mtextInheritFont: true
+      }
+    };
     </script>
     <!-- 使用更快的 jsdelivr CDN -->
     <script id="MathJax-script" async

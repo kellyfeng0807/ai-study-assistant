@@ -136,7 +136,7 @@ class ErrorBookManager {
                     difficulty: err.difficulty || 'medium',
                     reviewed: err.reviewed,
                     tags: Array.isArray(err.tags) ? err.tags : [],
-                    text: `<p>${err.question_text || ''}</p>`,
+                    text: `<p>${(err.question_text || '').replace(/\\n/g, '<br>').replace(/\n/g, '<br>')}</p>`,
                     images: Array.isArray(err.images) ? err.images : [],
                     created_at: err.created_at
                 });
