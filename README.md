@@ -1,173 +1,379 @@
 # AI Study Assistant
 
-智能学习助手 - 中学生个性化学习伴侣
+Intelligent Learning Companion - Personalized Study Assistant for Secondary Students
 
-## 项目简介
+🌐 **Live Demo**: [https://ai-study-assistant-2ozw.onrender.com](https://ai-study-assistant-2ozw.onrender.com)
 
-AI Study Assistant 是一个基于人工智能的学习辅助系统，专为中学生设计。系统提供笔记生成、错题管理、思维导图、学习数据分析等功能。
+## Project Overview
 
-## 核心功能
+AI Study Assistant is an AI-powered learning system designed for secondary school students. The system provides intelligent note generation, error tracking, mind map visualization, and learning analytics. It features a multi-account system (parents and students) with comprehensive user authentication and permission management.
 
-### 笔记助手 (Note Assistant)
-- **录音转写**：使用 Whisper 或其他语音识别 API
-- **智能笔记生成**：提取关键点和示例
-- **LLM 总结**：自动生成结构化笔记
+## Key Features
 
-### 思维导图生成 (Map Generation - Optional)
-- **层次化内容转换**：将笔记转换为可视化导图
-- **交互式编辑**：使用 Mermaid.js 等图形库
-- **多格式导出**：PNG、SVG、PDF
+### User Authentication & Account Management
+- **Multi-account System**: Support for parent and student accounts
+- **Account Switching**: Easily switch between different accounts
+- **Parent Dashboard**: Monitor children's learning progress
+- **Profile Management**: User information and avatar settings
 
-### 错题本管理 (Error Book Manager)
-- **拍照上传**：智能识别题目
-- **OCR 识别**：自动提取文字
-- **智能分类**：LLM 自动分类题目类型
-- **生成练习**：基于错题生成相似练习
+### Note Assistant
+- **Speech-to-Text**: OpenAI Whisper or iFLYTEK ASR (supports mixed Chinese-English)
+- **AI-Powered Note Generation**: Automatically extract key points, examples, and detailed notes
+- **Structured Output**: Markdown format with LaTeX math formula support
+- **Note Management**: Save, edit, and search notes
 
-### 学习数据分析 (Learning Dashboard)
-- **学习时长统计**
-- **技能水平追踪**
-- **进度可视化**
-- **数据图表展示**
+### Mind Map Generation
+- **Multiple Input Methods**: Generate from notes, uploaded files, or manual input
+- **Mermaid Visualization**: Interactive mind map display
+- **Auto Layout**: Intelligent node positioning
+- **Multi-format Export**: PNG and SVG export support
 
-### 设置 (Settings)
-- 账户设置
-- AI 功能配置
-- 通知设置
-- 主题切换
-- 数据管理
+### Error Book (Mistake Tracker)
+- **Problem Upload**: Support for image and PDF formats
+- **OCR Recognition**: Automatically recognize problem text and formulas
+- **Smart Classification**: LLM-based problem type and knowledge point classification
+- **Practice Generation**: Create similar problems based on mistakes for practice
+- **Practice Tracking**: Record problem-solving history and error analysis
 
-## 技术栈
+### Learning Analytics Dashboard
+- **Learning Statistics**: Study duration, note count, problem count
+- **Knowledge Point Tracking**: Statistics organized by subject and knowledge point
+- **Progress Visualization**: Charts showing learning trends
+- **Daily Goals**: Set and track learning targets
 
-### 后端
+### Settings
+- **Account Settings**: Modify username, password, avatar
+- **Student Management** (Parents): Create, edit, and delete student accounts
+- **Learning Goals**: Customize daily study duration targets
+- **Data Export**: Export learning data
+
+## Tech Stack
+
+### Backend
 - **Python 3.8+**
-- **Flask** - Web 框架
-- **Flask-CORS** - 跨域支持
-- **Pillow** - 图像处理
-- **OpenAI API** - LLM 功能（可选）
-- **Azure Cognitive Services** - 语音识别和 OCR（可选）
+- **Flask 3.0.0** - Lightweight web framework
+- **Flask-CORS 4.0.0** - Cross-Origin Resource Sharing
+- **SQLite3** - Lightweight database
+- **OpenAI API** - LLM features (note generation, problem classification, etc.)
+- **Whisper/iFLYTEK ASR** - Speech recognition
+- **Baidu AIP** - Image processing and OCR
+- **Pillow** - Image processing library
+- **PyPDF2** - PDF processing
+- **OpenCV** - Computer vision
 
-### 前端
-- **HTML5 + CSS3 + JavaScript**
-- **Font Awesome** - 图标库
-- **现代化设计风格** - 参考在线课程仪表板
+### Frontend
+- **HTML5 + CSS3 + JavaScript (Vanilla)**
+- **Font Awesome 6** - Icon library
+- **MathJax** - Math formula rendering
+- **Mermaid.js** - Mind map visualization
+- **Modern Design** - Responsive layout
 
-## 项目结构
+### Deployment
+- **Render** - Cloud platform
+- **Gunicorn** - WSGI application server
+
+## Project Structure
 
 ```
 ai-study-assistant/
 ├── backend/
-│   ├── app.py                    # 主应用（废弃，使用run.py）
-│   ├── run.py                    # 应用启动文件
-│   ├── config.py                 # 配置管理
-│   ├── ui_controller.py          # UI控制器 - 管理页面路由和交互
-│   ├── modules/                  # 功能模块
-│   │   ├── __init__.py
-│   │   ├── note_assistant.py     # 笔记助手
-│   │   ├── map_generation.py     # 思维导图
-│   │   ├── error_book.py         # 错题本
-│   │   └── learning_dashboard.py # 学习分析
-│   ├── requirements.txt          # Python依赖
-│   └── .env.example             # 环境变量示例
+│   ├── run.py                    # Application entry point
+│   ├── config.py                 # Configuration management
+│   ├── db_sqlite.py              # SQLite database operations
+│   ├── ui_controller.py          # UI route controller
+│   ├── migrate_db.py             # Database migration script
+│   ├── requirements.txt          # Python dependencies
+│   ├── Dockerfile                # Docker configuration
+│   ├── modules/                  # Feature modules
+│   │   ├── auth.py               # User authentication and account management
+│   │   ├── note_assistant.py     # Note assistant (note generation, management)
+│   │   ├── map_generation.py     # Mind map generation
+│   │   ├── error_book.py         # Error book management
+│   │   ├── learning_dashboard.py # Learning analytics
+│   │   ├── notifications.py      # Message notifications
+│   │   ├── settings.py           # User settings
+│   │   ├── track.py              # Learning tracking
+│   │   └── chat.py               # AI chat
+│   ├── services/
+│   │   └── ai_service.py         # AI service integration (LLM, speech, OCR)
+│   ├── scripts/
+│   │   └── migrate_notes_to_db.py # Data migration script
+│   └── uploads/                  # File upload directory
+│       ├── notes/
+│       ├── mindmaps/
+│       └── error-book/
 ├── frontend/
-│   ├── index.html               # Dashboard 主页
-│   ├── settings.html            # 设置页面
-│   ├── note-assistant.html      # 笔记助手（待创建）
-│   ├── map-generation.html      # 思维导图（待创建）
-│   ├── error-book.html          # 错题本（待创建）
-│   ├── learning-dashboard.html  # 学习分析（待创建）
+│   ├── index.html                # Home page / Login
+│   ├── login.html                # Login page
+│   ├── register.html             # Registration page
+│   ├── dashboard.html            # Dashboard (Home)
+│   ├── settings.html             # User settings page
+│   ├── parent-settings.html      # Parent settings page
+│   ├── parent-view.html          # Parent view of children's data
+│   ├── note-assistant.html       # Note assistant page
+│   ├── map-generation.html       # Mind map generation page
+│   ├── error-book.html           # Error book list page
+│   ├── error-practice.html       # Error practice page
+│   ├── error-review.html         # Error review page
+│   ├── learning-dashboard.html   # Learning analytics page
 │   └── static/
 │       ├── css/
-│       │   ├── main.css         # 全局样式
-│       │   ├── dashboard.css    # Dashboard样式
-│       │   └── settings.css     # 设置页面样式
-│       ├── js/
-│       │   ├── main.js          # 全局JavaScript
-│       │   ├── dashboard.js     # Dashboard逻辑
-│       │   └── settings.js      # 设置页面逻辑
-│       └── assets/              # 图片等资源
-└── README.md
+│       │   ├── main.css          # Global styles
+│       │   ├── auth.css          # Auth page styles
+│       │   ├── dashboard.css     # Dashboard styles
+│       │   ├── settings.css      # Settings page styles
+│       │   ├── note-assistant.css
+│       │   ├── map-generation.css
+│       │   ├── error-book.css
+│       │   ├── learning-dashboard.css
+│       │   └── ...
+│       └── js/
+│           ├── main.js           # Global JavaScript
+│           ├── config.js         # Configuration
+│           ├── login.js          # Login logic
+│           ├── dashboard.js      # Dashboard logic
+│           ├── note-assistant.js
+│           ├── map-generation.js
+│           ├── error-book.js
+│           ├── error-practice.js
+│           └── ...
+├── README.md
+└── .env.example                  # Environment variables example
 ```
 
-## 安装和运行
+## Installation & Running
 
-### 1. 安装后端依赖
+### Prerequisites
 
-```powershell
+- Python 3.8 or higher
+- pip package manager
+- Node.js (optional, frontend uses vanilla JS)
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/ai-study-assistant.git
+cd ai-study-assistant
+```
+
+### 2. Create Python Virtual Environment (Recommended)
+
+```bash
+# Windows
+python -m venv venv
+venv\Scripts\activate
+
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install Backend Dependencies
+
+```bash
 cd backend
 pip install -r requirements.txt
 ```
 
-### 2. 配置环境变量
+**Main Dependencies:**
 
-复制 `.env.example` 为 `.env` 并填入你的 API 密钥：
+| Package | Version | Purpose |
+|---------|---------|---------|
+| Flask | 3.0.0 | Web framework |
+| flask-cors | 4.0.0 | CORS support |
+| openai | ≥1.0.0 | OpenAI API (LLM and Whisper) |
+| baidu-aip | 2.2.13 | Baidu OCR and image processing |
+| dashscope | 1.25.2 | Alibaba Qwen LLM |
+| Pillow | 10.1.0 | Image processing |
+| PyPDF2 | 3.0.1 | PDF processing |
+| opencv-python | 4.8.0.74 | Computer vision |
+| pydub | 0.25.1 | Audio processing |
+| numpy | 1.26.2 | Numerical computing |
+| pandas | 2.1.4 | Data analysis |
 
-```powershell
-copy .env.example .env
+### 4. Configure Environment Variables
+
+Copy and edit `.env.example` to `.env`:
+
+```bash
+cp .env.example .env  # macOS/Linux
+copy .env.example .env  # Windows
 ```
 
-编辑 `.env` 文件，填入必要的 API 密钥。
+Edit the `.env` file with necessary API keys:
 
-### 3. 启动后端服务
+```ini
+# OpenAI API (Required - for note generation and Whisper)
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 
-```powershell
+# iFLYTEK API (Optional - alternative speech recognition)
+XF_APP_ID=your_app_id
+XF_API_KEY=your_api_key
+XF_API_SECRET=your_api_secret
+
+# Baidu API (Optional - OCR recognition)
+BAIDU_APP_ID=your_app_id
+BAIDU_API_KEY=your_api_key
+BAIDU_SECRET_KEY=your_secret_key
+
+# Alibaba Qwen (Optional - alternative LLM)
+DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+
+# Flask Configuration
+SECRET_KEY=your_secret_key_here
+FLASK_ENV=development  # or production
+```
+
+### 5. Initialize Database
+
+```bash
+# Run in backend directory
+python migrate_db.py
+```
+
+This creates required database tables:
+- `user_settings` - User account information
+- `note` - Notes
+- `error_book` - Error book
+- `mindmap` - Mind maps
+- And other tables
+
+### 6. Start Backend Service
+
+```bash
+# Run in backend directory
 python run.py
 ```
 
-服务将在 `http://localhost:5000` 启动。
+**Example output:**
+```
+ * Serving Flask app 'app'
+ * Debug mode: on
+ * Running on http://127.0.0.1:5000
+```
 
-### 4. 访问前端
+### 7. Access the Application
 
-在浏览器中打开：
-- Dashboard: `http://localhost:5000/`
-- 设置: `http://localhost:5000/settings`
+Open in your browser:
 
-## API 文档
+- **Home/Login**: [http://localhost:5000](http://localhost:5000)
+- **Register**: [http://localhost:5000/register](http://localhost:5000/register)
+- **Dashboard**: [http://localhost:5000/dashboard](http://localhost:5000/dashboard) (login required)
 
-### UI 控制 API
+## Main Pages Guide
 
-- `POST /api/ui/navigate` - 页面跳转控制
-- `POST /api/ui/animate` - 触发动画
-- `POST /api/ui/notify` - 发送通知
-- `GET/POST /api/ui/theme` - 主题管理
+### 1. User Authentication
+- First-time users: Click "Register" to create a new account
+- Parent accounts: Can directly add student sub-accounts after creation
+- Account switching: Switch between different accounts from the sidebar after login
 
-### 笔记助手 API
+### 2. Note Assistant
+- Support three methods: voice recording, file upload, or manual input
+- System automatically generates structured notes (title, summary, key points, examples)
+- Support Markdown format and LaTeX math formulas
 
-- `POST /api/note/transcribe` - 转写音频
-- `POST /api/note/generate` - 生成笔记
-- `GET /api/note/list` - 获取笔记列表
+### 3. Mind Map
+- Generate mind maps from notes, files, or text
+- Customize depth and style
+- Export to PNG or SVG format
 
-### 错题本 API
+### 4. Error Book
+- Upload problem images or PDFs
+- Automatic OCR recognition of problems
+- Generate similar practice problems for review
+- Track problem-solving records and analysis
 
-- `POST /api/errorbook/upload` - 上传错题图片
-- `POST /api/errorbook/categorize` - 分类错题
-- `POST /api/errorbook/generate-exercises` - 生成练习
-- `GET /api/errorbook/list` - 获取错题列表
+### 5. Learning Dashboard
+- View learning statistics (total notes, problems, study duration)
+- Track learning progress by subject
+- Monitor daily learning goal completion
 
-### 学习分析 API
+## Deployment
 
-- `GET /api/dashboard/stats` - 获取学习统计
-- `GET /api/dashboard/progress` - 获取学习进度
-- `GET /api/dashboard/chart-data` - 获取图表数据
+### Local Development
+See "Start Backend Service" section above
 
-## 开发计划
+### Docker Deployment
 
-- [x] 后端基础架构
-- [x] UI 控制器
-- [x] Dashboard 页面
-- [x] 设置页面
-- [ ] 笔记助手页面
-- [ ] 错题本页面
-- [ ] 思维导图页面
-- [ ] 学习分析页面
-- [ ] API 集成（Whisper、OCR、LLM）
-- [ ] 数据持久化（数据库）
-- [ ] 用户认证系统
+```bash
+# Build Docker image
+docker build -t ai-study-assistant .
 
-## 贡献
+# Run container
+docker run -p 5000:5000 --env-file .env ai-study-assistant
+```
 
-欢迎提交 Issue 和 Pull Request！
+### Render Cloud Platform Deployment
 
-## 许可证
+Project is deployed on Render at:
+**[https://ai-study-assistant-2ozw.onrender.com](https://ai-study-assistant-2ozw.onrender.com)**
 
-MIT License
+Deployment steps (if redeploying):
+1. Connect GitHub repository to Render
+2. Configure environment variables
+3. Set start command: `gunicorn -w 4 -b 0.0.0.0:$PORT app:app`
+4. Render automatically deploys on each push
+
+## Troubleshooting
+
+### 1. Import Error: "ModuleNotFoundError"
+```bash
+# Ensure running in backend directory and virtual environment is activated
+which python  # or where python (Windows)
+pip list
+```
+
+### 2. Database Error
+```bash
+# Delete old database and reinitialize
+rm backend/study_assistant.db
+python backend/migrate_db.py
+```
+
+### 3. API Key Error
+- Check if `.env` file exists and is correctly configured
+- Ensure API keys are valid and not expired
+- Check backend console logs for detailed error messages
+
+### 4. Frontend CORS Error
+- Check CORS configuration in `backend/config.py`
+- Ensure `CORS(app)` is properly initialized
+
+## API Documentation
+
+### Authentication
+- `POST /api/auth/register` - Register new user
+- `POST /api/auth/login/check-email` - Check email
+- `POST /api/auth/login/verify` - Verify password login
+- `POST /api/auth/logout` - Logout
+- `GET /api/auth/session` - Get current session
+- `POST /api/auth/switch` - Switch account
+- `GET /api/auth/children` - Get list of sub-accounts
+
+### Notes
+- `POST /api/note/generate` - Generate note
+- `GET /api/note/list` - Get notes list
+- `GET /api/note/get` - Get single note
+- `POST /api/note/delete` - Delete note
+- `POST /api/note/update` - Update note
+
+### Error Book
+- `POST /api/error/upload` - Upload problem
+- `GET /api/error/list` - Get error book list
+- `POST /api/error/practice/generate-similar` - Generate similar problems
+- `POST /api/error/practice/do_text` - Submit text answer
+- `POST /api/error/practice/do_image` - Submit image answer
+- `POST /api/error/practice/favorite` - Favorite a problem
+
+### Mind Maps
+- `POST /api/mindmap/generate` - Generate mind map
+- `GET /api/mindmap/list` - Get mind maps list
+- `POST /api/mindmap/update` - Update mind map
+- `POST /api/mindmap/export` - Export mind map
+
+### Learning Analytics
+- `GET /api/dashboard/stats` - Get learning statistics
+- `GET /api/dashboard/chart-data` - Get chart data
+- `GET /api/dashboard/parent-report` - Get parent report
+
+
