@@ -2,7 +2,7 @@
 
 Intelligent Learning Companion - Personalized Study Assistant for Secondary Students
 
-🌐 **Live Demo**: [https://ai-study-assistant-2ozw.onrender.com](https://ai-study-assistant-2ozw.onrender.com)
+**Live Demo**: [https://ai-study-assistant-2ozw.onrender.com](https://ai-study-assistant-2ozw.onrender.com)
 
 ## Project Overview
 
@@ -12,40 +12,46 @@ AI Study Assistant is an AI-powered learning system designed for secondary schoo
 
 ### User Authentication & Account Management
 - **Multi-account System**: Support for parent and student accounts
-- **Account Switching**: Easily switch between different accounts
+- **Account Switching**: Easily switch between different accounts with same email account
 - **Parent Dashboard**: Monitor children's learning progress
 - **Profile Management**: User information and avatar settings
 
 ### Note Assistant
-- **Speech-to-Text**: OpenAI Whisper or iFLYTEK ASR (supports mixed Chinese-English)
-- **AI-Powered Note Generation**: Automatically extract key points, examples, and detailed notes
+- **Speech-to-Text**: iFLYTEK ASR with auto language detection (Chinese/English)
+- **Image/PDF OCR**: Qwen-VL for text extraction
+- **AI-Powered Note Generation**: DeepSeek LLM automatically generates title, summary, key points, and examples
 - **Structured Output**: Markdown format with LaTeX math formula support
-- **Note Management**: Save, edit, and search notes
+- **Note Management**: Save, edit, filter, and delete notes
 
 ### Mind Map Generation
 - **Multiple Input Methods**: Generate from notes, uploaded files, or manual input
 - **Mermaid Visualization**: Interactive mind map display
-- **Auto Layout**: Intelligent node positioning
-- **Multi-format Export**: PNG and SVG export support
+- **Auto Layout**: Intelligent layers descision
+- **Multiple Type of Graph**: Sipport different type of mind map including mindmap, hierarchical topdown map, hierarchical left-right map styles
+- **Export**: Export mindmap in PNG format
+- **Code editting and whiteboard**: Edit the generated map by editing mermaid code to eidt the structure or drag the nodes in white board to adjust layout
 
-### Error Book (Mistake Tracker)
-- **Problem Upload**: Support for image and PDF formats
-- **OCR Recognition**: Automatically recognize problem text and formulas
-- **Smart Classification**: LLM-based problem type and knowledge point classification
-- **Practice Generation**: Create similar problems based on mistakes for practice
-- **Practice Tracking**: Record problem-solving history and error analysis
+### Error Book 
+- **Upload**: Upload a photo of a problem.
+- **AI Recognition & Solution**: Qwen-VL recognizes both the problem and handwritten user answer, and classifies it by subject, knowledge point, ect.
+- **Review**:View full error details and reattempt the problem anytime to check your understanding.
+- **Practice**:DeepSeek generates similar practice problems, and users can solve them by uploading an image or entering text.
 
 ### Learning Analytics Dashboard
 - **Learning Statistics**: Study duration, note count, problem count
 - **Knowledge Point Tracking**: Statistics organized by subject and knowledge point
 - **Progress Visualization**: Charts showing learning trends
 - **Daily Goals**: Set and track learning targets
+- **AI Suggestions**: Provides suggetions based on the current use of the platform of the account
 
 ### Settings
-- **Account Settings**: Modify username, password, avatar
-- **Student Management** (Parents): Create, edit, and delete student accounts
+- **Account Settings**: Modify username, password
+- **Student Management** (Parents): Create, edit, and delete student/ parente accounts
 - **Learning Goals**: Customize daily study duration targets
-- **Data Export**: Export learning data
+
+### Account
+- **Log Out**: Log out exiting account
+- **Switch Account**: Switch to the account that share the same email of the exsting login account
 
 ## Tech Stack
 
@@ -54,9 +60,8 @@ AI Study Assistant is an AI-powered learning system designed for secondary schoo
 - **Flask 3.0.0** - Lightweight web framework
 - **Flask-CORS 4.0.0** - Cross-Origin Resource Sharing
 - **SQLite3** - Lightweight database
-- **OpenAI API** - LLM features (note generation, problem classification, etc.)
+- **Deepseek & Qwen** - LLM features (note generation, problem classification, etc.)
 - **Whisper/iFLYTEK ASR** - Speech recognition
-- **Baidu AIP** - Image processing and OCR
 - **Pillow** - Image processing library
 - **PyPDF2** - PDF processing
 - **OpenCV** - Computer vision
@@ -84,6 +89,7 @@ ai-study-assistant/
 │   ├── migrate_db.py             # Database migration script
 │   ├── requirements.txt          # Python dependencies
 │   ├── Dockerfile                # Docker configuration
+│   ├── .env.example              # Environment variables example
 │   ├── modules/                  # Feature modules
 │   │   ├── auth.py               # User authentication and account management
 │   │   ├── note_assistant.py     # Note assistant (note generation, management)
@@ -138,7 +144,7 @@ ai-study-assistant/
 │           ├── error-practice.js
 │           └── ...
 ├── README.md
-└── .env.example                  # Environment variables example
+└── doccker-compse.yml             # Docker compose
 ```
 
 ## Installation & Running
@@ -149,6 +155,24 @@ ai-study-assistant/
 - pip package manager
 - Node.js (optional, frontend uses vanilla JS)
 
+### Using Docker (Recommeded)
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/ai-study-assistant.git
+cd ai-study-assistant
+```
+### 2. Open docker
+
+Open Docker Destop to connect to the hub
+
+```bash
+docker-compose up -d
+```
+
+### Otherwise
+
 ### 1. Clone the Repository
 
 ```bash
@@ -156,7 +180,7 @@ git clone https://github.com/yourusername/ai-study-assistant.git
 cd ai-study-assistant
 ```
 
-### 2. Create Python Virtual Environment (Recommended)
+### 2. Create Python Virtual Environment 
 
 ```bash
 # Windows
@@ -200,45 +224,8 @@ cp .env.example .env  # macOS/Linux
 copy .env.example .env  # Windows
 ```
 
-Edit the `.env` file with necessary API keys:
 
-```ini
-# OpenAI API (Required - for note generation and Whisper)
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
-
-# iFLYTEK API (Optional - alternative speech recognition)
-XF_APP_ID=your_app_id
-XF_API_KEY=your_api_key
-XF_API_SECRET=your_api_secret
-
-# Baidu API (Optional - OCR recognition)
-BAIDU_APP_ID=your_app_id
-BAIDU_API_KEY=your_api_key
-BAIDU_SECRET_KEY=your_secret_key
-
-# Alibaba Qwen (Optional - alternative LLM)
-DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
-
-# Flask Configuration
-SECRET_KEY=your_secret_key_here
-FLASK_ENV=development  # or production
-```
-
-### 5. Initialize Database
-
-```bash
-# Run in backend directory
-python migrate_db.py
-```
-
-This creates required database tables:
-- `user_settings` - User account information
-- `note` - Notes
-- `error_book` - Error book
-- `mindmap` - Mind maps
-- And other tables
-
-### 6. Start Backend Service
+### 5. Start Backend Service
 
 ```bash
 # Run in backend directory
@@ -252,7 +239,7 @@ python run.py
  * Running on http://127.0.0.1:5000
 ```
 
-### 7. Access the Application
+### 6. Access the Application
 
 Open in your browser:
 
