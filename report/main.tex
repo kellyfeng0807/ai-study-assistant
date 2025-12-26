@@ -1,0 +1,304 @@
+% main.tex
+\documentclass{article}
+\usepackage[final]{neurips_2025}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{subcaption}
+
+\title{AI Study Assistant: An AI-powered Learning Companion for Secondary Students}
+\author{
+Feng Xinyue \\
+\texttt{202364870652} \\
+\And
+Ren Hongyu \\
+\texttt{202364871032}
+\And
+Deng Jingru \\
+\texttt{202364870602}
+}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We present \emph{AI Study Assistant}, an integrated AI-powered system designed to support secondary school students through note transcription, error tracking, mind-map generation, and learning analytics. The system combines speech-to-text (iFLYTEK ASR and Whisper), image/PDF OCR (Qwen-VL), large language models (DeepSeek LLM) for structured note generation, and an interactive web-based frontend for mind maps and dashboards. The system implements multi-account management (student and parent roles), automatic note generation from audio/images/PDFs, error book functionality with similar problem generation, interactive mind map visualization using Mermaid.js, and comprehensive learning analytics. We describe the problem motivation, related work, system architecture and implementation, AI components integration, and present case studies from the deployed demonstration. We conclude with limitations and a roadmap for future improvements. The project is open-source and deployed at \url{https://ai-study-assistant-2ozw.onrender.com}.
+\end{abstract}
+
+\section{Introduction \& Problem Definition}
+
+Secondary school students face significant challenges in organizing learning materials and tracking their progress effectively. Traditional methods of note-taking, error tracking, and study planning are time-consuming and often inefficient. Students need tools that can:
+
+\begin{itemize}
+  \item \textbf{Transform raw classroom materials}: Convert audio recordings from lectures, photos of notes and exercises, and PDF documents into structured, searchable, and revisable learning material.
+  \item \textbf{Track and analyze mistakes}: Automatically recognize student errors (from handwritten or typed work), classify them by subject and knowledge point, and generate targeted practice problems.
+  \item \textbf{Visualize knowledge structure}: Create interactive mind maps that help students understand relationships between concepts and organize their learning.
+  \item \textbf{Monitor learning progress}: Provide analytics and insights for both students and parents to track study time, mastery of topics, and areas needing improvement.
+\end{itemize}
+
+\paragraph{Goal and Contribution}
+This project designs and implements an end-to-end web-based system that addresses these challenges through AI integration. The main contributions are:
+
+\begin{enumerate}
+  \item A modular architecture integrating multiple AI services (ASR, OCR, LLM) into a cohesive learning platform
+  \item Multi-account system supporting both student and parent roles with appropriate permission management
+  \item Automatic structured note generation combining transcript/OCR extraction with LLM-based summarization
+  \item Error tracking system with visual recognition, automatic classification, and similar problem generation
+  \item Interactive mind map generation and visualization supporting multiple graph layouts
+  \item Comprehensive learning analytics dashboard with progress tracking and AI-powered suggestions
+  \item Deployed working prototype with open-source implementation available on GitHub
+\end{enumerate}
+
+The system is implemented as a Flask backend with vanilla JavaScript frontend, deployed on Render cloud platform, and provides a practical demonstration of integrating modern AI capabilities into an educational tool.
+
+\section{Related Work}
+
+Our work integrates several research strands: \textbf{(1) Multimodal document understanding}: OCR and visual-language models (Qwen-VL \cite{qwen2024}) extract text and formulas from images, including handwritten content. \textbf{(2) Speech recognition}: Whisper \cite{radford2023whisper} and iFLYTEK ASR provide robust multilingual transcription. \textbf{(3) Large language models}: GPT-4, DeepSeek, and similar models \cite{brown2020gpt3,touvron2023llama} enable structured content generation and summarization. \textbf{(4) Retrieval-Augmented Generation} (RAG) \cite{lewis2020rag} grounds LLM outputs in source documents to reduce hallucinations. \textbf{(5) Intelligent tutoring} \cite{anderson1985intelligent} and \textbf{learning analytics} \cite{siemens2013learning} provide personalized learning and progress tracking. \textbf{(6) Mind mapping} \cite{buzan2006mind} improves learning through knowledge visualization. Our system uniquely combines these technologies in a lightweight, modular web platform with multi-account support and multiple AI service integrations.
+
+\section{System Design}
+
+We designed a modular web system with clear separation between backend AI services, data persistence, and frontend user interface. The implementation prioritizes simplicity and maintainability while integrating multiple AI capabilities.
+
+\subsection{Architecture Overview}
+
+Figure~\ref{fig:arch} shows the high-level system architecture. The system consists of:
+
+\begin{itemize}
+  \item \textbf{Frontend}: Vanilla JavaScript, HTML5, CSS3 with libraries for math rendering (MathJax) and graph visualization (Mermaid.js)
+  \item \textbf{Backend}: Flask 3.0.0 web framework with modular Blueprint-based organization
+  \item \textbf{AI Services}: Integration layer (\texttt{ai\_service.py}) connecting to external APIs (DeepSeek, Qwen-VL, iFLYTEK ASR, Whisper)
+  \item \textbf{Data Storage}: SQLite3 database with file storage for uploads
+  \item \textbf{Deployment}: Gunicorn WSGI server on Render cloud platform
+\end{itemize}
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}[node distance=1.8cm, every node/.style={font=\small}]
+    \node (user) [draw, rounded corners, minimum width=2.5cm] {User\\(Student/Parent)};
+    \node (frontend) [draw, right=of user, rounded corners, minimum width=2.5cm] {Frontend\\JS + Mermaid\\+ MathJax};
+    \node (backend) [draw, right=of frontend, rounded corners, minimum width=2.5cm] {Backend\\Flask};
+    \node (ai) [draw, below=of backend, rounded corners, minimum width=2.5cm] {AI Services\\ASR, OCR\\LLM, Embeddings};
+    \node (db) [draw, right=of backend, rounded corners, minimum width=2.5cm] {Storage\\SQLite\\+ uploads/};
+    
+    \draw[->] (user) -- (frontend);
+    \draw[->] (frontend) -- node[above]{\tiny HTTP/JSON} (backend);
+    \draw[->] (backend) -- node[right]{\tiny API calls} (ai);
+    \draw[->] (backend) -- (db);
+  \end{tikzpicture}
+  \caption{High-level system architecture showing the flow from user through frontend, backend, AI services, and data storage.}
+  \label{fig:arch}
+\end{figure}
+
+\subsection{Module Organization}
+
+The backend (\texttt{backend/modules/}) implements: \texttt{auth.py} (authentication, account switching), \texttt{note\_assistant\_db.py} (note generation/management), \texttt{error\_book.py} (problem OCR, classification, practice generation), \texttt{map\_generation.py} (mind map generation/export), \texttt{learning\_dashboard.py} (statistics, progress tracking), \texttt{settings.py} (user preferences), and \texttt{track.py} (study session tracking). Each module is a Flask Blueprint with RESTful JSON APIs.
+
+\subsection{Key Workflows}
+
+\textbf{Note Generation}: User uploads audio/image/PDF $\rightarrow$ ASR/OCR extracts text $\rightarrow$ LLM generates structured note (title, summary, key points, examples in Markdown with LaTeX) $\rightarrow$ saved to database $\rightarrow$ frontend renders with MathJax.
+
+\textbf{Error Book}: Upload problem photo + handwritten solution $\rightarrow$ Qwen-VL recognizes text + handwriting $\rightarrow$ LLM classifies by subject/knowledge point $\rightarrow$ stores error record $\rightarrow$ generates similar practice problems.
+
+\textbf{Mind Map}: Select note or input text $\rightarrow$ choose style (hierarchical/radial) $\rightarrow$ LLM generates Mermaid syntax $\rightarrow$ frontend renders $\rightarrow$ user edits code/whiteboard $\rightarrow$ export as PNG.
+
+\section{Methods (AI Components)}
+
+\subsection{Speech Recognition (ASR)}
+
+\textbf{iFLYTEK ASR}: Commercial Chinese ASR with auto language detection. Converts audio to PCM (16kHz), splits into 55s segments, sends via WebSocket, receives real-time transcription with timestamps.
+
+\textbf{Whisper}: Open-source multilingual ASR via OpenAI API. Supports various formats (MP3, WAV, M4A), provides timestamps and language detection, handles noisy audio robustly.
+
+Implementation in \texttt{note\_assistant\_db.py} includes audio preprocessing (denoising, format conversion) before ASR.
+
+\subsection{OCR and Vision-Language Models}
+
+\textbf{Qwen-VL} (Alibaba DashScope) provides: general OCR, handwriting recognition, math formula detection with LaTeX conversion, and multi-image understanding. Implementation uses MultiModalConversation API. For error book, OpenCV preprocesses images (thresholding, contour detection, cropping) before sending to Qwen-VL with task-specific prompts. System parses structured JSON responses.
+
+\subsection{Large Language Model}
+
+\textbf{DeepSeek LLM} (OpenAI-compatible API) serves three main tasks:
+
+\textit{Note Generation}: Prompt converts transcripts/OCR to structured notes (title, 2-4 sentence summary, 5-7 key points, worked examples) in Markdown with LaTeX math (temperature 0.5-0.7).
+
+\textit{Problem Classification}: Analyzes problems and outputs JSON with subject, knowledge points, difficulty, and type.
+
+\textit{Similar Problem Generation}: Given a problem, generates 3-5 variations with same concept but different numbers/context and progressive difficulty (temperature 0.8-1.0).
+
+\subsection{Mind Map Generation}
+
+\texttt{generate\_mindmap\_mermaid} in \texttt{ai\_service.py} converts text to Mermaid syntax for three styles: radial (native mindmap), hierarchical top-down (TD graph), and hierarchical left-right (LR graph). Prompt engineering ensures valid syntax: strict indentation (2 spaces/level for mindmap), proper node IDs, avoiding special characters in labels, and balanced tree structure. Client-side rendering with Mermaid.js enables interactive visualization.
+
+\subsection{Future: Embeddings and RAG}
+
+Architecture supports future RAG enhancement: embed document chunks (OpenAI text-embedding-3), store in vector database (FAISS/Milvus), retrieve top-k chunks by cosine similarity at query time, and inject context into LLM prompts to reduce hallucinations.
+
+\section{Implementation Details}
+
+\textbf{Database}: SQLite stores users (email, password, role, parent\_id), notes (title, content, subject, source), error\_book (problem, answer, classification), practice\_problems, mindmaps, study\_sessions, and learning\_goals. Operations centralized in \texttt{db\_sqlite.py}.
+
+\textbf{API}: RESTful JSON endpoints via Flask Blueprints. Auth: \texttt{/api/auth/*} (register, login, switch account, session). Notes: \texttt{/api/note/*} (generate, list, get, update, delete). Error Book: \texttt{/api/error/*} (upload, list, generate-similar, practice). Mind Maps: \texttt{/api/mindmap/*} (generate, list, update, export). Dashboard: \texttt{/api/dashboard/*} (stats, chart-data, parent-report).
+
+\textbf{Frontend}: Vanilla JS with modular design (main.js, config.js, page-specific JS). Static files served by Flask. Libraries: Font Awesome 6 (icons), MathJax 3 (LaTeX), Mermaid.js 10 (mind maps). Session-based auth via \texttt{fetch}.
+
+\section{Experiments \& Case Studies}
+
+The system is deployed at \url{https://ai-study-assistant-2ozw.onrender.com}. We present qualitative case studies and performance measurements.
+
+\subsection{Case Study 1: Note Generation}
+
+\textbf{Input}: 2-min audio lecture on quadratic equations + textbook photo with formula $x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$.
+
+\textbf{Process}: ASR (3s) $\rightarrow$ OCR (2s) $\rightarrow$ LLM (3s) generates title, summary, 6 key points, worked example.
+
+\textbf{Result}: Accurate note with correct LaTeX formulas, minor formatting edits needed. Total: ~8s.
+
+\subsection{Case Study 2: Error Book}
+
+\textbf{Input}: Photo with printed problem "Solve 2x + 5 = 13" + handwritten work with error.
+
+\textbf{Process}: OpenCV preprocessing $\rightarrow$ Qwen-VL recognizes text + handwriting $\rightarrow$ LLM identifies mistake and classifies (Math, Linear Equations, Easy) $\rightarrow$ generates 3 similar problems.
+
+\textbf{Result}: Good accuracy on neat handwriting, appropriate similar problems. Total: ~12s.
+
+\subsection{Case Study 3: Mind Map}
+
+\textbf{Input}: Note on "Photosynthesis" with definition, light/dark reactions, molecules, factors.
+
+\textbf{Process}: Select radial style $\rightarrow$ LLM generates Mermaid mindmap with 4 branches (Light Reactions, Dark Reactions, Requirements, Factors), 2-3 sub-items each.
+
+\textbf{Result}: Valid syntax, accurate structure, user edited and exported PNG. Occasional syntax errors require regeneration. Total: ~4s.
+
+\subsection{Performance}
+
+Table~\ref{tab:perf} shows representative latencies (not rigorous benchmarks):
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrl}
+\toprule
+\textbf{Operation} & \textbf{Latency (s)} & \textbf{Notes} \\
+\midrule
+ASR (1-min audio) & 6--25 & iFLYTEK faster, Whisper more accurate \\
+OCR (single image) & 0.5--4 & Handwriting slower \\
+LLM note generation & 1--6 & Depends on length, RAG \\
+Mind map generation & 2--8 & Complex structures longer \\
+End-to-end note & 3--30 & Network + model dependent \\
+\bottomrule
+\end{tabular}
+\caption{Representative latencies from prototype deployment.}
+\label{tab:perf}
+\end{table}
+
+\textbf{User Feedback} (5 students): Positive—fast generation, helpful structure, good math rendering. Issues—OCR errors on messy handwriting, occasional LLM hallucinations, mind map syntax errors. Suggestions—manual correction tools, better handwriting support, more languages.
+
+\section{Limitations \& Future Work}
+
+\subsection{Current Limitations}
+
+\textbf{OCR/Handwriting}: Biggest challenge—struggles with poor lighting, blurry photos, cursive handwriting, complex math notation, and mixed languages. Primary error source.
+
+\textbf{LLM}: Occasional hallucinations (adding non-source info, factual errors in examples, misinterpreting ambiguous transcripts, invalid Mermaid syntax). Lightweight RAG doesn't fully ground outputs.
+
+\textbf{Scalability}: API costs and rate limits; SQLite unsuitable for production; no vector database; single-server deployment has latency/concurrency limits.
+
+\textbf{Evaluation}: No quantitative benchmarks, large-scale user study, A/B testing, or diverse subject/population testing.
+
+\textbf{Features}: Incomplete RAG (no vector DB), AI chat placeholder, partial notifications, web-only (no mobile app), limited exports.
+
+\subsection{Future Work}
+
+\textbf{Recognition}: Fine-tune VLM, add image enhancement preprocessing, confidence scoring + manual review, diagram recognition.
+
+\textbf{RAG \& Verification}: Vector database (FAISS/Milvus), chunk-based indexing, provenance tracking, symbolic math verification (SymPy), fact-checking layer.
+
+\textbf{Scale}: PostgreSQL, Redis caching, Celery job queue, Kubernetes deployment, batch processing, local inference.
+
+\textbf{UX}: Real-time collaboration, mobile app, offline mode, rich text editor, more exports (PDF/Word/Markdown), themes, accessibility.
+
+\textbf{Education}: Spaced repetition, adaptive difficulty, gamification, peer learning, teacher dashboard, LMS integration.
+
+\textbf{Research}: Controlled user study (pre/post learning outcomes), model benchmarking, public dataset (with consent), long-term retention study.
+
+\textbf{Privacy}: End-to-end encryption, on-device inference, regulatory compliance (COPPA/FERPA/GDPR), permissions, audit logging.
+
+\section{Conclusion}
+
+We presented AI Study Assistant, an integrated learning platform for secondary students that combines speech recognition, OCR, LLMs, and graph generation into a practical educational tool. Key achievements: end-to-end workflow from raw artifacts to structured materials, multi-account student-parent system, automatic note generation with LaTeX, error tracking with handwriting recognition, interactive mind maps, and analytics dashboard. The deployed prototype demonstrates value in real scenarios, though limitations remain in OCR accuracy, LLM reliability, and scalability. The modular architecture provides a foundation for future enhancements. This open-source project serves as both a practical tool and research platform for investigating AI in education.
+
+\section*{Broader Impacts and Ethics}
+
+\textbf{Privacy}: System processes sensitive student data (materials, handwriting, voice, performance). Production deployment requires strong access controls, encryption, opt-in consent, regulatory compliance (COPPA, FERPA, GDPR), clear retention policies, and transparency about data use.
+
+\textbf{Equity}: AI tools risk exacerbating inequalities—students without devices/internet cannot access system; API costs limit availability in low-income schools; current focus on Chinese/English excludes other languages; OCR issues affect students with less neat handwriting. Future work should address through offline modes, low-resource language support, and partnerships for equitable access.
+
+\textbf{Learning Impact}: Over-reliance on AI-generated content could harm learning—skipping active note-taking reduces retention; auto-generated practice may miss individual gaps; AI errors mislead students. System should augment, not replace, traditional learning and teacher guidance.
+
+\textbf{Environment}: Large-scale AI inference has carbon footprint. Future work should investigate efficient models and local inference.
+
+\section*{AI Tools Statement}
+
+\textbf{AI in System}: The AI Study Assistant integrates: \textit{ASR} (iFLYTEK ASR, OpenAI Whisper for transcription), \textit{Vision/OCR} (Alibaba Qwen-VL via DashScope for text extraction and handwriting recognition), \textit{LLM} (DeepSeek via OpenAI-compatible API for note generation, problem classification, similar problem generation, mind map generation), and \textit{Embeddings} (architecture support for future RAG). Details in Section 4 and open-source repository at \url{https://github.com/kellyfeng0807/ai-study-assistant}.
+
+\textbf{AI in Report Writing}: Authors used AI assistance (GPT-4/GPT-5 via ChatGPT) for: content organization (structuring to NeurIPS format), technical writing (converting README/code comments to academic prose), LaTeX formatting (syntax, tables, bibliography, style compliance), language refinement (clarity, conciseness, academic tone), and citation generation. All factual content based on actual codebase. Authors reviewed and verified all AI-generated content. Any errors remain authors' responsibility.
+
+\section*{Acknowledgments}
+
+We thank users who tested the prototype and provided feedback. This course project benefited from educational resources and computational support from our institution.
+
+\bibliographystyle{unsrt}
+\begin{thebibliography}{9}
+
+\bibitem{qwen2024}
+Bai, J., et al. (2024).
+Qwen-VL: A Versatile Vision-Language Model for Understanding, Localization, Text Reading, and Beyond.
+arXiv preprint arXiv:2308.12966.
+
+\bibitem{radford2023whisper}
+Radford, A., Kim, J. W., Xu, T., Brockman, G., McLeavey, C., \& Sutskever, I. (2023).
+Robust Speech Recognition via Large-Scale Weak Supervision.
+In \emph{Proceedings of ICML 2023}.
+
+\bibitem{brown2020gpt3}
+Brown, T. B., et al. (2020).
+Language Models are Few-Shot Learners.
+In \emph{Advances in Neural Information Processing Systems 33 (NeurIPS 2020)}.
+
+\bibitem{touvron2023llama}
+Touvron, H., et al. (2023).
+LLaMA: Open and Efficient Foundation Language Models.
+arXiv preprint arXiv:2302.13971.
+
+\bibitem{lewis2020rag}
+Lewis, P., Perez, E., Piktus, A., et al. (2020).
+Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks.
+In \emph{Advances in Neural Information Processing Systems 33 (NeurIPS 2020)}.
+
+\bibitem{anderson1985intelligent}
+Anderson, J. R., Boyle, C. F., \& Reiser, B. J. (1985).
+Intelligent Tutoring Systems.
+\emph{Science}, 228(4698), 456--462.
+
+\bibitem{siemens2013learning}
+Siemens, G., \& Long, P. (2013).
+Penetrating the Fog: Analytics in Learning and Education.
+\emph{EDUCAUSE Review}, 46(5), 30--40.
+
+\bibitem{buzan2006mind}
+Buzan, T., \& Buzan, B. (2006).
+\emph{The Mind Map Book}.
+BBC Active.
+
+\bibitem{ai-study-assistant-repo}
+Feng, K., Ren, H., \& Deng, J. (2025).
+AI Study Assistant: An AI-powered Learning Companion for Secondary Students.
+GitHub repository: \url{https://github.com/kellyfeng0807/ai-study-assistant}.
+
+\end{thebibliography}
+
+\end{document}
